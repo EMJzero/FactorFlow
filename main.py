@@ -8,6 +8,18 @@ from levels import *
 from prints import *
 from utils import *
 
+# SETTINGS:
+
+# If False, FF only searches for better solutions at a one-factor distance from the current one,
+# if True, FF searches for solutions at a distance of multiple factors, all be it only arity is
+# varied, with the tried factor being just one.
+ITERATE_AMOUNTS = False
+# If True, factors allocated on fanout levels will not be optimized (as if they were constraints),
+# and this is done after factor allocation in the fanouts is maximized.
+FREEZE_SA = True
+# If True also logs the factors immediately after the maximization of fanouts.
+LOG_SA_MAXIMIZATION = False
+
 
 # updates the MOPs and Latency data of each level w.r.t. the current mapping
 def updateStats(arch, bias_read):
@@ -144,8 +156,10 @@ def Wart(arch, comp, bias_read):
     WMOPs, max_latency = updateStats(arch, bias_read)
     return FLOPs/(WMOPs*max_latency)
 
-def factorsIterator(arch, iterate_amounts = False):
+def factorsIterator(arch, iterate_amounts = False, skip_fanouts = False):
     for level_idx in range(len(arch)):
+        if skip_fanouts and (isinstance(arch[level_idx], FanoutLevel1D) or isinstance(arch[level_idx], FanoutLevel2D)):
+            continue
         for dim in arch[level_idx].dataflow:
             for factor in list(arch[level_idx].factors[dim].keys()):
                 if iterate_amounts:
@@ -180,7 +194,7 @@ def factorFlow(arch, comp, bias_read):
 
     print(f"Initial condition (Wart: {Wart(arch, comp, bias_read):.3e}):")
     printFactors(arch)
-    print("\nStarting FactorFlow MSE:\n")
+    if LOG_SA_MAXIMIZATION: print("\nStarting fanout maximization:\n")
 
     already_seen = []
 
@@ -189,9 +203,29 @@ def factorFlow(arch, comp, bias_read):
     # TECHNIQUE: find the prime factors of the mesh, and pick the largest common ones with the dimension
     # mapped along that mesh, continue picking from the largest ones in common until you run out!
 
+    # maximize fanout dimensions
+    for i in range(1, len(arch) - 1):
+        level = arch[i]
+        if isinstance(level, FanoutLevel1D):
+            common_mesh_factors = [f for f in primeFactors(level.mesh).keys() if f in arch[0].factors[level.dim]]
+            for f in sorted(common_mesh_factors, reverse=True): # try largest factors first
+                amount = arch[0].factors[level.dim][f]
+                while amount > 0:
+                    # lower the amount until you succeed
+                    if moveFactor(arch, 0, i, level.dim, f, amount):
+                        break
+                    amount -= 1
+        elif isinstance(level, FanoutLevel2D):
+            assert False # FanoutLevel2D not yet supported, use pairs of FanoutLevel1D instead!
+    updateInstances(arch)
+
+    if LOG_SA_MAXIMIZATION: print(f"After fanout maximization (Wart: {Wart(arch, comp, bias_read):.3e}):")
+    if LOG_SA_MAXIMIZATION: printFactors(arch)
+    print("\nStarting FactorFlow MSE:\n")
+
     while True:
         choices = {}
-        for src_level_idx, dim, factor, amount in factorsIterator(arch, iterate_amounts = False):
+        for src_level_idx, dim, factor, amount in factorsIterator(arch, iterate_amounts = ITERATE_AMOUNTS, skip_fanouts= FREEZE_SA):
             #print("Initial proposal: ", src_level_idx, dim, factor)
             # make this -2, -3, etc. if the next layer is bound by a constraint
             #init_dst_level_idx = src_level_idx + 1
@@ -217,9 +251,7 @@ def factorFlow(arch, comp, bias_read):
             for dst_level_idx in range(len(arch)):
                 if dim not in arch[dst_level_idx].factors_contraints and dim in arch[dst_level_idx].dataflow:
                     #print(src_level_idx, dst_level_idx, dim, factor)
-                    if dst_level_idx == 2: print("GOING FOR SA:", src_level_idx, dst_level_idx, dim, factor)
                     if moveFactor(arch, src_level_idx, dst_level_idx, dim, factor, amount):
-                        if dst_level_idx == 2: print("WENT FOR SA:", src_level_idx, dst_level_idx, dim, factor)
                         hsh = hashFromFactors(arch)
                         if hsh not in already_seen:
                             already_seen.append(hsh)

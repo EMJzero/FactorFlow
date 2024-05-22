@@ -25,17 +25,23 @@ def prettyPrint(obj):
             for key, value in obj.items():
                 print(f"{' ' * (indent + 4)}{key}: ")
                 pp(value, indent + 4)
+            if len(obj) == 0:
+                print(f"{' ' * (indent + 4)}<empty>")
             return
         if isinstance(obj, collections.abc.Iterable) and not isinstance(obj, str):
-            print(f"{' ' * indent * keep_first_indend}Iterable: ")
+            if len(obj) == 0:
+                print("[]")
+                return
+            print(f"{' ' * indent * keep_first_indend}[")
             for i, item in enumerate(obj):
                 print(f"{' ' * (indent + 4)}Item {i}: ")
                 pp(item, indent + 8)
+            print(f"{' ' * indent}]")
             return
         if hasattr(obj, "__dict__"):
             name = obj.name if hasattr(obj, "name") else id(obj)
             if id(obj) in seen:
-                print(f"{' ' * indent * keep_first_indend}Reference to {obj.__class__.__name__}({name}) already printed")
+                print(f"{' ' * indent * keep_first_indend}- Reference to {obj.__class__.__name__}({name}) already printed")
                 return
             seen.add(id(obj))
             print(f"{' ' * indent * keep_first_indend}{obj.__class__.__name__}({name}): ")
@@ -43,8 +49,8 @@ def prettyPrint(obj):
                 if attr.startswith('_'):
                     continue
                 if hasattr(value, "__dict__"):
-                    print(f"{' ' * (indent + 4)}{attr}: ", end='')
-                    pp(value, indent + 4, False)
+                    print(f"{' ' * (indent + 4)}{attr}: ")
+                    pp(value, indent + 4)
                 elif isinstance(value, dict):
                     print(f"{' ' * (indent + 4)}{attr}: ")
                     pp(value, indent + 4)
@@ -211,7 +217,7 @@ def printLatencyNew(arch):
     max_latency, max_latency_level_name = 0, "<<Unavailable>>"
     for level in arch:
         if isinstance(level, MemLevel):
-            if max_latency < level.getSettedLatency():
+            if max_latency <= level.getSettedLatency():
                 max_latency = level.getSettedLatency()
                 max_latency_level_name = level.name
             print(f"{level.name}:{chr(9) * (2 - (len(level.name) + 1)//8)}{level.latency_read_drain:.0f}cc RD and {level.latency_fill_update:.0f}cc FU Latency, {level.read_bandwidth:.1f} R and {level.write_bandwidth:.1f} W Bandwidth,\n\t\t{level.ideal_bandwidth_read:.3f} R and {level.ideal_bandwidth_update:.3f} U and {level.ideal_bandwidth_fill:.3f} F and {level.ideal_bandwidth_drain:.3f} D Ideal Bandwidth,\n\t\t{level.cc_per_tile:.0f}cc per Tile, {level.stall_cycles:.0f} Stall Cycles")

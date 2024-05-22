@@ -288,14 +288,14 @@ arch_eyeriss = [
         dim = 'D',
         mesh = 14,
         pe_to_pe = False,
-        factors_contraints = {'D': 8}
+        factors_contraints = {} #{'D': 8}
     ),
     FanoutLevel1D(
         name = "SARows",
         dim = 'D', # one of D or E
         mesh = 12,
         pe_to_pe = False,
-        factors_contraints = {'D': 12}
+        factors_contraints = {} #{'D': 12}
     ),
     MemLevel(
         name = "InRegister",
@@ -311,7 +311,7 @@ arch_eyeriss = [
         dataflow = WS,
         size = 192*2, # number of entries
         access_energy = 0.01, # per operand (pJ)
-        bandwidth = 2, # operands per cycle (shared)
+        bandwidth = 4, # operands per cycle (shared)
         factors_contraints = {'D': 1, 'L': 1},
         bypasses = ['in', 'out']
     ),
@@ -320,7 +320,7 @@ arch_eyeriss = [
         dataflow = WS,
         size = 16*2, # number of entries
         access_energy = 0.01, # per operand (pJ)
-        bandwidth = 2, # operands per cycle (shared)
+        bandwidth = 4, # operands per cycle (shared)
         factors_contraints = {'E': 1, 'L': 1},
         bypasses = ['in', 'w']
     ),

@@ -13,6 +13,10 @@ def findConstraintsViolation(arch):
                 violation = True
     return violation
 
+"""
+Computes the prime factors of 'n' and returns them as a dictionary where
+keys are n's prime factors, and values are their arities (occurrencies).
+"""
 def primeFactors(n):
     i = 2
     factors = {}
@@ -45,7 +49,7 @@ def moveFactor(arch, src_level_idx, dst_level_idx, dimension, factor, amount = 1
         for i in range(dst_level_idx, src_level_idx):
             arch[i].tile_sizes[dimension] /= factor_to_amount
     # check dst and all in between constraints
-    constraints_check = [level.checkConstraints() for level in arch[src_level_idx:dst_level_idx+1]]
+    constraints_check = [level.checkConstraints() for level in (arch[src_level_idx:dst_level_idx+1] if src_level_idx < dst_level_idx else arch[dst_level_idx:src_level_idx+1])]
     if not all(constraints_check) and not skip_dst_constraints:
         arch[src_level_idx].addFactor(dimension, factor, amount)
         assert arch[dst_level_idx].removeFactor(dimension, factor, amount) # something is broken, cannot undo the move

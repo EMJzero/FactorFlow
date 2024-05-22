@@ -38,7 +38,7 @@ class Level:
     have at least "amount" instances of "factor" along "dimension".
     """
     def removeFactor(self, dimension, factor, amount = 1):
-        if self.factors[dimension][factor] < amount:
+        if factor not in self.factors[dimension] or self.factors[dimension][factor] < amount:
             return False
         self.factors[dimension][factor] -= amount
         if self.factors[dimension][factor] == 0:
@@ -460,6 +460,7 @@ to a sequence of two "FanoutLevel1D", the first of dim = dimX, the second dim = 
 """
 class FanoutLevel2D(Level):
     def __init__(self, name, dimX, dimY, meshX, meshY, pe_to_peX = None, pe_to_peY = None, spatial_multicast_support = True, spatial_reduction_support = True, constraints = None, factors = None, tile_sizes = None, factors_contraints = None):
+        assert False # not yet supported - use FanoutLevel1D for now
         self.name = name
         assert dimX != dimY # cannot fanout in 2D on the same dimension twice, use a sequence of two FanoutLevel1D
         self.dataflow = [dimX, dimY]
