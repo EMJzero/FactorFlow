@@ -104,11 +104,12 @@ def setupBypasses(arch):
                 last_before_bypass = i
                 i += 1
 
-def setupInstances(arch):
+def updateInstances(arch):
     spatial_fanout = 1
     for i in range(len(arch)):
         level = arch[i]
         if isinstance(level, FanoutLevel1D) or isinstance(level, FanoutLevel2D):
+            # consider only factors -> only actually used instances
             spatial_fanout *= level.factors.fullProduct()
         elif isinstance(level, MemLevel):
             level.instances = spatial_fanout

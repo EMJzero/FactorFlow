@@ -27,20 +27,20 @@ def updateStats(arch, bias_read):
             if not bias_read and out_reads_factors != 0:
                 out_reads = (out_reads*(out_reads_factors - 1))//out_reads_factors
             if 'in' not in level.bypasses:
-                in_writes = last_in_reads #reads above are written here
+                in_writes = last_in_reads # reads above are written here
                 last_in_reads = in_reads
             else:
                 in_writes = 0
             if 'w' not in level.bypasses:
-                w_writes = last_w_reads #reads above are written here
+                w_writes = last_w_reads # reads above are written here
                 last_w_reads = w_reads
             else:
                 w_writes = 0
             if 'out' not in level.bypasses:
                 level.setAboveMOPs(last_out_reads, last_out_writes)
-                out_writes += last_out_reads #reads above are written here
+                out_writes += last_out_reads # reads above are written here
                 last_out_reads = out_reads
-                out_reads += last_out_writes #writes above where read here
+                out_reads += last_out_writes # writes above where read here
                 last_out_writes = out_writes
             else:
                 level.setAboveMOPs(0, 0)
@@ -51,9 +51,31 @@ def updateStats(arch, bias_read):
             temporal_iterations *= level.factors.fullProduct()
             acc_out_reads_factors *= level.factors.dimProduct('E')
         elif isinstance(level, FanoutLevel1D) or isinstance(level, FanoutLevel2D):
-            # We are interested in all instances at once, essentially, so it is fine!
-            # IMPORTANT: we can never have spatial multicast!
-            spatial_iterations *= level.factors.fullProduct()
+            iterations = level.factors.fullProduct()
+            spatial_iterations *= iterations
+            # spatial multicast of an operand occurs if the fanout is along a dimension not relative
+            # to such operand hence, the operand is read once, but written once per instance
+            for dim in level.dataflow:
+                if dim == 'D':
+                    if not level.spatial_multicast_support: # we don't have spatial multicast capabilities, increment retroactively the reads on the above level
+                        if i > 0:
+                            arch[i-1].in_reads *= iterations
+                    last_in_reads *= iterations
+                if dim == 'E':
+                    if not level.spatial_multicast_support: # we don't have spatial multicast capabilities, increment retroactively the reads on the above level
+                        if i > 0: # no need to account for bias_read here, as the first read is skipped by all instances of the fanout
+                            arch[i-1].out_reads = (arch[i-1].out_reads - arch[i-1].last_out_writes)*iterations + arch[i-1].last_out_writes
+                    last_out_reads *= iterations
+                    if not level.spatial_reduction_support: # we don't have spatial reduction capabilities, increment retroactively the writes on the above level
+                        if i > 0:
+                            arch[i-1].out_writes = (arch[i-1].out_writes - arch[i-1].last_out_reads)*iterations + arch[i-1].last_out_reads
+                        pass
+                    last_out_writes *= iterations
+                if dim == 'L':
+                    if not level.spatial_multicast_support: # we don't have spatial multicast capabilities, increment retroactively the reads on the above level
+                        if i > 0:
+                            arch[i-1].w_reads *= iterations
+                    last_w_reads *= iterations
         elif isinstance(level, ComputeLevel):
             # TODO: remove cost of first output accumulate if bias_read is False!
             WMOPs += level.computeCost(temporal_iterations*spatial_iterations)
@@ -151,7 +173,7 @@ def factorFlow(arch, comp, bias_read):
         print(f"Constraints violation on level \"{arch[constraints_check.index(False)].name}\"")
         assert False # ill-posed constraints (usually due to a dimension missmatch)
     setupBypasses(arch)
-    setupInstances(arch)
+    updateInstances(arch)
     assert isinstance(arch[-1], ComputeLevel) # the last/innermost level must be compute
     assert not any(map(lambda l : isinstance(l, ComputeLevel), arch[:-1])) # no other compute levels admitted beside the last/innermost one
     assert any(map(lambda l : isinstance(l, MemLevel), arch[:-1])) # at least one memory level must be present
@@ -161,6 +183,11 @@ def factorFlow(arch, comp, bias_read):
     print("\nStarting FactorFlow MSE:\n")
 
     already_seen = []
+
+    # TODO: behaviour is suboptimal when SAs are not fixed, so, before going forward, maximize here SA usage,
+    # doing so in the limit imposed by the factors you have...
+    # TECHNIQUE: find the prime factors of the mesh, and pick the largest common ones with the dimension
+    # mapped along that mesh, continue picking from the largest ones in common until you run out!
 
     while True:
         choices = {}
@@ -190,7 +217,9 @@ def factorFlow(arch, comp, bias_read):
             for dst_level_idx in range(len(arch)):
                 if dim not in arch[dst_level_idx].factors_contraints and dim in arch[dst_level_idx].dataflow:
                     #print(src_level_idx, dst_level_idx, dim, factor)
+                    if dst_level_idx == 2: print("GOING FOR SA:", src_level_idx, dst_level_idx, dim, factor)
                     if moveFactor(arch, src_level_idx, dst_level_idx, dim, factor, amount):
+                        if dst_level_idx == 2: print("WENT FOR SA:", src_level_idx, dst_level_idx, dim, factor)
                         hsh = hashFromFactors(arch)
                         if hsh not in already_seen:
                             already_seen.append(hsh)
@@ -209,6 +238,7 @@ def factorFlow(arch, comp, bias_read):
         else:
             assert moveFactor(arch, best_choice[0], best_choice[1], best_choice[2], best_choice[3], best_choice[4]) # best choice is an invalid mapping
 
+    updateInstances(arch)
     print("Final condition:")
     printFactors(arch)
     return arch
@@ -222,7 +252,7 @@ comp = Shape(
     )
 bias_read = False # True if bias is not 0 - outputs are read even the first time
 
-arch = arch_gemmini
+arch = arch_eyeriss
 
 ## MAIN:
 

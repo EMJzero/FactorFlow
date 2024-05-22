@@ -303,8 +303,8 @@ class MemLevel(Level):
                 if layers != None:
                     in_between, layer = layers[:-1], layers[-1]
                     in_reads_bp, w_reads_bp, out_reads_bp, out_writes_bp, out_reads_bp_factors = layer.MOPs(operand == 'in', operand == 'w', operand == 'out', self.update_cost, True)
-                    # the inner-most dataflow, built by piling one against the other all non-1 loops, and then looking at which is the innermost dimension, is the one that matters!
-                    # TL;DR: consider the dataflow only among the three innermost loops, unless they are all 1s!
+                    # bulid the inner-most dataflow, by piling one against the other all non-1 loops, then look at which is the innermost dimension, that is the one that matters!
+                    # TL;DR: consider the dataflow only w.r.t. the innermost loop, ignoring those with 1 iteration!
                     dataflow_bp = layer.actualDataflow()
                     if dataflow_bp == None:
                         stationarity_to_address = True
@@ -324,14 +324,14 @@ class MemLevel(Level):
                                 if dataflow_bp == "WS":
                                     in_reads_bp = in_reads_bp*in_btwn.factors.dimProduct('D')
                                     out_reads_bp = out_reads_bp*in_btwn.factors.dimProduct('E')
-                                    out_reads_bp_factors *= in_btwn.factors.dimProduct('E') if out_reads_bp_factors == 1 else 1
+                                    out_reads_bp_factors *= in_btwn.factors.dimProduct('E')
                                     out_writes_bp = out_writes_bp*in_btwn.factors.dimProduct('E')
                                 elif dataflow_bp == "OS":
                                     in_reads_bp = in_reads_bp*in_btwn.factors.dimProduct('D')
                                     w_reads_bp = w_reads_bp*in_btwn.factors.dimProduct('L')
                                 elif dataflow_bp == "IS":
                                     out_reads_bp = out_reads_bp*in_btwn.factors.dimProduct('E')
-                                    out_reads_bp_factors *= in_btwn.factors.dimProduct('E') if out_reads_bp_factors == 1 else 1
+                                    out_reads_bp_factors *= in_btwn.factors.dimProduct('E')
                                     w_reads_bp = w_reads_bp*in_btwn.factors.dimProduct('L')
                                     out_writes_bp = out_writes_bp*in_btwn.factors.dimProduct('E')
                             else:
@@ -340,7 +340,7 @@ class MemLevel(Level):
                                 in_reads_bp = in_btwn.factors.fullProduct()*in_reads_bp
                                 out_reads_bp = in_btwn.factors.fullProduct()*out_reads_bp
                                 out_writes_bp = in_btwn.factors.fullProduct()*out_writes_bp
-                                out_reads_bp_factors *= in_btwn.factors.dimProduct('E') if out_reads_bp_factors == 1 else 1
+                                out_reads_bp_factors *= in_btwn.factors.dimProduct('E')
                         else:
                             in_reads_bp, w_reads_bp, out_reads_bp, out_writes_bp = in_btwn.mulByDim(in_reads_bp, w_reads_bp, out_reads_bp, out_writes_bp)
                             # do not update out_reads_bp_factors here, because in it go only iterations of which the first one is skipped,
@@ -378,7 +378,8 @@ class MemLevel(Level):
                     w_reads += w_reads_bp
                     out_reads += out_reads_bp
                     out_writes += out_writes_bp
-                    out_reads_factors = out_reads_bp_factors
+                    if operand == 'out':
+                        out_reads_factors = out_reads_bp_factors
         #print("AFTER BYPASS:\n", f"{self.name}:{chr(9) * (2 - len(self.name)//8)}{in_reads} In_R, {w_reads} W_R, {out_reads} Our_R, {in_reads + w_reads + out_reads} Tot_R, {out_writes} Out_W, {out_reads_factors} Out_R_Fac\n")
         return in_reads, w_reads, out_reads, out_writes, out_reads_factors                                                   #S;G
 
@@ -397,12 +398,14 @@ class MemLevel(Level):
         return self.factors.mem_footprint(self.tile_sizes, not self.bypasses or 'in' not in self.bypasses, not self.bypasses or 'w' not in self.bypasses, not self.bypasses or 'out' not in self.bypasses) <= self.size/self.multiple_buffering and super().checkConstraints()
 
 class FanoutLevel1D(Level):
-    def __init__(self, name, dim, mesh, pe_to_pe = None, constraints = None, factors = None, tile_sizes = None, factors_contraints = None):
+    def __init__(self, name, dim, mesh, pe_to_pe = None, spatial_multicast_support = True, spatial_reduction_support = True, constraints = None, factors = None, tile_sizes = None, factors_contraints = None):
         self.name = name
         self.dataflow = [dim]
         self.dim = dim
         self.mesh = mesh
         self.pe_to_pe = pe_to_pe if pe_to_pe != None else False # True in all cases where the operand independent (ex: if dim = D, the operand is the input) of "dim" is forwarded pe->pe rather than read multiple times
+        self.spatial_multicast_support = spatial_multicast_support
+        self.spatial_reduction_support = spatial_reduction_support
         self.constraints = constraints if constraints else {}
         self.factors = factors if factors else Factors()
         self.tile_sizes = tile_sizes if tile_sizes else Shape(1, 1, 1)
@@ -450,10 +453,15 @@ class FanoutLevel1D(Level):
 
     def checkConstraints(self):
         return self.factors.dimProduct(self.dim) <= self.mesh and super().checkConstraints()
-
+"""
+ASSUMPTION: fanouts are performed in the order 1->X->XY, as such this is equivalent
+to a sequence of two "FanoutLevel1D", the first of dim = dimX, the second dim = dimY.
+(This is implemented with the dataflow having dimX before dimY)
+"""
 class FanoutLevel2D(Level):
-    def __init__(self, name, dimX, dimY, meshX, meshY, pe_to_peX = None, pe_to_peY = None, constraints = None, factors = None, tile_sizes = None, factors_contraints = None):
+    def __init__(self, name, dimX, dimY, meshX, meshY, pe_to_peX = None, pe_to_peY = None, spatial_multicast_support = True, spatial_reduction_support = True, constraints = None, factors = None, tile_sizes = None, factors_contraints = None):
         self.name = name
+        assert dimX != dimY # cannot fanout in 2D on the same dimension twice, use a sequence of two FanoutLevel1D
         self.dataflow = [dimX, dimY]
         self.dimX = dimX
         self.dimY = dimY
@@ -461,6 +469,8 @@ class FanoutLevel2D(Level):
         self.meshY = meshY
         self.pe_to_peX = pe_to_peX if pe_to_peX != None else False # True in all cases where the operand independent (ex: if dimX = D, the operand is the input) of "dimX" is forwarded pe->pe rather than read multiple times
         self.pe_to_peY = pe_to_peY if pe_to_peY != None else False # True in all cases where the operand independent (ex: if dimY = D, the operand is the input) of "dimY" is forwarded pe->pe rather than read multiple times
+        self.spatial_multicast_support = spatial_multicast_support
+        self.spatial_reduction_support = spatial_reduction_support
         self.constraints = constraints if constraints else {}
         self.factors = factors if factors else Factors()
         self.tile_sizes = tile_sizes if tile_sizes else Shape(1, 1, 1)

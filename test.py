@@ -8,7 +8,7 @@ def runTest(arch, correct_data, comp, bias_read):
     initFactors(arch, comp)
     enforceFactorsConstraints(arch)
     setupBypasses(arch)
-    setupInstances(arch)
+    updateInstances(arch)
     updateStats(arch, bias_read)
     mem = list(filter(lambda l : isinstance(l, MemLevel), arch))
     passed = True
@@ -57,7 +57,7 @@ def generateTestLatency(arch):
     string = string[:-1] + "]\n"
     print(string)
 
-correct_mops_timeloop = [{
+correct_mops_gemmini_timeloop = [{
         "in_reads": 4194304,
         "w_reads": 50331648,
         "out_reads": 25165824,
@@ -95,7 +95,7 @@ correct_mops_timeloop = [{
         "last_out_writes": 0
     }]
 
-correct_latency_timeloop = [{
+correct_latency_gemmini_timeloop = [{
         "latency_read_drain": 53477376.0,
         "latency_fill_update": 53477376.0,
         "cc_per_tile": 26112.0,
@@ -133,7 +133,7 @@ correct_latency_timeloop = [{
         "ideal_bandwidth_drain": 0.0
     }]
 
-correct_mops_factorflow_1 = [{
+correct_mops_gemmini_factorflow_1 = [{
         "in_reads": 4194304,
         "w_reads": 25165824,
         "out_reads": 25165824,
@@ -171,7 +171,7 @@ correct_mops_factorflow_1 = [{
         "last_out_writes": 0
     }]
 
-correct_latency_factorflow_1 = [{
+correct_latency_gemmini_factorflow_1 = [{
         "latency_read_drain": 100663296.0,
         "latency_fill_update": 100663296.0,
         "cc_per_tile": 1048576.0,
@@ -209,7 +209,7 @@ correct_latency_factorflow_1 = [{
         "ideal_bandwidth_drain": 0.0
     }]
 
-correct_mops_factorflow_2 = [{
+correct_mops_gemmini_factorflow_2 = [{
         "in_reads": 4194304,
         "w_reads": 3145728,
         "out_reads": 188743680,
@@ -247,7 +247,7 @@ correct_mops_factorflow_2 = [{
         "last_out_writes": 0
     }]
 
-correct_latency_factorflow_2 = [{
+correct_latency_gemmini_factorflow_2 = [{
         "latency_read_drain": 50528256.0,
         "latency_fill_update": 50528256.0,
         "cc_per_tile": 526336.0,
@@ -285,43 +285,148 @@ correct_latency_factorflow_2 = [{
         "ideal_bandwidth_drain": 0.0
     }]
 
+correct_mops_eyeriss_timeloop = [{
+        "in_reads": 67108864,
+        "w_reads": 50331648,
+        "out_reads": 0,
+        "in_writes": 0,
+        "w_writes": 0,
+        "out_writes": 12582912,
+        "last_out_reads": 0,
+        "last_out_writes": 0
+    },{
+        "in_reads": 67108864,
+        "w_reads": 0,
+        "out_reads": 805306368,
+        "in_writes": 67108864,
+        "w_writes": 0,
+        "out_writes": 805306368,
+        "last_out_reads": 0,
+        "last_out_writes": 12582912
+    },{
+        "in_reads": 12884901888,
+        "w_reads": 0,
+        "out_reads": 0,
+        "in_writes": 6442450944,
+        "w_writes": 0,
+        "out_writes": 0,
+        "last_out_reads": 0,
+        "last_out_writes": 0
+    },{
+        "in_reads": 0,
+        "w_reads": 12884901888,
+        "out_reads": 0,
+        "in_writes": 0,
+        "w_writes": 50331648,
+        "out_writes": 0,
+        "last_out_reads": 0,
+        "last_out_writes": 0
+    },{
+        "in_reads": 0,
+        "w_reads": 0,
+        "out_reads": 13677625344,
+        "in_writes": 0,
+        "w_writes": 0,
+        "out_writes": 13677625344,
+        "last_out_reads": 792723456,
+        "last_out_writes": 805306368
+    }]
+
+correct_latency_eyeriss_timeloop = [{
+        "latency_read_drain": 134217728,
+        "latency_fill_update": 134217728,
+        "cc_per_tile": 8192,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 0.875,
+        "ideal_bandwidth_update": 0.09375,
+        "ideal_bandwidth_fill": 0.0,
+        "ideal_bandwidth_drain": 0.0
+    },{
+        "latency_read_drain": 134217728,
+        "latency_fill_update": 134217728,
+        "cc_per_tile": 32,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 6.40625,
+        "ideal_bandwidth_update": 6.0,
+        "ideal_bandwidth_fill": 0.5,
+        "ideal_bandwidth_drain": 0.09375
+    },{
+        "latency_read_drain": 134217728,
+        "latency_fill_update": 134217728,
+        "cc_per_tile": 32,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 1.0,
+        "ideal_bandwidth_update": 0.0,
+        "ideal_bandwidth_fill": 0.5,
+        "ideal_bandwidth_drain": 0.0
+    },{
+        "latency_read_drain": 134217728,
+        "latency_fill_update": 134217728,
+        "cc_per_tile": 2,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 1.0,
+        "ideal_bandwidth_update": 0.0,
+        "ideal_bandwidth_fill": 0.00390625,
+        "ideal_bandwidth_drain": 0.0
+    },{
+        "latency_read_drain": 134217728,
+        "latency_fill_update": 134217728,
+        "cc_per_tile": 1,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 0.9990234375,
+        "ideal_bandwidth_update": 1.0,
+        "ideal_bandwidth_fill": 0.0615234375,
+        "ideal_bandwidth_drain": 0.0625
+    }]
+
 
 # TESTS:
 
 tests = [
     {
-        "name": "timeloop",
+        "name": "gemmini_timeloop",
         "comp": Shape(
             D = 1024*3,
             E = 1024,
             L = 4096
         ),
         "bias_read": True,
-        "arch": arch_timeloop,
-        "correct_mops": correct_mops_timeloop,
-        "correct_latency": correct_latency_timeloop
+        "arch": arch_gemmini_timeloop,
+        "correct_mops": correct_mops_gemmini_timeloop,
+        "correct_latency": correct_latency_gemmini_timeloop
     }, {
-        "name": "factorflow_1",
+        "name": "gemmini_factorflow_1",
         "comp": Shape(
             D = 1024*3,
             E = 1024,
             L = 4096
         ),
         "bias_read": True,
-        "arch": arch_factorflow_1,
-        "correct_mops": correct_mops_factorflow_1,
-        "correct_latency": correct_latency_factorflow_1
+        "arch": arch_gemmini_factorflow_1,
+        "correct_mops": correct_mops_gemmini_factorflow_1,
+        "correct_latency": correct_latency_gemmini_factorflow_1
     }, {
-        "name": "factorflow_2",
+        "name": "gemmini_factorflow_2",
         "comp": Shape(
             D = 1024*3,
             E = 1024,
             L = 4096
         ),
         "bias_read": False,
-        "arch": arch_factorflow_2,
-        "correct_mops": correct_mops_factorflow_2,
-        "correct_latency": correct_latency_factorflow_2
+        "arch": arch_gemmini_factorflow_2,
+        "correct_mops": correct_mops_gemmini_factorflow_2,
+        "correct_latency": correct_latency_gemmini_factorflow_2
+    }, {
+        "name": "eyeriss_timeloop",
+        "comp": Shape(
+            D = 1024*3,
+            E = 1024,
+            L = 4096
+        ),
+        "bias_read": False,
+        "arch": arch_eyeriss_timeloop,
+        "correct_mops": correct_mops_eyeriss_timeloop,
+        "correct_latency": correct_latency_eyeriss_timeloop
     }
 ]
 
