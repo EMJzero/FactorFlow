@@ -118,3 +118,13 @@ def updateInstances(arch):
         elif isinstance(level, MemLevel):
             level.instances = spatial_fanout
             level.next_is_compute = isinstance(arch[i+1], ComputeLevel) if i+1 < len(arch) else False
+
+def hashFromFactors(arch):
+    hsh = ""
+    for level_idx in range(len(arch)):
+        hsh += f"|{level_idx}"
+        for dim in arch[level_idx].dataflow:
+            hsh += f"{dim}"
+            for factor, amount in arch[level_idx].factors[dim].items():
+                hsh += f"{factor}{amount}"
+    return hash(hsh)

@@ -1,4 +1,5 @@
 from itertools import chain, combinations, permutations
+import copy
 import time
 import sys
 
@@ -168,16 +169,6 @@ def factorsIterator(arch, iterate_amounts = False, skip_fanouts = False):
                 else:
                     yield level_idx, dim, factor, 1
 
-def hashFromFactors(arch):
-    hsh = ""
-    for level_idx in range(len(arch)):
-        hsh += f"|{level_idx}"
-        for dim in arch[level_idx].dataflow:
-            hsh += f"{dim}"
-            for factor, amount in arch[level_idx].factors[dim].items():
-                hsh += f"{factor}{amount}"
-    return hash(hsh)
-
 def factorFlow(arch, comp, bias_read):
     initFactors(arch, comp)
     enforceFactorsConstraints(arch)
@@ -223,6 +214,7 @@ def factorFlow(arch, comp, bias_read):
     if LOG_SA_MAXIMIZATION: printFactors(arch)
     print("\nStarting FactorFlow MSE:\n")
 
+    # one-factor-steps greedy optimization
     while True:
         choices = {}
         for src_level_idx, dim, factor, amount in factorsIterator(arch, iterate_amounts = ITERATE_AMOUNTS, skip_fanouts= FREEZE_SA):
@@ -274,6 +266,18 @@ def factorFlow(arch, comp, bias_read):
     print("Final condition:")
     printFactors(arch)
     return arch
+
+#def iteratePermutations(arch):
+#    def permute(level_idx):
+#        # TODO: for each yield, apply a different permutation at level_idx
+#        yield
+#
+#    best_arch, best_Wart = None, 0
+#    current_idx = len(arch) - 1
+#    generators = [permute(i) for i in range(len(arch))]
+#    while True:
+#        pass
+#    arch = copy.deepcopy(arch)
 
 # SPECIFICATION:
 

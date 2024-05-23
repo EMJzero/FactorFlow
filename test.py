@@ -379,6 +379,99 @@ correct_latency_eyeriss_timeloop = [{
         "ideal_bandwidth_drain": 0.0625
     }]
 
+correct_mops_eyeriss_factorflow_1 = [{
+        "in_reads": 33554432,
+        "w_reads": 50331648,
+        "out_reads": 0,
+        "in_writes": 0,
+        "w_writes": 0,
+        "out_writes": 12582912,
+        "last_out_reads": 0,
+        "last_out_writes": 0
+    },{
+        "in_reads": 33554432,
+        "w_reads": 0,
+        "out_reads": 805306368,
+        "in_writes": 33554432,
+        "w_writes": 0,
+        "out_writes": 805306368,
+        "last_out_reads": 0,
+        "last_out_writes": 12582912
+    },{
+        "in_reads": 12884901888,
+        "w_reads": 0,
+        "out_reads": 0,
+        "in_writes": 3221225472,
+        "w_writes": 0,
+        "out_writes": 0,
+        "last_out_reads": 0,
+        "last_out_writes": 0
+    },{
+        "in_reads": 0,
+        "w_reads": 12884901888,
+        "out_reads": 0,
+        "in_writes": 0,
+        "w_writes": 50331648,
+        "out_writes": 0,
+        "last_out_reads": 0,
+        "last_out_writes": 0
+    },{
+        "in_reads": 0,
+        "w_reads": 0,
+        "out_reads": 13677625344,
+        "in_writes": 0,
+        "w_writes": 0,
+        "out_writes": 13677625344,
+        "last_out_reads": 792723456,
+        "last_out_writes": 805306368
+    }]
+
+correct_latency_eyeriss_factorflow_1 = [{
+        "latency_read_drain": 134217728,
+        "latency_fill_update": 134217728,
+        "cc_per_tile": 131072,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 0.625,
+        "ideal_bandwidth_update": 0.09375,
+        "ideal_bandwidth_fill": 0.0,
+        "ideal_bandwidth_drain": 0.0
+    },{
+        "latency_read_drain": 134217728,
+        "latency_fill_update": 134217728,
+        "cc_per_tile": 64,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 6.15625,
+        "ideal_bandwidth_update": 6.0,
+        "ideal_bandwidth_fill": 0.25,
+        "ideal_bandwidth_drain": 0.09375
+    },{
+        "latency_read_drain": 134217728,
+        "latency_fill_update": 134217728,
+        "cc_per_tile": 64,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 1.0,
+        "ideal_bandwidth_update": 0.0,
+        "ideal_bandwidth_fill": 0.25,
+        "ideal_bandwidth_drain": 0.0
+    },{
+        "latency_read_drain": 134217728,
+        "latency_fill_update": 134217728,
+        "cc_per_tile": 4,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 1.0,
+        "ideal_bandwidth_update": 0.0,
+        "ideal_bandwidth_fill": 0.00390625,
+        "ideal_bandwidth_drain": 0.0
+    },{
+        "latency_read_drain": 134217728,
+        "latency_fill_update": 134217728,
+        "cc_per_tile": 1,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 0.9990234375,
+        "ideal_bandwidth_update": 1.0,
+        "ideal_bandwidth_fill": 0.0615234375,
+        "ideal_bandwidth_drain": 0.0625
+    }]
 
 # TESTS:
 
@@ -427,6 +520,17 @@ tests = [
         "arch": arch_eyeriss_timeloop,
         "correct_mops": correct_mops_eyeriss_timeloop,
         "correct_latency": correct_latency_eyeriss_timeloop
+    }, {
+        "name": "eyeriss_factorflow_1",
+        "comp": Shape(
+            D = 1024*3,
+            E = 1024,
+            L = 4096
+        ),
+        "bias_read": False,
+        "arch": arch_eyeriss_factorflow_1,
+        "correct_mops": correct_mops_eyeriss_factorflow_1,
+        "correct_latency": correct_latency_eyeriss_factorflow_1
     }
 ]
 
