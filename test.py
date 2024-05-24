@@ -7,6 +7,7 @@ from main import updateStats
 def runTest(arch, correct_data, comp, bias_read):
     initFactors(arch, comp)
     enforceFactorsConstraints(arch)
+    assert checkDataflowConstraints(arch) # dataflow constraints violated
     setupBypasses(arch)
     updateInstances(arch)
     updateStats(arch, bias_read)

@@ -1,2 +1,3 @@
 - improve latency modeling by dividing it per-operand (in updateStats)
 - maximize SA usage before MSE (in factorFlow)
+- prune some dataflow permutations via the work on derivatives

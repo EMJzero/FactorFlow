@@ -1,3 +1,4 @@
+from itertools import chain, combinations, permutations
 from levels import *
 
 
@@ -85,6 +86,18 @@ def enforceFactorsConstraints(arch):
                 for fact, amount in constr_factors[dim].items():
                     assert moveFactor(arch, 0, i, dim, fact, amount, True, True) #if this assert fails, constraints are not satisfiable!
 
+def checkDataflowConstraints(arch):
+    for level in filter(lambda l : isinstance(l, MemLevel), arch):
+        dim_idx = 0
+        for dim in level.dataflow_constraints:
+            if dim_idx == len(level.dataflow):
+                return False
+            while dim_idx < len(level.dataflow):
+                if dim == level.dataflow[dim_idx]:
+                    break
+                dim_idx += 1
+    return True
+
 def setupBypasses(arch):
     # bypasses at the initial layer simply skip the cost of operands
     for bypass in ['in', 'w', 'out']:
@@ -128,3 +141,54 @@ def hashFromFactors(arch):
             for factor, amount in arch[level_idx].factors[dim].items():
                 hsh += f"{factor}{amount}"
     return hash(hsh)
+
+def powerset(iterable):
+    s = list(iterable)
+    return chain.from_iterable(combinations(s, r) for r in range(len(s)+1))
+
+# Interleaves the entries of "elements" of in all possible ways with the
+# elements of "array". The array elements retain their order, while elements may not
+def interleave(array, elements):
+    def recursive_insert(arr, elems):
+        if not elems:
+            return [arr]
+        results = []
+        for i in range(len(arr) + 1):
+            new_arr = arr[:i] + [elems[0]] + arr[i:]
+            results.extend(recursive_insert(new_arr, elems[1:]))
+        return results
+    return recursive_insert(array, elements)
+
+"""
+Returns, if any, the sets of elements which can undergo a cyclic shift and
+in so reach the configuration of arr2 starting from arr1
+"""
+def single_cyclic_shift(arr1, arr2):
+    n = len(arr1)
+    for i in range(n):
+        # Right Shift
+        if arr1[-1] == arr2[i] and arr1[:-1] == arr2[i+1:]:
+            return [[arr1[-1]], arr1[:-1]]
+        # Left Shift
+        if arr1[0] == arr2[i] and arr1[1:] == arr2[:i]:
+            return [[arr2[i]], arr1[1:]]
+    return []
+
+"""
+Returns all elements which need to be involved in swaps between neighbours
+to reach arr2 from arr1 (no cyclic behaviour allowed).
+"""
+def pairwise_swaps(arr1, arr2):
+    swaps = set()
+    arr1 = arr1.copy()
+    for i in range(len(arr1)):
+        if arr1[i] != arr2[i]:
+            j = i + 1
+            while arr1[j] != arr2[i]:
+                j += 1
+            while j > i:
+                arr1[j], arr1[j - 1] = arr1[j - 1], arr1[j]
+                swaps.add(arr1[j])
+                swaps.add(arr1[j - 1])
+                j -= 1
+    return swaps

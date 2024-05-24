@@ -14,6 +14,7 @@ class Level:
     # see the factors over which you are actually supposed to iterate!
     name: None
     dataflow: None # order of the loops | e.g. ['D', 'E', 'L']
+    dataflow_constraints: None
     # NOTE:
     # Tile sizes are updated in "moveFactor".
     factors: None # iterations done for the dimensions at this lever
@@ -83,22 +84,47 @@ class Level:
 """
 A Memory Level within the architecture, with the possibility to store
 data and provided it as tiles to the levels below it.
+
+Constructor arguments:
+- name: the level's name
+- size: the capacity (in number-of-operands, disregarding bits per operand)
+- access_energy: energy required by each access (in pJ)
+- bandwidth: the bandwidth for reads and writes, it will be divided in 1/2 for
+             read and 1/2 for write (in operands/clock-cycle)
+- dataflow: specifies the dimensions over which to iterate, defaults to all dimensions
+- factors: specifies the initial factors for this level, should not be normally
+           specified aside for initializing MSE from a specific configuration
+- tile_sizes: specifies the initial tile sizes for this level, should not be normally
+              specified aside for initializing MSE from a specific configuration,
+              in which case it must be consistent with any other factors initialization
+- factors_contraints: constraints for the factor that must be placed on this level
+- dataflow_constraints: constraints for the order of loops at this level, for any dim
+                        not specified here, all permutations are tried while keeping
+                        fixed the relative order of constrained dimensions.
+- bypasses: operands which should bypass this level (i.o.w. not be stored here)
+- multiple_buffering: factor of multiple buffering employed by this level, must be >1
+- read_bandwidth: bandwidth allocated for reads, if specified overrides "bandwidth"
+- write_bandwidth: bandwidth allocated for writes, if specified overrides "bandwidth"
 """
 class MemLevel(Level):
-    def __init__(self, name, dataflow, size, access_energy, bandwidth, constraints = None, factors = None, tile_sizes = None, factors_contraints = None, bypasses = None, multiple_buffering = 1, read_bandwidth = None, write_bandwidth = None):
+    def __init__(self, name, size, access_energy, bandwidth, dataflow = None, factors = None, tile_sizes = None, factors_contraints = None, dataflow_constraints = None, bypasses = None, multiple_buffering = 1, read_bandwidth = None, write_bandwidth = None):
         self.name = name
-        self.dataflow = dataflow
+        # Note: this way of constructing the dataflow from the constraints is redundant, but useful if one wants to skip the
+        # exploration of permutations since with this method the dataflow will be immediately consistent with constraints.
+        self.dataflow = dataflow if dataflow else (dataflow_constraints + [dim for dim in ['D', 'E', 'L'] if dim not in dataflow_constraints] if dataflow_constraints else ['D', 'E', 'L']) # dimensions over which to iterate
         self.size = size
         self.access_energy = access_energy
         # NOTE: 1/2 split of bandwidth for consistency with Timeloop - not a true must...
+        assert (not read_bandwidth and not write_bandwidth) or (read_bandwidth and write_bandwidth) # if either of read_bandwidth or write_bandwidth is specified, the other must be specified as well
         self.read_bandwidth = read_bandwidth if read_bandwidth else bandwidth/2
         self.write_bandwidth = write_bandwidth if write_bandwidth else bandwidth/2
         # This models how much an update costs w.r.t. a read. The true cost of an update is "update_cost" times cost of a read.
         self.update_cost = 1
-        self.constraints = constraints if constraints else {}
         self.factors = factors if factors else Factors()
         self.tile_sizes = tile_sizes if tile_sizes else Shape(1, 1, 1)
         self.factors_contraints = factors_contraints if factors_contraints else {}
+        self.dataflow_constraints = dataflow_constraints if dataflow_constraints else []
+        assert all([constr in self.dataflow for constr in self.dataflow_constraints]) # all dims specified as dataflow constraints must be part of the dataflow
         self.bypasses = bypasses if bypasses else []
         self.in_bp = 0 if (bypasses and 'in' in bypasses) else 1
         self.w_bp = 0 if (bypasses and 'w' in bypasses) else 1

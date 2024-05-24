@@ -5,12 +5,19 @@ WS = ['D', 'E', 'L']
 OS = ['D', 'L', 'E']
 IS = ['E', 'L', 'D']
 
+# TODO: currently a dataflow is always required, but in the absence of constraints and with
+# permutations exploration enabled, such dataflow will be subject to change. It might be better
+# to refactor it like this:
+# - on MemLevels do not allow dataflow to be set, set if by default to ['D', 'E', 'L'] and then act according to constraints
+# - add dataflow_constraints as an attribute
+# - on FanoutLevel1D use "dim" to act as both constraint and exploration space. If dim has more than one dimension
+#   additional ones will be explored, otherwise the only provided one is used.
 
 # >>> GEMMINI <<<
 arch_gemmini = [
     MemLevel(
         name = "DRAM",
-        dataflow = ['L', 'E', 'D'],
+        dataflow_constraints = [], #['L', 'E', 'D'],
         size = 2**64-1, # number of entries
         access_energy = 64.00, # per operand/scalar access (pJ)
         bandwidth = 8, # operands per cycle (shared)
@@ -19,7 +26,7 @@ arch_gemmini = [
     ),
     MemLevel(
         name = "Scratchpad",
-        dataflow = WS,
+        dataflow_constraints = [], #WS,
         size = 512*(2**10), # number of entries
         access_energy = 3.47, # per operand (pJ)
         bandwidth = 32, # operands per cycle (shared)
@@ -43,7 +50,7 @@ arch_gemmini = [
     ),
     MemLevel(
         name = "Accumulator",
-        dataflow = WS,
+        dataflow_constraints = [], #WS,
         size = (256//4)*(2**10)//16, # number of entries (PER ONE INSTANCE!!) (remeber to account for operand size)
         access_energy = 4.01, # per operand (pJ)
         bandwidth = 8, # operands per cycle (shared)
@@ -59,7 +66,7 @@ arch_gemmini = [
     ),
     MemLevel(
         name = "Register",
-        dataflow = WS,
+        dataflow_constraints = WS,
         size = 1, # number of entries
         access_energy = 0.01, # per operand (pJ)
         bandwidth = 2, # operands per cycle (shared)
@@ -79,7 +86,7 @@ arch_gemmini = [
 arch_gemmini_timeloop = [
     MemLevel(
         name = "DRAM",
-        dataflow = ['L', 'E', 'D'],
+        dataflow_constraints = ['L', 'E', 'D'],
         size = 2**64-1, # number of entries
         access_energy = 64.00, # per operand (pJ)
         bandwidth = 8, # operands per cycle (shared)
@@ -88,7 +95,7 @@ arch_gemmini_timeloop = [
     ),
     MemLevel(
         name = "Scratchpad",
-        dataflow = WS,
+        dataflow_constraints = WS,
         size = 512*(2**10), # number of entries
         access_energy = 3.47, # per operand (pJ)
         bandwidth = 32, # operands per cycle (shared)
@@ -104,7 +111,7 @@ arch_gemmini_timeloop = [
     ),
     MemLevel(
         name = "Accumulator",
-        dataflow = WS,
+        dataflow_constraints = WS,
         size = (256//4)*(2**10)//16, # number of entries (PER ONE INSTANCE!!) (remeber to account for operand size)
         access_energy = 4.01, # per operand (pJ)
         bandwidth = 8, # operands per cycle (shared)
@@ -120,7 +127,7 @@ arch_gemmini_timeloop = [
     ),
     MemLevel(
         name = "Register",
-        dataflow = WS,
+        dataflow_constraints = WS,
         size = 1, # number of entries
         access_energy = 0.01, # per operand (pJ)
         bandwidth = 2, # operands per cycle (shared) -> 2 is a classic register which can be read & written in the same cc
@@ -140,7 +147,7 @@ arch_gemmini_timeloop = [
 arch_gemmini_factorflow_1 = [
     MemLevel(
         name = "DRAM",
-        dataflow = ['L', 'E', 'D'],
+        dataflow_constraints = ['L', 'E', 'D'],
         size = 2**64-1, # number of entries
         access_energy = 512.00, # per operand (pJ)
         bandwidth = 8, # operands per cycle (shared)
@@ -149,7 +156,7 @@ arch_gemmini_factorflow_1 = [
     ),
     MemLevel(
         name = "Scratchpad",
-        dataflow = WS,
+        dataflow_constraints = WS,
         size = 512*(2**10), # number of entries
         access_energy = 57.04, # per operand (pJ)
         bandwidth = 32, # operands per cycle (shared)
@@ -165,7 +172,7 @@ arch_gemmini_factorflow_1 = [
     ),
     MemLevel(
         name = "Accumulator",
-        dataflow = WS,
+        dataflow_constraints = WS,
         size = (256//4)*(2**10)//16, # number of entries (PER ONE INSTANCE!!) (remeber to account for operand size)
         access_energy = 4.54, # per operand (pJ)
         bandwidth = 8, # operands per cycle (shared)
@@ -181,7 +188,7 @@ arch_gemmini_factorflow_1 = [
     ),
     MemLevel(
         name = "Register",
-        dataflow = WS,
+        dataflow_constraints = WS,
         size = 1, # number of entries
         access_energy = 0.01, # per operand (pJ)
         bandwidth = 2, # operands per cycle (shared) -> 2 is a classic register which can be read & written in the same cc
@@ -201,7 +208,7 @@ arch_gemmini_factorflow_1 = [
 arch_gemmini_factorflow_2 = [
     MemLevel(
         name = "DRAM",
-        dataflow = ['L', 'E', 'D'],
+        dataflow_constraints = ['L', 'E', 'D'],
         size = 2**64-1, # number of entries
         access_energy = 512.00, # per operand (pJ)
         bandwidth = 8, # operands per cycle (shared)
@@ -210,7 +217,7 @@ arch_gemmini_factorflow_2 = [
     ),
     MemLevel(
         name = "Scratchpad",
-        dataflow = WS,
+        dataflow_constraints = WS,
         size = 512*(2**10), # number of entries
         access_energy = 57.04, # per operand (pJ)
         bandwidth = 32, # operands per cycle (shared)
@@ -226,7 +233,7 @@ arch_gemmini_factorflow_2 = [
     ),
     MemLevel(
         name = "Accumulator",
-        dataflow = WS,
+        dataflow_constraints = WS,
         size = (256//4)*(2**10)//16, # number of entries (PER ONE INSTANCE!!) (remeber to account for operand size)
         access_energy = 4.54, # per operand (pJ)
         bandwidth = 8, # operands per cycle (shared)
@@ -242,7 +249,7 @@ arch_gemmini_factorflow_2 = [
     ),
     MemLevel(
         name = "Register",
-        dataflow = WS,
+        dataflow_constraints = WS,
         size = 1, # number of entries
         access_energy = 0.01, # per operand (pJ)
         bandwidth = 2, # operands per cycle (shared) -> 2 is a classic register which can be read & written in the same cc
@@ -267,7 +274,7 @@ arch_gemmini_factorflow_2 = [
 arch_eyeriss = [
     MemLevel(
         name = "DRAM",
-        dataflow = ['L', 'D', 'E'],
+        dataflow_constraints = [], # ['L', 'D', 'E'],
         size = 2**64-1, # number of entries
         access_energy = 64.00, # per operand/scalar access (pJ)
         bandwidth = 8, # operands per cycle (shared)
@@ -276,7 +283,7 @@ arch_eyeriss = [
     ),
     MemLevel(
         name = "GlobalBuffer",
-        dataflow = WS,
+        dataflow_constraints = [], #WS,
         size = 16384*8, # number of entries
         access_energy = 2.02, # per operand (pJ)
         bandwidth = 32, # operands per cycle (shared)
@@ -299,7 +306,7 @@ arch_eyeriss = [
     ),
     MemLevel(
         name = "InRegister",
-        dataflow = WS,
+        dataflow_constraints = [], #WS,
         size = 12*2, # number of entries
         access_energy = 0.69, # per operand (pJ)
         bandwidth = 4, # operands per cycle (shared)
@@ -308,7 +315,7 @@ arch_eyeriss = [
     ),
     MemLevel(
         name = "WRegister",
-        dataflow = WS,
+        dataflow_constraints = [], #WS,
         size = 192*2, # number of entries
         access_energy = 1.97, # per operand (pJ)
         bandwidth = 4, # operands per cycle (shared)
@@ -317,7 +324,7 @@ arch_eyeriss = [
     ),
     MemLevel(
         name = "OutRegister",
-        dataflow = WS,
+        dataflow_constraints = [], #WS,
         size = 16*2, # number of entries
         access_energy = 1.34, # per operand (pJ)
         bandwidth = 4, # operands per cycle (shared)
@@ -337,7 +344,7 @@ arch_eyeriss = [
 arch_eyeriss_timeloop = [
     MemLevel(
         name = "DRAM",
-        dataflow = ['L', 'D', 'E'],
+        dataflow_constraints = ['L', 'D', 'E'],
         size = 2**64-1, # number of entries
         access_energy = 64.00, # per operand/scalar access (pJ)
         bandwidth = 8, # operands per cycle (shared)
@@ -346,7 +353,7 @@ arch_eyeriss_timeloop = [
     ),
     MemLevel(
         name = "GlobalBuffer",
-        dataflow = WS,
+        dataflow_constraints = WS,
         size = 16384*8, # number of entries
         access_energy = 2.02, # per operand (pJ)
         bandwidth = 32, # operands per cycle (shared)
@@ -369,7 +376,7 @@ arch_eyeriss_timeloop = [
     ),
     MemLevel(
         name = "InRegister",
-        dataflow = WS,
+        dataflow_constraints = WS,
         size = 12*2, # number of entries
         access_energy = 0.69, # per operand (pJ)
         bandwidth = 4, # operands per cycle (shared)
@@ -378,7 +385,7 @@ arch_eyeriss_timeloop = [
     ),
     MemLevel(
         name = "WRegister",
-        dataflow = WS,
+        dataflow_constraints = WS,
         size = 192*2, # number of entries
         access_energy = 1.97, # per operand (pJ)
         bandwidth = 4, # operands per cycle (shared)
@@ -387,7 +394,7 @@ arch_eyeriss_timeloop = [
     ),
     MemLevel(
         name = "OutRegister",
-        dataflow = WS,
+        dataflow_constraints = WS,
         size = 16*2, # number of entries
         access_energy = 1.34, # per operand (pJ)
         bandwidth = 4, # operands per cycle (shared)
@@ -407,7 +414,7 @@ arch_eyeriss_timeloop = [
 arch_eyeriss_factorflow_1 = [
     MemLevel(
         name = "DRAM",
-        dataflow = ['L', 'D', 'E'],
+        dataflow_constraints = ['L', 'D', 'E'],
         size = 2**64-1, # number of entries
         access_energy = 64.00, # per operand/scalar access (pJ)
         bandwidth = 8, # operands per cycle (shared)
@@ -416,7 +423,7 @@ arch_eyeriss_factorflow_1 = [
     ),
     MemLevel(
         name = "GlobalBuffer",
-        dataflow = WS,
+        dataflow_constraints = WS,
         size = 16384*8, # number of entries
         access_energy = 2.02, # per operand (pJ)
         bandwidth = 32, # operands per cycle (shared)
@@ -439,7 +446,7 @@ arch_eyeriss_factorflow_1 = [
     ),
     MemLevel(
         name = "InRegister",
-        dataflow = WS,
+        dataflow_constraints = WS,
         size = 12*2, # number of entries
         access_energy = 0.69, # per operand (pJ)
         bandwidth = 4, # operands per cycle (shared)
@@ -448,7 +455,7 @@ arch_eyeriss_factorflow_1 = [
     ),
     MemLevel(
         name = "WRegister",
-        dataflow = WS,
+        dataflow_constraints = WS,
         size = 192*2, # number of entries
         access_energy = 1.97, # per operand (pJ)
         bandwidth = 4, # operands per cycle (shared)
@@ -457,7 +464,7 @@ arch_eyeriss_factorflow_1 = [
     ),
     MemLevel(
         name = "OutRegister",
-        dataflow = WS,
+        dataflow_constraints = WS,
         size = 16*2, # number of entries
         access_energy = 1.34, # per operand (pJ)
         bandwidth = 4, # operands per cycle (shared)

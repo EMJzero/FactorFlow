@@ -1,4 +1,6 @@
 from itertools import chain, combinations, permutations
+from functools import reduce
+import math
 import copy
 import time
 import sys
@@ -18,6 +20,8 @@ ITERATE_AMOUNTS = False
 # If True, factors allocated on fanout levels will not be optimized (as if they were constraints),
 # and this is done after factor allocation in the fanouts is maximized.
 FREEZE_SA = True
+# If True also logs the factors immediately after the initialization.
+LOG_INITIAL_CONDITION = False
 # If True also logs the factors immediately after the maximization of fanouts.
 LOG_SA_MAXIMIZATION = False
 
@@ -169,7 +173,8 @@ def factorsIterator(arch, iterate_amounts = False, skip_fanouts = False):
                 else:
                     yield level_idx, dim, factor, 1
 
-def factorFlow(arch, comp, bias_read):
+def factorFlow(arch, comp, bias_read, verbose = False):
+    if verbose: print("-------- factorFlow --------")
     initFactors(arch, comp)
     enforceFactorsConstraints(arch)
     assert not findConstraintsViolation(arch) # factor constraints or dataflow violation in the given architecture
@@ -182,10 +187,11 @@ def factorFlow(arch, comp, bias_read):
     assert isinstance(arch[-1], ComputeLevel) # the last/innermost level must be compute
     assert not any(map(lambda l : isinstance(l, ComputeLevel), arch[:-1])) # no other compute levels admitted beside the last/innermost one
     assert any(map(lambda l : isinstance(l, MemLevel), arch[:-1])) # at least one memory level must be present
+    assert checkDataflowConstraints(arch) # dataflow constraints violated
 
-    print(f"Initial condition (Wart: {Wart(arch, comp, bias_read):.3e}):")
-    printFactors(arch)
-    if LOG_SA_MAXIMIZATION: print("\nStarting fanout maximization:\n")
+    if LOG_INITIAL_CONDITION and verbose: print(f"Initial condition (Wart: {Wart(arch, comp, bias_read):.3e}):")
+    if LOG_INITIAL_CONDITION and verbose: printFactors(arch)
+    if LOG_SA_MAXIMIZATION and verbose: print("\nStarting fanout maximization:\n")
 
     already_seen = []
 
@@ -210,11 +216,12 @@ def factorFlow(arch, comp, bias_read):
             assert False # FanoutLevel2D not yet supported, use pairs of FanoutLevel1D instead!
     updateInstances(arch)
 
-    if LOG_SA_MAXIMIZATION: print(f"After fanout maximization (Wart: {Wart(arch, comp, bias_read):.3e}):")
-    if LOG_SA_MAXIMIZATION: printFactors(arch)
-    print("\nStarting FactorFlow MSE:\n")
+    if LOG_SA_MAXIMIZATION and verbose: print(f"After fanout maximization (Wart: {Wart(arch, comp, bias_read):.3e}):")
+    if LOG_SA_MAXIMIZATION and verbose: printFactors(arch)
+    if verbose: print("\nStarting FactorFlow tiling optimization:\n")
 
     # one-factor-steps greedy optimization
+    best_wart = Wart(arch, comp, bias_read)
     while True:
         choices = {}
         for src_level_idx, dim, factor, amount in factorsIterator(arch, iterate_amounts = ITERATE_AMOUNTS, skip_fanouts= FREEZE_SA):
@@ -251,33 +258,100 @@ def factorFlow(arch, comp, bias_read):
                         assert moveFactor(arch, dst_level_idx, src_level_idx, dim, factor, amount) # something went wrong, unreversible move of a factor
 
         if len(choices) == 0:
-            print(f"No valid follow-up configuration, stopping, current Wart: {Wart(arch, comp, bias_read):.3e}")
+            if verbose: print(f"No valid follow-up configuration, stopping, current Wart: {best_wart:.3e}")
             break
         # >>> GREEDY MOVE <<<
         best_choice = max(choices, key=choices.get)
         # no need for <= since factors flow only in one direction, you cannot oscillate
-        if choices[best_choice] < Wart(arch, comp, bias_read):
-            print(f"Stopping with current Wart: {Wart(arch, comp, bias_read):.3e}, while best choice is: {choices[best_choice]:.3e}")
+        if choices[best_choice] < best_wart:
+            if verbose: print(f"Stopping with current Wart: {best_wart:.3e}, while best choice is: {choices[best_choice]:.3e}")
             break
         else:
             assert moveFactor(arch, best_choice[0], best_choice[1], best_choice[2], best_choice[3], best_choice[4]) # best choice is an invalid mapping
+            best_wart = choices[best_choice]
 
     updateInstances(arch)
-    print("Final condition:")
-    printFactors(arch)
-    return arch
+    if verbose: print("Final condition:")
+    if verbose: printFactors(arch)
+    return arch, best_wart
 
-#def iteratePermutations(arch):
-#    def permute(level_idx):
-#        # TODO: for each yield, apply a different permutation at level_idx
-#        yield
-#
-#    best_arch, best_Wart = None, 0
-#    current_idx = len(arch) - 1
-#    generators = [permute(i) for i in range(len(arch))]
-#    while True:
-#        pass
-#    arch = copy.deepcopy(arch)
+def optimizeDataflows(arch, comp, bias_read, verbose = False):
+    if verbose: print("-------- optimizeDataflows --------")
+    mems = list(filter(lambda l : isinstance(l, MemLevel), arch))
+    # TODO: pre-exclude some permutations according to the work on derivatives
+    # HOW-TO:
+    # - prevent from permuting any dimension with iterations/factors constrainted at 1
+    # - come up with something from derivatives...
+    # - TOP TIER: exploit the fact that you are going in order! If the difference between the
+    #   next configuration and the current one involves a dimension which had in the previous
+    #   best mapping a factor of 1, SKIP THE CONFIGURATION
+    permutations = [[perm for perm in interleave(level.dataflow_constraints, [dim for dim in level.dataflow if dim not in level.dataflow_constraints])] for level in mems]
+    total_perms = reduce(lambda tot, perms : tot * len(perms), permutations, 1)
+
+    if verbose: print(f"Starting MSE:\n")
+    if verbose: print(f"Dataflow permutations to try: {total_perms}")
+    
+    # clockwork counter to try all permutations at all levels
+    current_perms = [0 for _ in mems]
+    # optimization: If the difference between the next permutation and the current one involves solely dimension which had in the previous best mapping a factor of 1, skip the permutation
+    # TODO: could be improved further by looking at the whole history of swapped dimensions
+    factors_at_one = [{'D': False, 'E': False, 'L': False} for _ in mems]
+    best_perm, best_arch, best_wart = current_perms.copy(), None, 0
+    tried_perms = 0
+    
+    def nextPermutations(i):
+        while i >= 0:
+            if current_perms[i] + 1 == len(permutations[i]):
+                current_perms[i] = 0
+                for k in factors_at_one[i]:
+                    factors_at_one[i][k] = False
+                i -= 1
+            else:
+                current_perms[i] += 1
+                for dim in factors_at_one[i].keys():
+                    factors_at_one[i][dim] = current_mems[i].factors.dimProduct(dim) == 1
+                break
+        return i
+    
+    while True:
+        # TODO: remove this deepcopy and just reset factors
+        current_arch = copy.deepcopy(arch)
+        current_mems = list(filter(lambda l : isinstance(l, MemLevel), current_arch))
+        for mem_idx in range(len(current_mems)):
+            current_mems[mem_idx].dataflow = permutations[mem_idx][current_perms[mem_idx]]
+        _, wart = factorFlow(current_arch, comp, bias_read)
+        if wart > best_wart:
+            best_perm = current_perms.copy()
+            best_arch = current_arch
+            best_wart = wart
+            
+        tried_perms += 1
+        if verbose and math.floor((tried_perms/total_perms)*10) > math.floor(((tried_perms - 1)/total_perms)*10):
+            print(f"Progress: {tried_perms}/{total_perms} tried...")
+        # Note: "i" is the outermost memory hierarchy level which had its permutation updated right now
+        i = nextPermutations(len(mems) - 1)
+        
+        # True if any set of dimensions which with a cyclic shift can yield the previous permutation from the current one is entirely made of dims with a factor of 1,
+        # or true if of all dimensions involved in swaps between neighbouring nested loops to go from the previous permutation to the current one at least all except one have a factor of 1.
+        # Note: this is already robust enough to work with the history of permutations
+        while i >= 0 and (any(map(lambda dims : all([factors_at_one[i][dim] for dim in dims]), single_cyclic_shift(permutations[i][current_perms[i]], permutations[i][current_perms[i] - 1])))
+               or (lambda dims : sum([factors_at_one[i][dim] for dim in dims]) >= len(dims) - 1)(pairwise_swaps(permutations[i][current_perms[i]], permutations[i][current_perms[i] - 1]))):
+            #print(f"Skipping permutation {permutations[i][current_perms[i]]} at level {mems[i].name}!")
+            
+            skipped_perms = reduce(lambda tot, perms : tot * len(perms), permutations[i+1:len(permutations)], 1)
+            tried_perms += skipped_perms
+            if verbose and math.floor((tried_perms/total_perms)*10) > math.floor(((tried_perms - skipped_perms)/total_perms)*10):
+                print(f"Progress: {tried_perms}/{total_perms} tried...")
+            i = nextPermutations(i)
+            if i < 0:
+                break
+        if i < 0:
+            break
+    
+    if verbose: print(f"\nBest mapping found with Wart: {best_wart:.3e}")
+    if verbose: printFactors(best_arch)
+    return best_arch, best_wart, best_perm
+
 
 # SPECIFICATION:
 
@@ -288,14 +362,15 @@ comp = Shape(
     )
 bias_read = False # True if bias is not 0 - outputs are read even the first time
 
-arch = arch_eyeriss
+arch = arch_gemmini
 
 ## MAIN:
 
 if __name__ == "__main__":
     start_time = time.time()
 
-    factorFlow(arch, comp, bias_read)
+    #factorFlow(arch, comp, bias_read, True)
+    arch, _, _ = optimizeDataflows(arch, comp, bias_read, True)
     
     print(f"\nFinished in: {time.time() - start_time:.3f}s")
 
