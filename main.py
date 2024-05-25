@@ -277,7 +277,7 @@ def factorFlow(arch, comp, bias_read, verbose = False):
 
 def optimizeDataflows(arch, comp, bias_read, verbose = False):
     if verbose: print("-------- optimizeDataflows --------")
-    mems = list(filter(lambda l : isinstance(l, MemLevel), arch))
+    mems = list(filter(lambda l : isinstance(l, MemLevel) or isinstance(l, ComputeLevel), arch))
     # TODO: pre-exclude some permutations according to the work on derivatives
     # HOW-TO:
     # - prevent from permuting any dimension with iterations/factors constrainted at 1
@@ -316,7 +316,7 @@ def optimizeDataflows(arch, comp, bias_read, verbose = False):
     while True:
         # TODO: remove this deepcopy and just reset factors
         current_arch = copy.deepcopy(arch)
-        current_mems = list(filter(lambda l : isinstance(l, MemLevel), current_arch))
+        current_mems = list(filter(lambda l : isinstance(l, MemLevel) or isinstance(l, ComputeLevel), current_arch))
         for mem_idx in range(len(current_mems)):
             current_mems[mem_idx].dataflow = permutations[mem_idx][current_perms[mem_idx]]
         _, wart = factorFlow(current_arch, comp, bias_read)
@@ -328,12 +328,12 @@ def optimizeDataflows(arch, comp, bias_read, verbose = False):
         tried_perms += 1
         if verbose and math.floor((tried_perms/total_perms)*10) > math.floor(((tried_perms - 1)/total_perms)*10):
             print(f"Progress: {tried_perms}/{total_perms} tried...")
-        # Note: "i" is the outermost memory hierarchy level which had its permutation updated right now
+        # NOTE: "i" is the outermost memory hierarchy level which had its permutation updated right now
         i = nextPermutations(len(mems) - 1)
         
         # True if any set of dimensions which with a cyclic shift can yield the previous permutation from the current one is entirely made of dims with a factor of 1,
         # or true if of all dimensions involved in swaps between neighbouring nested loops to go from the previous permutation to the current one at least all except one have a factor of 1.
-        # Note: this is already robust enough to work with the history of permutations
+        # NOTE: this is already robust enough to work with the history of permutations
         while i >= 0 and (any(map(lambda dims : all([factors_at_one[i][dim] for dim in dims]), single_cyclic_shift(permutations[i][current_perms[i]], permutations[i][current_perms[i] - 1])))
                or (lambda dims : sum([factors_at_one[i][dim] for dim in dims]) >= len(dims) - 1)(pairwise_swaps(permutations[i][current_perms[i]], permutations[i][current_perms[i] - 1]))):
             #print(f"Skipping permutation {permutations[i][current_perms[i]]} at level {mems[i].name}!")

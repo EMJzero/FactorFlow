@@ -109,10 +109,12 @@ Constructor arguments:
 class MemLevel(Level):
     def __init__(self, name, size, access_energy, bandwidth, dataflow = None, factors = None, tile_sizes = None, factors_contraints = None, dataflow_constraints = None, bypasses = None, multiple_buffering = 1, read_bandwidth = None, write_bandwidth = None):
         self.name = name
-        # Note: this way of constructing the dataflow from the constraints is redundant, but useful if one wants to skip the
+        # NOTE: this way of constructing the dataflow from the constraints is redundant, but useful if one wants to skip the
         # exploration of permutations since with this method the dataflow will be immediately consistent with constraints.
         self.dataflow = dataflow if dataflow else (dataflow_constraints + [dim for dim in ['D', 'E', 'L'] if dim not in dataflow_constraints] if dataflow_constraints else ['D', 'E', 'L']) # dimensions over which to iterate
+        assert size >= 0 # a negative size does not mean anything
         self.size = size
+        assert access_energy >= 0 # a negative access energy does not mean anything (unless you are into sci-fi stuff)
         self.access_energy = access_energy
         # NOTE: 1/2 split of bandwidth for consistency with Timeloop - not a true must...
         assert (not read_bandwidth and not write_bandwidth) or (read_bandwidth and write_bandwidth) # if either of read_bandwidth or write_bandwidth is specified, the other must be specified as well
@@ -123,6 +125,7 @@ class MemLevel(Level):
         self.factors = factors if factors else Factors()
         self.tile_sizes = tile_sizes if tile_sizes else Shape(1, 1, 1)
         self.factors_contraints = factors_contraints if factors_contraints else {}
+        assert all([constr in self.dataflow for constr in self.factors_contraints.keys()]) # all dims with factor constraints must be part of the dataflow
         self.dataflow_constraints = dataflow_constraints if dataflow_constraints else []
         assert all([constr in self.dataflow for constr in self.dataflow_constraints]) # all dims specified as dataflow constraints must be part of the dataflow
         self.bypasses = bypasses if bypasses else []
@@ -423,19 +426,45 @@ class MemLevel(Level):
     def checkConstraints(self):
         return self.factors.mem_footprint(self.tile_sizes, not self.bypasses or 'in' not in self.bypasses, not self.bypasses or 'w' not in self.bypasses, not self.bypasses or 'out' not in self.bypasses) <= self.size/self.multiple_buffering and super().checkConstraints()
 
+"""
+A Spatial Fanout Level within the architecture, the core of a spatial architecture,
+all subsequent levels will be replicated "mesh" times, each replica executing one
+of the iterations done by this level, by each running the same inner loops as the
+others, with partially different data.
+
+Constructor arguments:
+- name: the level's name
+- mesh: the maximum spatial fanout available at this level
+- dim: dimension to spatially unroll at this level, must be specified unless
+       "candidate_dims" is specified
+- pe_to_pe:
+- spatial_multicast_support:
+- spatial_reduction_support:
+- factors: specifies the initial factors for this level, should not be normally
+           specified aside for initializing MSE from a specific configuration
+- tile_sizes: specifies the initial tile sizes for this level, should not be normally
+              specified aside for initializing MSE from a specific configuration,
+              in which case it must be consistent with any other factors initialization
+- factors_contraints: constraints for the factor that must be placed on this level
+- candidate_dims: ...................... must be specified unless "dim" is specified
+"""
 class FanoutLevel1D(Level):
-    def __init__(self, name, dim, mesh, pe_to_pe = None, spatial_multicast_support = True, spatial_reduction_support = True, constraints = None, factors = None, tile_sizes = None, factors_contraints = None):
+    def __init__(self, name, mesh, dim = None, pe_to_pe = None, spatial_multicast_support = True, spatial_reduction_support = True, factors = None, tile_sizes = None, factors_contraints = None, candidate_dims = None):
         self.name = name
-        self.dataflow = [dim]
-        self.dim = dim
+        assert dim or candidate_dims # at least one of "dim" or "candicate_dims" must be specified
+        self.dim = dim if dim else candidate_dims[0]
+        self.dataflow = [self.dim]
+        assert mesh > 0 # a spatial fanout must have a mesh of at least 1
         self.mesh = mesh
         self.pe_to_pe = pe_to_pe if pe_to_pe != None else False # True in all cases where the operand independent (ex: if dim = D, the operand is the input) of "dim" is forwarded pe->pe rather than read multiple times
         self.spatial_multicast_support = spatial_multicast_support
         self.spatial_reduction_support = spatial_reduction_support
-        self.constraints = constraints if constraints else {}
         self.factors = factors if factors else Factors()
         self.tile_sizes = tile_sizes if tile_sizes else Shape(1, 1, 1)
         self.factors_contraints = factors_contraints if factors_contraints else {}
+        assert not candidate_dims or len(candidate_dims) > 0 # is specified, candidate_dims must include at least one dimension
+        assert not candidate_dims or self.dim in candidate_dims # if specified, dim must be among the candidate dimensions for spatial fanout
+        self.candidate_dims = candidate_dims if candidate_dims else [self.dim]
 
     # let inputs be the amount of operations for each leaf, returns the amount of
     # operations above the fanout accounting for PE-to-PE forwarding of operands!
@@ -485,7 +514,7 @@ to a sequence of two "FanoutLevel1D", the first of dim = dimX, the second dim = 
 (This is implemented with the dataflow having dimX before dimY)
 """
 class FanoutLevel2D(Level):
-    def __init__(self, name, dimX, dimY, meshX, meshY, pe_to_peX = None, pe_to_peY = None, spatial_multicast_support = True, spatial_reduction_support = True, constraints = None, factors = None, tile_sizes = None, factors_contraints = None):
+    def __init__(self, name, dimX, dimY, meshX, meshY, pe_to_peX = None, pe_to_peY = None, spatial_multicast_support = True, spatial_reduction_support = True, factors = None, tile_sizes = None, factors_contraints = None):
         assert False # not yet supported - use FanoutLevel1D for now
         self.name = name
         assert dimX != dimY # cannot fanout in 2D on the same dimension twice, use a sequence of two FanoutLevel1D
@@ -498,7 +527,6 @@ class FanoutLevel2D(Level):
         self.pe_to_peY = pe_to_peY if pe_to_peY != None else False # True in all cases where the operand independent (ex: if dimY = D, the operand is the input) of "dimY" is forwarded pe->pe rather than read multiple times
         self.spatial_multicast_support = spatial_multicast_support
         self.spatial_reduction_support = spatial_reduction_support
-        self.constraints = constraints if constraints else {}
         self.factors = factors if factors else Factors()
         self.tile_sizes = tile_sizes if tile_sizes else Shape(1, 1, 1)
         self.factors_contraints = factors_contraints if factors_contraints else {}
@@ -576,17 +604,53 @@ class FanoutLevel2D(Level):
                 self.factors.dimProduct(self.dimY) <= self.meshY and
                 super().checkConstraints())
         
+"""
+A Compute Level within the architecture, it is a placeholder for any processing
+element (PE) capable of multiply and accumulate (MAC).
+
+Note: iterations at this level are equivalent to requiring that a PE can, in the
+clock-cycles specified in "cycles", execute all such iterations. It is also assumed
+that the data required for all iterations done at this level is held within hardware
+registers whose energy cost is modeled by the "compute energy", together with the
+actual compute cost. As such, iterations done here are equivalent to a PE capable
+of multiple concurrent (simultaneous or pipelined) MACs.
+
+Constructor arguments:
+- name: the level's name
+- size: how many concurrent (simultaneous or pipelined) MACs the compute element
+        can perform within "cycles" clock-cycles.
+- compute_energy: the energy required for a single MAC (regardless of how many
+                  you run concurrently), accounting for all computation-related
+                  costs at the PE level.
+- cycles: the number of clock cycles of latency required to execute "size" MACs
+- dataflow: specifies the dimensions over which to iterate, defaults to all dimensions
+- factors: specifies the initial factors for this level, should not be normally
+           specified aside for initializing MSE from a specific configuration
+- tile_sizes: specifies the initial tile sizes for this level, should not be normally
+              specified aside for initializing MSE from a specific configuration,
+              in which case it must be consistent with any other factors initialization
+- factors_contraints: constraints for the factor that must be placed on this level
+- dataflow_constraints: constraints for the order of loops at this level, for any dim
+                        not specified here, all permutations are tried while keeping
+                        fixed the relative order of constrained dimensions.
+"""
 class ComputeLevel(Level):
-    def __init__(self, name, dataflow, size, compute_energy, cycles, constraints = None, factors = None, tile_sizes = None, factors_contraints = None):
+    def __init__(self, name, size, compute_energy, cycles, dataflow = None, factors = None, tile_sizes = None, factors_contraints = None, dataflow_constraints = None):
         self.name = name
-        self.dataflow = dataflow
+        # NOTE: this way of constructing the dataflow from the constraints is redundant, but useful if one wants to skip the
+        # exploration of permutations since with this method the dataflow will be immediately consistent with constraints.
+        self.dataflow = dataflow if dataflow else (dataflow_constraints + [dim for dim in ['D', 'E', 'L'] if dim not in dataflow_constraints] if dataflow_constraints else ['D', 'E', 'L']) # dimensions over which to iterate
+        assert size > 0 # a zero or negative size does not make sense
         self.size = size # for a systolic array, this is the length of the operand buffers
-        self.compute_energy = compute_energy # 
+        assert compute_energy >= 0 # a negative compute energy does not mean anything (unless you watched too much Gundam and discovered Minovsky particles...)
+        self.compute_energy = compute_energy
+        assert cycles >= 0 # a negative number of clock-cycles per MAC does not mean anything
         self.cycles = cycles # clock cycles used per element in the inner dimension (latency of one MAC)
-        self.constraints = constraints if constraints else {}
         self.factors = factors if factors else Factors()
         self.tile_sizes = tile_sizes if tile_sizes else Shape(1, 1, 1)
         self.factors_contraints = factors_contraints if factors_contraints else {}
+        self.dataflow_constraints = dataflow_constraints if dataflow_constraints else []
+        assert all([constr in self.dataflow for constr in self.dataflow_constraints]) # all dims specified as dataflow constraints must be part of the dataflow
 
     # TODO: remove size, factors, and constraints from here, this must become just an empty shell
 
@@ -595,7 +659,7 @@ class ComputeLevel(Level):
         return self.factors.fullProduct()*self.cycles
 
     def computeCost(self, iterations = 1):
-        return self.compute_energy * iterations
+        return self.compute_energy*self.factors.fullProduct()*iterations
 
     def checkConstraints(self):
         return self.factors.fullProduct() <= self.size and super().checkConstraints()

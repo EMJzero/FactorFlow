@@ -292,15 +292,15 @@ arch_eyeriss = [
     ),
     FanoutLevel1D(
         name = "SACols",
-        dim = 'D',
         mesh = 14,
+        candidate_dims = WS,
         pe_to_pe = False,
         factors_contraints = {} #{'D': 8}
     ),
     FanoutLevel1D(
         name = "SARows",
-        dim = 'D', # one of D or E
         mesh = 12,
+        candidate_dims = WS,
         pe_to_pe = False,
         factors_contraints = {} #{'D': 12}
     ),
@@ -469,6 +469,73 @@ arch_eyeriss_factorflow_1 = [
         access_energy = 1.34, # per operand (pJ)
         bandwidth = 4, # operands per cycle (shared)
         factors_contraints = {'D': 4, 'E': 1, 'L': 1},
+        bypasses = ['in', 'w']
+    ),
+    ComputeLevel(
+        name = "Compute",
+        dataflow = WS[2],
+        size = 1,
+        compute_energy = 0.21, # per compute (pJ)
+        cycles = 1,
+        factors_contraints = {'L': 1}
+    )]
+
+# >>> SIMBA <<<
+# C -> E
+# M -> D
+# P -> L
+arch_simba = [
+    MemLevel(
+        name = "DRAM",
+        dataflow_constraints = [], # ['L', 'D', 'E'],
+        size = 2**64-1, # number of entries
+        access_energy = 64.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {},
+        bypasses = []
+    ),
+    MemLevel(
+        name = "GlobalBuffer",
+        dataflow_constraints = [], #WS,
+        size = 16384*8, # number of entries
+        access_energy = 2.02, # per operand (pJ)
+        bandwidth = 32, # operands per cycle (shared)
+        factors_contraints = {},
+        bypasses = ['w']
+    ),
+    #TODO: there should be two dimensions in fanout here... maybe using here Fanout2D could allow for that? Simply add to Fanout2D the case
+    FanoutLevel1D(
+        name = "SACols",
+        mesh = 14,
+        candidate_dims = WS,
+        pe_to_pe = False,
+        factors_contraints = {} #{'D': 8}
+    ),
+    MemLevel(
+        name = "InBuffer",
+        dataflow_constraints = [], #WS,
+        size = 65536, # number of entries
+        access_energy = 0.69, # per operand (pJ)
+        bandwidth = 2**64-1, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['w', 'out']
+    ),
+    MemLevel(
+        name = "WRegister",
+        dataflow_constraints = [], #WS,
+        size = 192*2, # number of entries
+        access_energy = 1.97, # per operand (pJ)
+        bandwidth = 4, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'L': 1},
+        bypasses = ['in', 'out']
+    ),
+    MemLevel(
+        name = "OutRegister",
+        dataflow_constraints = [], #WS,
+        size = 16*2, # number of entries
+        access_energy = 1.34, # per operand (pJ)
+        bandwidth = 4, # operands per cycle (shared)
+        factors_contraints = {'E': 1, 'L': 1},
         bypasses = ['in', 'w']
     ),
     ComputeLevel(
