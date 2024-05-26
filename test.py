@@ -33,7 +33,7 @@ def generateTestMOPs(arch):
                 string += f"{'    '*indentation}\"{key}\": {level[key]},\n"
             indentation -= 1
             string = string[:-2] + f"\n{'    '*indentation}" + "},"
-        elif isinstance(level, FanoutLevel1D) or isinstance(level, FanoutLevel2D):
+        elif isinstance(level, FanoutLevel):
             continue
         elif isinstance(level, ComputeLevel):
             break
@@ -51,7 +51,7 @@ def generateTestLatency(arch):
                 string += f"{'    '*indentation}\"{key}\": {level[key]},\n"
             indentation -= 1
             string = string[:-2] + f"\n{'    '*indentation}" + "},"
-        elif isinstance(level, FanoutLevel1D) or isinstance(level, FanoutLevel2D):
+        elif isinstance(level, FanoutLevel):
             continue
         elif isinstance(level, ComputeLevel):
             break

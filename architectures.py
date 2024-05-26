@@ -13,7 +13,9 @@ IS = ['E', 'L', 'D']
 # - on FanoutLevel1D use "dim" to act as both constraint and exploration space. If dim has more than one dimension
 #   additional ones will be explored, otherwise the only provided one is used.
 
+
 # >>> GEMMINI <<<
+
 arch_gemmini = [
     MemLevel(
         name = "DRAM",
@@ -33,19 +35,13 @@ arch_gemmini = [
         factors_contraints = {},
         bypasses = ['out']
     ),
-    #FanoutLevel2D(
-    #    name = "SA",
-    #    dimX = WS[0],
-    #    dimY = WS[1],
-    #    meshX = 16,
-    #    meshY = 16,
-    #    factors_contraints = {}
-    #),
-    FanoutLevel1D(
+    FanoutLevel(
         name = "SARows",
         dim = WS[0],
         mesh = 16,
-        pe_to_pe = True,
+        # pe_to_pe should be used, since Gemmini uses a systolic array, but Timeloop
+        # does not have this feature, so for sake of comparison, it is turned off
+        #pe_to_pe = True, 
         factors_contraints = {'D': 16}
     ),
     MemLevel(
@@ -57,11 +53,13 @@ arch_gemmini = [
         factors_contraints = {}, # the systolic array does a 16x16 matmul in this case
         bypasses = ['in', 'w']
     ),
-    FanoutLevel1D(
+    FanoutLevel(
         name = "SACols",
         dim = WS[1],
         mesh = 16,
-        pe_to_pe = True,
+        # pe_to_pe should be used, since Gemmini uses a systolic array, but Timeloop
+        # does not have this feature, so for sake of comparison, it is turned off
+        #pe_to_pe = True, 
         factors_contraints = {'E': 16}
     ),
     MemLevel(
@@ -102,11 +100,10 @@ arch_gemmini_timeloop = [
         factors_contraints = {'D': 1, 'E': 8, 'L': 1},
         bypasses = ['out']
     ),
-    FanoutLevel1D(
+    FanoutLevel(
         name = "SARows",
         dim = WS[0],
         mesh = 16,
-        pe_to_pe = True,
         factors_contraints = {'D': 16}
     ),
     MemLevel(
@@ -118,11 +115,10 @@ arch_gemmini_timeloop = [
         factors_contraints = {'D': 3, 'E': 4, 'L': 16}, # the systolic array does a 16x16 matmul in this case
         bypasses = ['in', 'w']
     ),
-    FanoutLevel1D(
+    FanoutLevel(
         name = "SACols",
         dim = WS[1],
         mesh = 16,
-        pe_to_pe = True,
         factors_contraints = {'E': 16}
     ),
     MemLevel(
@@ -163,11 +159,10 @@ arch_gemmini_factorflow_1 = [
         factors_contraints = {'D':32, 'E': 1, 'L': 32},
         bypasses = ['out']
     ),
-    FanoutLevel1D(
+    FanoutLevel(
         name = "SARows",
         dim = WS[0],
         mesh = 16,
-        pe_to_pe = True,
         factors_contraints = {'D': 16}
     ),
     MemLevel(
@@ -179,11 +174,10 @@ arch_gemmini_factorflow_1 = [
         factors_contraints = {'D': 1, 'E': 32, 'L': 1}, # the systolic array does a 16x16 matmul in this case
         bypasses = ['in', 'w']
     ),
-    FanoutLevel1D(
+    FanoutLevel(
         name = "SACols",
         dim = WS[1],
         mesh = 16,
-        pe_to_pe = True,
         factors_contraints = {'E': 16}
     ),
     MemLevel(
@@ -224,11 +218,10 @@ arch_gemmini_factorflow_2 = [
         factors_contraints = {'D':32, 'E': 4, 'L': 1},
         bypasses = ['out']
     ),
-    FanoutLevel1D(
+    FanoutLevel(
         name = "SARows",
         dim = WS[0],
         mesh = 16,
-        pe_to_pe = True,
         factors_contraints = {'D': 16}
     ),
     MemLevel(
@@ -240,11 +233,10 @@ arch_gemmini_factorflow_2 = [
         factors_contraints = {'D': 1, 'E': 1, 'L': 256}, # the systolic array does a 16x16 matmul in this case
         bypasses = ['in', 'w']
     ),
-    FanoutLevel1D(
+    FanoutLevel(
         name = "SACols",
         dim = WS[1],
         mesh = 16,
-        pe_to_pe = True,
         factors_contraints = {'E': 16}
     ),
     MemLevel(
@@ -290,18 +282,16 @@ arch_eyeriss = [
         factors_contraints = {},
         bypasses = ['w']
     ),
-    FanoutLevel1D(
+    FanoutLevel(
         name = "SACols",
         mesh = 14,
-        candidate_dims = WS,
-        pe_to_pe = False,
+        dims = WS[:2],
         factors_contraints = {} #{'D': 8}
     ),
-    FanoutLevel1D(
+    FanoutLevel(
         name = "SARows",
         mesh = 12,
-        candidate_dims = WS,
-        pe_to_pe = False,
+        dims = WS[0],
         factors_contraints = {} #{'D': 12}
     ),
     MemLevel(
@@ -360,18 +350,16 @@ arch_eyeriss_timeloop = [
         factors_contraints = {'D': 1, 'E': 1, 'L': 256},
         bypasses = ['w']
     ),
-    FanoutLevel1D(
+    FanoutLevel(
         name = "SACols",
         dim = 'D',
         mesh = 14,
-        pe_to_pe = False,
         factors_contraints = {'D': 8}
     ),
-    FanoutLevel1D(
+    FanoutLevel(
         name = "SARows",
         dim = 'D', # one of D or E
         mesh = 12,
-        pe_to_pe = False,
         factors_contraints = {'D': 12}
     ),
     MemLevel(
@@ -430,18 +418,16 @@ arch_eyeriss_factorflow_1 = [
         factors_contraints = {'D': 1, 'E': 8, 'L': 256},
         bypasses = ['w']
     ),
-    FanoutLevel1D(
+    FanoutLevel(
         name = "SACols",
         dim = 'D',
         mesh = 14,
-        pe_to_pe = False,
         factors_contraints = {'D': 8}
     ),
-    FanoutLevel1D(
+    FanoutLevel(
         name = "SARows",
         dim = 'D', # one of D or E
         mesh = 12,
-        pe_to_pe = False,
         factors_contraints = {'D': 12}
     ),
     MemLevel(
@@ -480,7 +466,72 @@ arch_eyeriss_factorflow_1 = [
         factors_contraints = {'L': 1}
     )]
 
+
+# >>> TRUE GEMMINI <<<
+
+arch_true_gemmini = [
+    MemLevel(
+        name = "DRAM",
+        dataflow_constraints = [], #['L', 'E', 'D'],
+        size = 2**64-1, # number of entries
+        access_energy = 64.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {},
+        bypasses = []
+    ),
+    MemLevel(
+        name = "Scratchpad",
+        dataflow_constraints = [], #WS,
+        size = 512*(2**10), # number of entries
+        access_energy = 3.47, # per operand (pJ)
+        bandwidth = 32, # operands per cycle (shared)
+        factors_contraints = {},
+        bypasses = ['out']
+    ),
+    FanoutLevel(
+        name = "SARows",
+        dim = WS[0],
+        mesh = 16,
+        pe_to_pe = True, 
+        factors_contraints = {'D': 16}
+    ),
+    MemLevel(
+        name = "Accumulator",
+        dataflow_constraints = [], #WS,
+        size = (256//4)*(2**10)//16, # number of entries (PER ONE INSTANCE!!) (remeber to account for operand size)
+        access_energy = 4.01, # per operand (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 16}, # the systolic array does a 16x16 matmul in this case
+        bypasses = ['in', 'w']
+    ),
+    FanoutLevel(
+        name = "SACols",
+        dim = WS[1],
+        mesh = 16,
+        pe_to_pe = True, 
+        factors_contraints = {'E': 16}
+    ),
+    MemLevel(
+        name = "Register",
+        dataflow_constraints = WS,
+        size = 1, # number of entries
+        access_energy = 0.01, # per operand (pJ)
+        bandwidth = 2, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['in', 'out']
+    ),
+    ComputeLevel(
+        name = "Compute",
+        dataflow = WS[2],
+        size = 1,
+        compute_energy = 0.28, # per compute (pJ)
+        cycles = 1,
+        factors_contraints = {'L': 1}
+    )]
+
+
 # >>> SIMBA <<<
+
 # C -> E
 # M -> D
 # P -> L
@@ -504,11 +555,10 @@ arch_simba = [
         bypasses = ['w']
     ),
     #TODO: there should be two dimensions in fanout here... maybe using here Fanout2D could allow for that? Simply add to Fanout2D the case
-    FanoutLevel1D(
+    FanoutLevel(
         name = "SACols",
         mesh = 14,
-        candidate_dims = WS,
-        pe_to_pe = False,
+        dims = WS[:2],
         factors_contraints = {} #{'D': 8}
     ),
     MemLevel(

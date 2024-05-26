@@ -136,7 +136,7 @@ def printMOPs(arch, per_instance = False):
             reads = in_reads + w_reads + out_reads
             writes = in_writes + w_writes + out_writes
             print(f"{level.name}:{chr(9) * (2 - (len(level.name) + 1)//8)}{in_reads:.0f} In_R, {w_reads:.0f} W_R, {out_reads:.0f} Our_R, {reads:.0f} Tot_R,\n\t\t{in_writes:.0f} In_W, {w_writes:.0f} W_W, {out_writes:.0f} Out_W, {writes:.0f} Tot_W")
-        elif isinstance(level, FanoutLevel1D) or isinstance(level, FanoutLevel2D):
+        elif isinstance(level, FanoutLevel):
             # We are interested in all instances at once, essentially, so it is fine!
             #spatial_iterations_inputs, spatial_iterations_weights, spatial_iterations_outputs, _ = level.mulByDim(spatial_iterations_inputs, spatial_iterations_weights, spatial_iterations_outputs, 0)
             spatial_iterations_inputs *= level.factors.fullProduct()
@@ -160,7 +160,7 @@ def printMOPsNew(arch, per_instance = False):
             reads = level.in_reads + level.w_reads + level.out_reads
             writes = level.in_writes + level.w_writes + level.out_writes
             print(f"{level.name}:{chr(9) * (2 - (len(level.name) + 1)//8)}{level.in_reads/scaling:.0f} In_R, {level.w_reads/scaling:.0f} W_R, {level.out_reads/scaling:.0f} Our_R, {reads/scaling:.0f} Tot_R,\n\t\t{level.in_writes/scaling:.0f} In_W, {level.w_writes/scaling:.0f} W_W, {level.out_writes/scaling:.0f} Out_W, {writes/scaling:.0f} Tot_W")
-        elif isinstance(level, FanoutLevel1D) or isinstance(level, FanoutLevel2D):
+        elif isinstance(level, FanoutLevel):
             continue
         elif isinstance(level, ComputeLevel):
             break
@@ -205,7 +205,7 @@ def printLatency(arch):
             temporal_iterations *= level.factors.fullProduct()
             MOPs = in_reads + w_reads + out_reads + in_writes + w_writes + out_writes
             printAndUpdate(level.latency(MOPs//spatial_iterations), level.name, level.bandwidth, MOPs)
-        elif isinstance(level, FanoutLevel1D) or isinstance(level, FanoutLevel2D):
+        elif isinstance(level, FanoutLevel):
             printAndUpdate(level.latency()*temporal_iterations, level.name)
             spatial_iterations *= level.factors.fullProduct()
         elif isinstance(level, ComputeLevel):
@@ -221,7 +221,7 @@ def printLatencyNew(arch):
                 max_latency = level.getSettedLatency()
                 max_latency_level_name = level.name
             print(f"{level.name}:{chr(9) * (2 - (len(level.name) + 1)//8)}{level.latency_read_drain:.0f}cc RD and {level.latency_fill_update:.0f}cc FU Latency, {level.read_bandwidth:.1f} R and {level.write_bandwidth:.1f} W Bandwidth,\n\t\t{level.ideal_bandwidth_read:.3f} R and {level.ideal_bandwidth_update:.3f} U and {level.ideal_bandwidth_fill:.3f} F and {level.ideal_bandwidth_drain:.3f} D Ideal Bandwidth,\n\t\t{level.cc_per_tile:.0f}cc per Tile, {level.stall_cycles:.0f} Stall Cycles")
-        elif isinstance(level, FanoutLevel1D) or isinstance(level, FanoutLevel2D):
+        elif isinstance(level, FanoutLevel):
             continue
         elif isinstance(level, ComputeLevel):
             break
