@@ -132,6 +132,12 @@ def updateInstances(arch):
             level.instances = spatial_fanout
             level.next_is_compute = isinstance(arch[i+1], ComputeLevel) if i+1 < len(arch) else False
 
+def resetTilesAndFactors(arch):
+    for level in arch:
+        for dim in ['D', 'E', 'L']:
+            level.factors[dim].clear()
+            level.tile_sizes[dim] = 1
+
 def hashFromFactors(arch):
     hsh = ""
     for level_idx in range(len(arch)):

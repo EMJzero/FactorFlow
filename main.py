@@ -24,25 +24,32 @@ FREEZE_SA = True
 # Number of one-factor steps to try after of which the best choice is picked.
 # NOTE: automatically raised to (at least) 2 in case of 2 dimensions on the same fanout.
 STEPS_TO_EXPLORE = 1
-# If True, any recursively explored step after the first one, will only attempt to move again the
-# factor moved in the first step, ignoring other factors. If False, at every subsequent step
-# all possible moves will be tried again.
-LIMIT_FUTURE_STEPS_TO_CURRENT_FACTOR = False
 # If True, any recursively explored step after the first one, will only attempt to move factors
 # into the destination level which was the source for the previous move.
 # NOTE: automatically set to True in case of 2 dimensions on the same fanout.
 LIMIT_FUTURE_STEPS_DST_TO_CURRENT_SRC = False
+# If True, any intermediate step of a multi-step exploration will not need to satisfy architectural
+# constraints, on the condition that the final step will satisfy them.
+# NOTE: can be True iif LIMIT_FUTURE_STEPS_DST_TO_CURRENT_SRC is True
+# NOTE: automatically set to True in case of 2 dimensions on the same fanout.
+NO_CONSTRAINTS_CHECK_DURING_MULTISTEP = LIMIT_FUTURE_STEPS_DST_TO_CURRENT_SRC and False
+# If True, saves time by assuming that any permutation differing from an optimal one by the order
+# of dimensions involving one with a single iteration cannot be optimized further, thus skips
+# it entirely. Setting it to False can slightly improve the best found mapping.
+HARD_PERM_SKIP = False 
 
 def forcedSettingsUpdate(arch):
-    global STEPS_TO_EXPLORE, LIMIT_FUTURE_STEPS_DST_TO_CURRENT_SRC, FREEZE_SA
+    global FREEZE_SA, STEPS_TO_EXPLORE, LIMIT_FUTURE_STEPS_DST_TO_CURRENT_SRC, NO_CONSTRAINTS_CHECK_DURING_MULTISTEP
     for level in arch:
         if isinstance(level, FanoutLevel) and len(level.dims) >= 2:
+            FREEZE_SA = False
+            print(f"INFO: forcefully updating setting FREEZE_SA to {FREEZE_SA}")
             STEPS_TO_EXPLORE = max(2, STEPS_TO_EXPLORE)
             print(f"INFO: forcefully updating setting STEPS_TO_EXPLORE to {STEPS_TO_EXPLORE}")
             LIMIT_FUTURE_STEPS_DST_TO_CURRENT_SRC = True
             print(f"INFO: forcefully updating setting LIMIT_FUTURE_STEPS_DST_TO_CURRENT_SRC to {LIMIT_FUTURE_STEPS_DST_TO_CURRENT_SRC}")
-            FREEZE_SA = False
-            print(f"INFO: forcefully updating setting FREEZE_SA to {FREEZE_SA}")
+            NO_CONSTRAINTS_CHECK_DURING_MULTISTEP = True
+            print(f"INFO: forcefully updating setting NO_CONSTRAINTS_CHECK_DURING_MULTISTEP to {NO_CONSTRAINTS_CHECK_DURING_MULTISTEP}")
             print(f"INFO: --> the cause of this is the presence of a Fanout level ({level.name}) with multiple mapped dimensions({level.dims}). Runtime might increase to a few seconds...")
             print("")
             break
@@ -288,19 +295,16 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
                 new_src -= 1
 
             for dst_level_idx in range(len(arch)):
-                if dim not in arch[dst_level_idx].factors_contraints and dim in arch[dst_level_idx].dataflow:
+                if dst_level_idx != src_level_idx and dim not in arch[dst_level_idx].factors_contraints and dim in arch[dst_level_idx].dataflow:
                     #print(src_level_idx, dst_level_idx, dim, factor)
                     if target_dst_level_idx and dst_level_idx != target_dst_level_idx:
                         continue
-                    if moveFactor(arch, src_level_idx, dst_level_idx, dim, factor, amount):
+                    if moveFactor(arch, src_level_idx, dst_level_idx, dim, factor, amount, skip_src_constraints = NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and remaining_steps > 1):
                         hsh = hashFromFactors(arch)
                         if hsh not in already_seen:
                             already_seen.append(hsh)
                             if remaining_steps > 1:
-                                if LIMIT_FUTURE_STEPS_TO_CURRENT_FACTOR:
-                                    nested_choices = exploreOneStep(remaining_steps - 1, dst_level_idx, dim, factor, src_level_idx if LIMIT_FUTURE_STEPS_DST_TO_CURRENT_SRC else None)
-                                else:
-                                    nested_choices = exploreOneStep(remaining_steps - 1, target_dst_level_idx = src_level_idx if LIMIT_FUTURE_STEPS_DST_TO_CURRENT_SRC else None)
+                                nested_choices = exploreOneStep(remaining_steps - 1, target_dst_level_idx = src_level_idx if LIMIT_FUTURE_STEPS_DST_TO_CURRENT_SRC else None)
                                 if len(nested_choices) == 0:
                                     choices[(src_level_idx, dst_level_idx, dim, factor, amount)] = Wart(arch, comp, bias_read)
                                 else:
@@ -313,7 +317,7 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
                                         choices[(src_level_idx, dst_level_idx, dim, factor, amount)] = wart
                             else:
                                 choices[(src_level_idx, dst_level_idx, dim, factor, amount)] = Wart(arch, comp, bias_read)
-                        assert moveFactor(arch, dst_level_idx, src_level_idx, dim, factor, amount) # something went wrong, unreversible move of a factor    
+                        assert moveFactor(arch, dst_level_idx, src_level_idx, dim, factor, amount, skip_dst_constraints = NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and remaining_steps > 1) # something went wrong, unreversible move of a factor    
         return choices
     
     while True:
@@ -328,11 +332,13 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
             break
         else:
             # each individual choice is defined by 5 parameters, chained to another 5 for each nested exploration step
-            for i in range(len(best_choice) // 5):
-                assert moveFactor(arch, best_choice[5*i + 0], best_choice[5*i + 1], best_choice[5*i + 2], best_choice[5*i + 3], best_choice[5*i + 4]) # best choice is an invalid mapping
+            multisteps = len(best_choice) // 5
+            for i in range(multisteps):
+                assert moveFactor(arch, best_choice[5*i + 0], best_choice[5*i + 1], best_choice[5*i + 2], best_choice[5*i + 3], best_choice[5*i + 4], skip_src_constraints = NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and i < multisteps - 1) # best choice is an invalid mapping
             best_wart = choices[best_choice]
 
     updateInstances(arch)
+    updateStats(arch, bias_read)
     if verbose: print("Final condition:")
     if verbose: printFactors(arch)
     return arch, best_wart
@@ -378,7 +384,8 @@ def optimizeDataflows(arch, comp, bias_read, verbose = False):
         return i
     
     while True:
-        # TODO: remove this deepcopy and just reset factors
+        # TODO: remove this deepcopy and just reset factors (requires a "reset" method implemented in each layer)
+        #resetTilesAndFactors(arch)
         current_arch = copy.deepcopy(arch)
         current_mems = list(filter(lambda l : isinstance(l, MemLevel) or isinstance(l, ComputeLevel), current_arch))
         for mem_idx in range(len(current_mems)):
@@ -399,12 +406,15 @@ def optimizeDataflows(arch, comp, bias_read, verbose = False):
         # or true if of all dimensions involved in swaps between neighbouring nested loops to go from the previous permutation to the current one at least all except one have a factor of 1.
         while i >= 0 and (any(map(lambda dims : all([factors_at_one[i][dim] for dim in dims]), single_cyclic_shift(permutations[i][current_perms[i]], permutations[i][current_perms[i] - 1])))
                or (lambda dims : sum([factors_at_one[i][dim] for dim in dims]) >= len(dims) - 1)(pairwise_swaps(permutations[i][current_perms[i]], permutations[i][current_perms[i] - 1]))):
-            current_mems[i].dataflow = permutations[i][current_perms[i]]
-            current_arch, wart = factorFlow(current_arch, comp, bias_read, True)
-            if wart > best_wart:
-                best_perm = current_perms.copy()
-                best_arch = current_arch
-                best_wart = wart
+            if not HARD_PERM_SKIP:
+                current_mems[i].dataflow = permutations[i][current_perms[i]]
+                for j in range(i + 1, len(mems)):
+                    current_mems[j].dataflow = permutations[j][best_perm[j]]
+                current_arch, wart = factorFlow(current_arch, comp, bias_read, True)
+                if wart > best_wart:
+                    best_perm = current_perms.copy()
+                    best_arch = current_arch
+                    best_wart = wart
             
             skipped_perms = reduce(lambda tot, perms : tot * len(perms), permutations[i+1:len(permutations)], 1)
             tried_perms += skipped_perms
@@ -439,8 +449,8 @@ if __name__ == "__main__":
     
     start_time = time.time()
 
-    #arch, _ = factorFlow(arch, comp, bias_read, True)
-    arch, _, _ = optimizeDataflows(arch, comp, bias_read, True)
+    #arch, _ = factorFlow(arch, comp, bias_read, verbose = True)
+    arch, _, _ = optimizeDataflows(arch, comp, bias_read, verbose = True)
     
     print(f"\nFinished in: {time.time() - start_time:.3f}s")
 

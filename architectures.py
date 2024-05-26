@@ -258,6 +258,69 @@ arch_gemmini_factorflow_2 = [
     )]
 
 
+# >>> TRUE GEMMINI <<<
+
+arch_true_gemmini = [
+    MemLevel(
+        name = "DRAM",
+        dataflow_constraints = [], #['L', 'E', 'D'],
+        size = 2**64-1, # number of entries
+        access_energy = 64.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {},
+        bypasses = []
+    ),
+    MemLevel(
+        name = "Scratchpad",
+        dataflow_constraints = [], #WS,
+        size = 512*(2**10), # number of entries
+        access_energy = 3.47, # per operand (pJ)
+        bandwidth = 32, # operands per cycle (shared)
+        factors_contraints = {},
+        bypasses = ['out']
+    ),
+    FanoutLevel(
+        name = "SARows",
+        dim = WS[0],
+        mesh = 16,
+        pe_to_pe = True, 
+        factors_contraints = {'D': 16}
+    ),
+    MemLevel(
+        name = "Accumulator",
+        dataflow_constraints = [], #WS,
+        size = (256//4)*(2**10)//16, # number of entries (PER ONE INSTANCE!!) (remeber to account for operand size)
+        access_energy = 4.01, # per operand (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 16}, # the systolic array does a 16x16 matmul in this case
+        bypasses = ['in', 'w']
+    ),
+    FanoutLevel(
+        name = "SACols",
+        dim = WS[1],
+        mesh = 16,
+        pe_to_pe = True, 
+        factors_contraints = {'E': 16}
+    ),
+    MemLevel(
+        name = "Register",
+        dataflow_constraints = WS,
+        size = 1, # number of entries
+        access_energy = 0.01, # per operand (pJ)
+        bandwidth = 2, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['in', 'out']
+    ),
+    ComputeLevel(
+        name = "Compute",
+        dataflow = WS[2],
+        size = 1,
+        compute_energy = 0.28, # per compute (pJ)
+        cycles = 1,
+        factors_contraints = {'L': 1}
+    )]
+
+
 # >>> EYERISS <<<
 
 # C -> E
@@ -291,6 +354,7 @@ arch_eyeriss = [
     FanoutLevel(
         name = "SARows",
         mesh = 12,
+        # PATHOLOGICAL CASE: dims = WS[:2],
         dims = WS[0],
         factors_contraints = {} #{'D': 12}
     ),
@@ -467,69 +531,6 @@ arch_eyeriss_factorflow_1 = [
     )]
 
 
-# >>> TRUE GEMMINI <<<
-
-arch_true_gemmini = [
-    MemLevel(
-        name = "DRAM",
-        dataflow_constraints = [], #['L', 'E', 'D'],
-        size = 2**64-1, # number of entries
-        access_energy = 64.00, # per operand/scalar access (pJ)
-        bandwidth = 8, # operands per cycle (shared)
-        factors_contraints = {},
-        bypasses = []
-    ),
-    MemLevel(
-        name = "Scratchpad",
-        dataflow_constraints = [], #WS,
-        size = 512*(2**10), # number of entries
-        access_energy = 3.47, # per operand (pJ)
-        bandwidth = 32, # operands per cycle (shared)
-        factors_contraints = {},
-        bypasses = ['out']
-    ),
-    FanoutLevel(
-        name = "SARows",
-        dim = WS[0],
-        mesh = 16,
-        pe_to_pe = True, 
-        factors_contraints = {'D': 16}
-    ),
-    MemLevel(
-        name = "Accumulator",
-        dataflow_constraints = [], #WS,
-        size = (256//4)*(2**10)//16, # number of entries (PER ONE INSTANCE!!) (remeber to account for operand size)
-        access_energy = 4.01, # per operand (pJ)
-        bandwidth = 8, # operands per cycle (shared)
-        factors_contraints = {'D': 1, 'E': 1, 'L': 16}, # the systolic array does a 16x16 matmul in this case
-        bypasses = ['in', 'w']
-    ),
-    FanoutLevel(
-        name = "SACols",
-        dim = WS[1],
-        mesh = 16,
-        pe_to_pe = True, 
-        factors_contraints = {'E': 16}
-    ),
-    MemLevel(
-        name = "Register",
-        dataflow_constraints = WS,
-        size = 1, # number of entries
-        access_energy = 0.01, # per operand (pJ)
-        bandwidth = 2, # operands per cycle (shared)
-        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
-        bypasses = ['in', 'out']
-    ),
-    ComputeLevel(
-        name = "Compute",
-        dataflow = WS[2],
-        size = 1,
-        compute_energy = 0.28, # per compute (pJ)
-        cycles = 1,
-        factors_contraints = {'L': 1}
-    )]
-
-
 # >>> SIMBA <<<
 
 # C -> E
@@ -538,7 +539,7 @@ arch_true_gemmini = [
 arch_simba = [
     MemLevel(
         name = "DRAM",
-        dataflow_constraints = [], # ['L', 'D', 'E'],
+        dataflow_constraints = [],
         size = 2**64-1, # number of entries
         access_energy = 64.00, # per operand/scalar access (pJ)
         bandwidth = 8, # operands per cycle (shared)
@@ -548,45 +549,65 @@ arch_simba = [
     MemLevel(
         name = "GlobalBuffer",
         dataflow_constraints = [], #WS,
-        size = 16384*8, # number of entries
+        size = 65536, # number of entries
         access_energy = 2.02, # per operand (pJ)
-        bandwidth = 32, # operands per cycle (shared)
+        bandwidth = 2**10, # operands per cycle (shared)
         factors_contraints = {},
         bypasses = ['w']
     ),
-    #TODO: there should be two dimensions in fanout here... maybe using here Fanout2D could allow for that? Simply add to Fanout2D the case
     FanoutLevel(
-        name = "SACols",
-        mesh = 14,
-        dims = WS[:2],
-        factors_contraints = {} #{'D': 8}
+        name = "PEs",
+        mesh = 16,
+        dims = ['E', 'D'],
+        factors_contraints = {}
     ),
     MemLevel(
-        name = "InBuffer",
-        dataflow_constraints = [], #WS,
+        name = "PEInputBuffer",
+        dataflow_constraints = [],
         size = 65536, # number of entries
         access_energy = 0.69, # per operand (pJ)
-        bandwidth = 2**64-1, # operands per cycle (shared)
-        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {},
         bypasses = ['w', 'out']
     ),
+    FanoutLevel(
+        name = "DistributionBuffers",
+        mesh = 4,
+        dims = ['D'],
+        factors_contraints = {}
+    ),
     MemLevel(
-        name = "WRegister",
-        dataflow_constraints = [], #WS,
-        size = 192*2, # number of entries
+        name = "PEWeightBuffer",
+        dataflow_constraints = [],
+        size = 32768, # number of entries
         access_energy = 1.97, # per operand (pJ)
-        bandwidth = 4, # operands per cycle (shared)
-        factors_contraints = {'D': 1, 'L': 1},
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {},
         bypasses = ['in', 'out']
     ),
     MemLevel(
-        name = "OutRegister",
-        dataflow_constraints = [], #WS,
-        size = 16*2, # number of entries
+        name = "PEAccuBuffer",
+        dataflow_constraints = [],
+        size = 128, # number of entries
         access_energy = 1.34, # per operand (pJ)
-        bandwidth = 4, # operands per cycle (shared)
-        factors_contraints = {'E': 1, 'L': 1},
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {},
         bypasses = ['in', 'w']
+    ),
+    FanoutLevel(
+        name = "RegMac",
+        mesh = 4,
+        dims = ['E'],
+        factors_contraints = {}
+    ),
+    MemLevel(
+        name = "PEWeightRegs",
+        dataflow_constraints = [],
+        size = 64, # number of entries
+        access_energy = 1.34, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {},
+        bypasses = ['in', 'out']
     ),
     ComputeLevel(
         name = "Compute",
