@@ -125,7 +125,7 @@ def updateInstances(arch):
     spatial_fanout = 1
     for i in range(len(arch)):
         level = arch[i]
-        if isinstance(level, FanoutLevel1D) or isinstance(level, FanoutLevel2D):
+        if isinstance(level, FanoutLevel):
             # consider only factors -> only actually used instances
             spatial_fanout *= level.factors.fullProduct()
         elif isinstance(level, MemLevel):

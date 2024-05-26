@@ -435,174 +435,70 @@ others, with partially different data.
 Constructor arguments:
 - name: the level's name
 - mesh: the maximum spatial fanout available at this level
-- dim: dimension to spatially unroll at this level, must be specified unless
-       "candidate_dims" is specified
-- pe_to_pe:
-- spatial_multicast_support:
-- spatial_reduction_support:
+- dim: single dimension to spatially unroll at this level, if specified, dims
+       must not be specified
+- dims: list of dimensions to spatially unroll at this level, if specified, dims
+        must not be specified
+- pe_to_pe: if True, data is not multicasted in one shot, but sent to only the first
+            fanout entry, which then forwards it to the second, and so on, just like
+            the operands flowing in/out of a systolic array (or, like in a pipeline).
+            This adds a warmup overhead to latency, but does not affect the total MOPs.
+- spatial_multicast_support: True (default) if this level supports spatial multicast
+- spatial_reduction_support: True (default) if this level supports spatial reduction
 - factors: specifies the initial factors for this level, should not be normally
            specified aside for initializing MSE from a specific configuration
 - tile_sizes: specifies the initial tile sizes for this level, should not be normally
               specified aside for initializing MSE from a specific configuration,
               in which case it must be consistent with any other factors initialization
 - factors_contraints: constraints for the factor that must be placed on this level
-- candidate_dims: ...................... must be specified unless "dim" is specified
+- try_extremes_only: if True, and multiple dimensions are specified in "dim", then only
+                     factor allocations where all factors lie entirely on one of the
+                     dimensions are generated during fanout maximization.
 """
-class FanoutLevel1D(Level):
-    def __init__(self, name, mesh, dim = None, pe_to_pe = None, spatial_multicast_support = True, spatial_reduction_support = True, factors = None, tile_sizes = None, factors_contraints = None, candidate_dims = None):
+class FanoutLevel(Level):
+    def __init__(self, name, mesh, dim = None, dims = None, pe_to_pe = False, spatial_multicast_support = True, spatial_reduction_support = True, factors = None, tile_sizes = None, factors_contraints = None, try_extremes_only = False):
         self.name = name
-        assert dim or candidate_dims # at least one of "dim" or "candicate_dims" must be specified
-        self.dim = dim if dim else candidate_dims[0]
-        self.dataflow = [self.dim]
+        assert (dim and not dims) or (dims and not dim) # exactly one of dim or dims must be specified
+        assert not dims or len(dims) <= 2 # CURRENT LIMITATION: at most 2 dimensions on the same fanout
+        self.dims = [dim] if dim else dims
+        self.dataflow = self.dims
         assert mesh > 0 # a spatial fanout must have a mesh of at least 1
         self.mesh = mesh
-        self.pe_to_pe = pe_to_pe if pe_to_pe != None else False # True in all cases where the operand independent (ex: if dim = D, the operand is the input) of "dim" is forwarded pe->pe rather than read multiple times
+        assert not pe_to_pe or (spatial_multicast_support and spatial_reduction_support) # pe-to-pe forwarding is a form of multicast or reduction, which must then both be supported to use it
+        self.pe_to_pe = pe_to_pe # True in all cases where the operand independent (ex: if dim = D, the operand is the input) of "dim" is forwarded pe->pe rather than multicasted
         self.spatial_multicast_support = spatial_multicast_support
         self.spatial_reduction_support = spatial_reduction_support
         self.factors = factors if factors else Factors()
         self.tile_sizes = tile_sizes if tile_sizes else Shape(1, 1, 1)
         self.factors_contraints = factors_contraints if factors_contraints else {}
-        assert not candidate_dims or len(candidate_dims) > 0 # is specified, candidate_dims must include at least one dimension
-        assert not candidate_dims or self.dim in candidate_dims # if specified, dim must be among the candidate dimensions for spatial fanout
-        self.candidate_dims = candidate_dims if candidate_dims else [self.dim]
+        self.try_extremes_only = try_extremes_only
 
     # let inputs be the amount of operations for each leaf, returns the amount of
     # operations above the fanout accounting for PE-to-PE forwarding of operands!
     def mulByDim(self, in_reads, w_reads, out_reads, out_writes):
-        iterations = self.factors.fullProduct()
-        if self.pe_to_pe:
-            if self.dim != 'D':
-                in_reads *= iterations
-            if self.dim != 'E':
-                out_reads *= iterations
-                out_writes *= iterations
-            if self.dim != 'L':
-                w_reads *= iterations
-        else:
-            w_reads *= iterations
-            in_reads *= iterations
-            out_reads *= iterations
-            out_writes *= iterations
-        return in_reads, w_reads, out_reads, out_writes
-
-    def divByDim(self, in_reads, w_reads, out_reads, out_writes):
-        iterations = self.factors.fullProduct()
-        if self.pe_to_pe:
-            if self.dim != 'D':
-                in_reads //= iterations
-            if self.dim != 'E':
-                out_reads //= iterations
-                out_writes //= iterations
-            if self.dim != 'L':
-                w_reads //= iterations
-        else:
-            w_reads //= iterations
-            in_reads //= iterations
-            out_reads //= iterations
-            out_writes //= iterations
+        factor_D = self.factors.dimProduct('D')
+        factor_E = self.factors.dimProduct('E')
+        factor_L = self.factors.dimProduct('L')
+        in_reads *= factor_E*factor_L
+        w_reads *= factor_E*factor_D
+        out_reads *= factor_L*factor_D
+        if not self.spatial_multicast_support:
+            in_reads *= factor_D
+            w_reads *= factor_L
+            out_reads *= factor_E
+        out_writes *= factor_L*factor_D
+        if not self.spatial_reduction_support:
+            out_writes *= factor_E
+                        
         return in_reads, w_reads, out_reads, out_writes
 
     # => The returned value must be multiplied by the factors above it.
     def latency(self):
         return 0 # change this if we model the network's latency
 
-    def checkConstraints(self):
-        return self.factors.dimProduct(self.dim) <= self.mesh and super().checkConstraints()
-"""
-ASSUMPTION: fanouts are performed in the order 1->X->XY, as such this is equivalent
-to a sequence of two "FanoutLevel1D", the first of dim = dimX, the second dim = dimY.
-(This is implemented with the dataflow having dimX before dimY)
-"""
-class FanoutLevel2D(Level):
-    def __init__(self, name, dimX, dimY, meshX, meshY, pe_to_peX = None, pe_to_peY = None, spatial_multicast_support = True, spatial_reduction_support = True, factors = None, tile_sizes = None, factors_contraints = None):
-        assert False # not yet supported - use FanoutLevel1D for now
-        self.name = name
-        assert dimX != dimY # cannot fanout in 2D on the same dimension twice, use a sequence of two FanoutLevel1D
-        self.dataflow = [dimX, dimY]
-        self.dimX = dimX
-        self.dimY = dimY
-        self.meshX = meshX
-        self.meshY = meshY
-        self.pe_to_peX = pe_to_peX if pe_to_peX != None else False # True in all cases where the operand independent (ex: if dimX = D, the operand is the input) of "dimX" is forwarded pe->pe rather than read multiple times
-        self.pe_to_peY = pe_to_peY if pe_to_peY != None else False # True in all cases where the operand independent (ex: if dimY = D, the operand is the input) of "dimY" is forwarded pe->pe rather than read multiple times
-        self.spatial_multicast_support = spatial_multicast_support
-        self.spatial_reduction_support = spatial_reduction_support
-        self.factors = factors if factors else Factors()
-        self.tile_sizes = tile_sizes if tile_sizes else Shape(1, 1, 1)
-        self.factors_contraints = factors_contraints if factors_contraints else {}
+    def checkConstraints(self, mesh_split_factor = 1):
+        return self.factors.fullProduct() <= self.mesh//mesh_split_factor and super().checkConstraints()
 
-    # let inputs be the amount of operations for each leaf, returns the amount of
-    # operations above the fanout accounting for PE-to-PE forwarding of operands!
-    def mulByDim(self, in_reads, w_reads, out_reads, out_writes):
-        iterationsX = self.factors.dimProduct(self.dimX)
-        if self.pe_to_peX:
-            if self.dimX != 'D':
-                in_reads *= iterationsX
-            if self.dimX != 'E':
-                out_reads *= iterationsX
-                out_writes *= iterationsX
-            if self.dimX != 'L':
-                w_reads *= iterationsX
-        else:
-            w_reads *= iterationsX
-            in_reads *= iterationsX
-            out_reads *= iterationsX
-            out_writes *= iterationsX
-        iterationsY = self.factors.dimProduct(self.dimY)
-        if self.pe_to_peY:
-            if self.dimY != 'D':
-                in_reads *= iterationsY
-            if self.dimY != 'E':
-                out_reads *= iterationsY
-                out_writes *= iterationsY
-            if self.dimY != 'L':
-                w_reads *= iterationsY
-        else:
-            w_reads *= iterationsY
-            in_reads *= iterationsY
-            out_reads *= iterationsY
-            out_writes *= iterationsY
-        return in_reads, w_reads, out_reads, out_writes
-
-    def divByDim(self, in_reads, w_reads, out_reads, out_writes):
-        iterationsX = self.factors.dimProduct(self.dimX)
-        if self.pe_to_peX:
-            if self.dimX != 'D':
-                in_reads //= iterationsX
-            if self.dimX != 'E':
-                out_reads //= iterationsX
-                out_writes //= iterationsX
-            if self.dimX != 'L':
-                w_reads //= iterationsX
-        else:
-            w_reads //= iterationsX
-            in_reads //= iterationsX
-            out_reads //= iterationsX
-            out_writes //= iterationsX
-        iterationsY = self.factors.dimProduct(self.dimY)
-        if self.pe_to_peY:
-            if self.dimY != 'D':
-                in_reads //= iterationsY
-            if self.dimY != 'E':
-                out_reads //= iterationsY
-                out_writes //= iterationsY
-            if self.dimY != 'L':
-                w_reads //= iterationsY
-        else:
-            w_reads //= iterationsY
-            in_reads //= iterationsY
-            out_reads //= iterationsY
-            out_writes //= iterationsY
-        return in_reads, w_reads, out_reads, out_writes
-
-    # => The returned value must be multiplied by the factors above it.
-    def latency(self):
-        return 0 # change this if we model the network's latency
-
-    def checkConstraints(self):
-        return (self.factors.dimProduct(self.dimX) <= self.meshX and
-                self.factors.dimProduct(self.dimY) <= self.meshY and
-                super().checkConstraints())
         
 """
 A Compute Level within the architecture, it is a placeholder for any processing
