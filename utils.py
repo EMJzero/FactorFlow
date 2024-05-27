@@ -138,6 +138,13 @@ def resetTilesAndFactors(arch):
             level.factors[dim].clear()
             level.tile_sizes[dim] = 1
 
+def fanoutsUtilization(arch):
+    utilization = 1
+    for level in arch:
+        if isinstance(level, FanoutLevel):
+            utilization *= level.factors.fullProduct()/level.mesh
+    return utilization
+
 def hashFromFactors(arch):
     hsh = ""
     for level_idx in range(len(arch)):

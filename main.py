@@ -37,6 +37,9 @@ NO_CONSTRAINTS_CHECK_DURING_MULTISTEP = LIMIT_FUTURE_STEPS_DST_TO_CURRENT_SRC an
 # of dimensions involving one with a single iteration cannot be optimized further, thus skips
 # it entirely. Setting it to False can slightly improve the best found mapping.
 HARD_PERM_SKIP = False 
+# If True, the Wart will be multiplied by the utilization of the fanouts in the spatial architecture,
+# punishing mappings which underutilize fanouts.
+UTILIZATION_IN_WART = True
 
 def forcedSettingsUpdate(arch):
     global FREEZE_SA, STEPS_TO_EXPLORE, LIMIT_FUTURE_STEPS_DST_TO_CURRENT_SRC, NO_CONSTRAINTS_CHECK_DURING_MULTISTEP
@@ -193,7 +196,13 @@ def updateStats(arch, bias_read):
 def Wart(arch, comp, bias_read):
     FLOPs = comp.FLOPs()
     WMOPs, max_latency = updateStats(arch, bias_read)
-    return FLOPs/(WMOPs*max_latency)
+    utilization = fanoutsUtilization(arch) if UTILIZATION_IN_WART else 1
+    return (FLOPs/(WMOPs*max_latency))*utilization
+
+# Energy-Delay Product
+def EDP(arch, bias_read):
+    WMOPs, max_latency = updateStats(arch, bias_read)
+    return WMOPs*max_latency
 
 def factorsIterator(arch, iterate_amounts = False, skip_fanouts = False):
     for level_idx in range(len(arch)):
@@ -237,25 +246,40 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
     # IDEA: use a binary (ternary) tree expansion, start with 50-50 (30-30-30), explore each child and prune worse branches?
     if not already_initialized:
         if verbose: print("\nStarting fanout maximization:\n")
+        #for i in range(1, len(arch) - 1):
+        #    level = arch[i]
+        #    if isinstance(level, FanoutLevel):
+        #        # TODO: as of now this accepts only at most 2 dimensions on same fanout - pick mesh_split_factor >= 3 to allow more?
+        #        mesh_prime_factors = primeFactors(level.mesh)
+        #        # use the smallest available factor to split the mesh among dimensions
+        #        mesh_split_factor = min(mesh_prime_factors) if len(level.dims) >= 2 else 1
+        #        for j in range(len(level.dims)):
+        #            common_mesh_factors = [f for f in mesh_prime_factors.keys() if f in arch[0].factors[level.dims[j]]]
+        #            for f in sorted(common_mesh_factors, reverse=True): # try largest factors first
+        #                amount = arch[0].factors[level.dims[j]][f]
+        #                while amount > 0:
+        #                    # lower the amount until you succeed
+        #                    if moveFactor(arch, 0, i, level.dims[j], f, amount):
+        #                        if level.checkConstraints(mesh_split_factor) or j != 0:
+        #                            break
+        #                        else:
+        #                            assert moveFactor(arch, i, 0, level.dims[j], f, amount) # failed to revert move
+        #                    amount -= 1
+        
         for i in range(1, len(arch) - 1):
             level = arch[i]
             if isinstance(level, FanoutLevel):
                 # TODO: as of now this accepts only at most 2 dimensions on same fanout - pick mesh_split_factor >= 3 to allow more?
                 mesh_prime_factors = primeFactors(level.mesh)
-                # use the smallest available factor to split the mesh among dimensions
-                mesh_split_factor = min(mesh_prime_factors) if len(level.dims) >= 2 else 1
-                for j in range(len(level.dims)):
-                    common_mesh_factors = [f for f in mesh_prime_factors.keys() if f in arch[0].factors[level.dims[j]]]
-                    for f in sorted(common_mesh_factors, reverse=True): # try largest factors first
-                        amount = arch[0].factors[level.dims[j]][f]
-                        while amount > 0:
-                            # lower the amount until you succeed
-                            if moveFactor(arch, 0, i, level.dims[j], f, amount):
-                                if level.checkConstraints(mesh_split_factor) or j != 0:
-                                    break
-                                else:
-                                    assert moveFactor(arch, i, 0, level.dims[j], f, amount) # failed to revert move
-                            amount -= 1
+                common_mesh_factors = [f for f in mesh_prime_factors.keys() if f in arch[0].factors[level.dims[0]] or f in arch[0].factors[level.dims[1]]]
+                ping_pong = 0
+                for f in sorted(common_mesh_factors, reverse=True): # try largest factors first
+                    for _ in range(max(map(lambda dim : arch[0].factors[dim][f] if f in arch[0].factors[dim] else 0, level.dims))):
+                        if f not in arch[0].factors[level.dims[ping_pong]]:
+                            ping_pong = len(level.dims) - 1 - ping_pong
+                        if moveFactor(arch, 0, i, level.dims[ping_pong], f):
+                            ping_pong = len(level.dims) - 1 - ping_pong
+        
         updateInstances(arch)
         if verbose: print(f"After fanout maximization (Wart: {Wart(arch, comp, bias_read):.3e}):")
         if verbose: printFactors(arch)
@@ -339,7 +363,7 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
 
     updateInstances(arch)
     updateStats(arch, bias_read)
-    if verbose: print("Final condition:")
+    if verbose: print(f"Final condition:\nWart: {best_wart}\nEDP: {EDP(arch, bias_read):.3e}")
     if verbose: printFactors(arch)
     return arch, best_wart
 
@@ -426,7 +450,7 @@ def optimizeDataflows(arch, comp, bias_read, verbose = False):
         if i < 0:
             break
     
-    if verbose: print(f"\nBest mapping found with Wart: {best_wart:.3e}")
+    if verbose: print(f"\nBest mapping found with Wart: {best_wart:.3e}, EDP: {EDP(best_arch, bias_read):.3e}")
     if verbose: printFactors(best_arch)
     return best_arch, best_wart, best_perm
 
