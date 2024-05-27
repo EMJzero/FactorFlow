@@ -536,6 +536,7 @@ arch_eyeriss_factorflow_1 = [
 # C -> E
 # M -> D
 # P -> L
+# REMEMBER: number of entries, aka size, is (width*depth)/(cluster_size*datawidth)
 arch_simba = [
     MemLevel(
         name = "DRAM",
@@ -550,7 +551,7 @@ arch_simba = [
         name = "GlobalBuffer",
         dataflow_constraints = [], #WS,
         size = 65536, # number of entries
-        access_energy = 2.02, # per operand (pJ)
+        access_energy = 1.85, # per operand (pJ)
         bandwidth = 2**10, # operands per cycle (shared)
         factors_contraints = {},
         bypasses = ['w']
@@ -565,7 +566,7 @@ arch_simba = [
         name = "PEInputBuffer",
         dataflow_constraints = [],
         size = 65536, # number of entries
-        access_energy = 0.69, # per operand (pJ)
+        access_energy = 30.26, # per operand (pJ)
         bandwidth = 2**10, # operands per cycle (shared)
         factors_contraints = {},
         bypasses = ['w', 'out']
@@ -580,7 +581,7 @@ arch_simba = [
         name = "PEWeightBuffer",
         dataflow_constraints = [],
         size = 32768, # number of entries
-        access_energy = 1.97, # per operand (pJ)
+        access_energy = 15.16, # per operand (pJ)
         bandwidth = 2**10, # operands per cycle (shared)
         factors_contraints = {},
         bypasses = ['in', 'out']
@@ -589,7 +590,7 @@ arch_simba = [
         name = "PEAccuBuffer",
         dataflow_constraints = [],
         size = 128, # number of entries
-        access_energy = 1.34, # per operand (pJ)
+        access_energy = 3.93, # per operand (pJ)
         bandwidth = 2**10, # operands per cycle (shared)
         factors_contraints = {},
         bypasses = ['in', 'w']
@@ -603,8 +604,8 @@ arch_simba = [
     MemLevel(
         name = "PEWeightRegs",
         dataflow_constraints = [],
-        size = 64, # number of entries
-        access_energy = 1.34, # per operand (pJ)
+        size = 1, # number of entries
+        access_energy = 0.70, # per operand (pJ)
         bandwidth = 2**10, # operands per cycle (shared)
         factors_contraints = {},
         bypasses = ['in', 'out']
@@ -613,7 +614,173 @@ arch_simba = [
         name = "Compute",
         dataflow = WS[2],
         size = 1,
-        compute_energy = 0.21, # per compute (pJ)
+        compute_energy = 0.32, # per compute (pJ)
+        cycles = 1,
+        factors_contraints = {'L': 1}
+    )]
+
+# SOLUTION GIVEN BY TIMELOOP:
+arch_simba_timeloop = [
+    MemLevel(
+        name = "DRAM",
+        dataflow_constraints = ['L', 'D', 'E'],
+        size = 2**64-1, # number of entries
+        access_energy = 64.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 3, 'E': 1, 'L': 128},
+        bypasses = []
+    ),
+    MemLevel(
+        name = "GlobalBuffer",
+        dataflow_constraints = ['E', 'D', 'L'], #WS,
+        size = 65536, # number of entries
+        access_energy = 1.85, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 16, 'E': 16, 'L': 1},
+        bypasses = ['w']
+    ),
+    FanoutLevel(
+        name = "PEs",
+        mesh = 16,
+        dims = ['E', 'D'],
+        factors_contraints = {'D': 2, 'E': 2,}
+    ),
+    MemLevel(
+        name = "PEInputBuffer",
+        dataflow_constraints = WS,
+        size = 65536, # number of entries
+        access_energy = 30.26, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 2, 'L': 1},
+        bypasses = ['w', 'out']
+    ),
+    FanoutLevel(
+        name = "DistributionBuffers",
+        mesh = 4,
+        dims = ['D'],
+        factors_contraints = {'D': 2}
+    ),
+    MemLevel(
+        name = "PEWeightBuffer",
+        dataflow_constraints = ['L', 'D', 'E'],
+        size = 32768, # number of entries
+        access_energy = 15.16, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 16, 'E': 2, 'L': 8},
+        bypasses = ['in', 'out']
+    ),
+    MemLevel(
+        name = "PEAccuBuffer",
+        dataflow_constraints = ['D', 'E', 'L'],
+        size = 128, # number of entries
+        access_energy = 3.93, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 2, 'L': 2},
+        bypasses = ['in', 'w']
+    ),
+    FanoutLevel(
+        name = "RegMac",
+        mesh = 4,
+        dims = ['E'],
+        factors_contraints = {'E': 4}
+    ),
+    MemLevel(
+        name = "PEWeightRegs",
+        dataflow_constraints = WS,
+        size = 1, # number of entries
+        access_energy = 0.70, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 2},
+        bypasses = ['in', 'out']
+    ),
+    ComputeLevel(
+        name = "Compute",
+        dataflow = WS[2],
+        size = 1,
+        compute_energy = 0.32, # per compute (pJ)
+        cycles = 1,
+        factors_contraints = {'L': 1}
+    )]
+
+# SOLUTION GIVEN BY FF:
+arch_simba_factorflow_1 = [
+    MemLevel(
+        name = "DRAM",
+        dataflow_constraints = ['E', 'D', 'L'],
+        size = 2**64-1, # number of entries
+        access_energy = 64.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 2, 'E': 1, 'L': 256},
+        bypasses = []
+    ),
+    MemLevel(
+        name = "GlobalBuffer",
+        dataflow_constraints = ['L', 'E', 'D'],
+        size = 65536, # number of entries
+        access_energy = 1.85, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['w']
+    ),
+    FanoutLevel(
+        name = "PEs",
+        mesh = 16,
+        dims = ['E', 'D'],
+        factors_contraints = {'D': 8, 'E': 2,}
+    ),
+    MemLevel(
+        name = "PEInputBuffer",
+        dataflow_constraints = ['L', 'E', 'D'],
+        size = 65536, # number of entries
+        access_energy = 30.26, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['w', 'out']
+    ),
+    FanoutLevel(
+        name = "DistributionBuffers",
+        mesh = 4,
+        dims = ['D'],
+        factors_contraints = {'D': 4}
+    ),
+    MemLevel(
+        name = "PEWeightBuffer",
+        dataflow_constraints = ['L', 'E', 'D'],
+        size = 32768, # number of entries
+        access_energy = 15.16, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 6, 'E': 1, 'L': 1},
+        bypasses = ['in', 'out']
+    ),
+    MemLevel(
+        name = "PEAccuBuffer",
+        dataflow_constraints = ['E', 'D', 'L'],
+        size = 128, # number of entries
+        access_energy = 3.93, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 8, 'E': 128, 'L': 16},
+        bypasses = ['in', 'w']
+    ),
+    FanoutLevel(
+        name = "RegMac",
+        mesh = 4,
+        dims = ['E'],
+        factors_contraints = {'E': 4}
+    ),
+    MemLevel(
+        name = "PEWeightRegs",
+        dataflow_constraints = ['E', 'L', 'D'],
+        size = 1, # number of entries
+        access_energy = 0.70, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['in', 'out']
+    ),
+    ComputeLevel(
+        name = "Compute",
+        dataflow = WS[2],
+        size = 1,
+        compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_contraints = {'L': 1}
     )]
