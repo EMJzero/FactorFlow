@@ -99,11 +99,11 @@ def updateStats(arch, bias_read):
             temporal_iterations *= level.factors.fullProduct()
             acc_out_reads_factors *= level.factors.dimProduct('E')
         elif isinstance(level, FanoutLevel):
-            iterations = level.factors.fullProduct()
-            spatial_iterations *= iterations
+            spatial_iterations *= level.factors.fullProduct()
             # spatial multicast of an operand occurs if the fanout is along a dimension not relative
             # to such operand hence, the operand is read once, but written once per instance
             for dim in level.dataflow:
+                iterations = level.factors.dimProduct(dim)
                 if dim == 'D':
                     if not level.spatial_multicast_support: # we don't have spatial multicast capabilities, increment retroactively the reads on the above level
                         if i > 0:
@@ -271,7 +271,7 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
             if isinstance(level, FanoutLevel):
                 # TODO: as of now this accepts only at most 2 dimensions on same fanout - pick mesh_split_factor >= 3 to allow more?
                 mesh_prime_factors = primeFactors(level.mesh)
-                common_mesh_factors = [f for f in mesh_prime_factors.keys() if f in arch[0].factors[level.dims[0]] or f in arch[0].factors[level.dims[1]]]
+                common_mesh_factors = [f for f in mesh_prime_factors.keys() if f in [ft for dim in level.dims for ft in arch[0].factors[dim]]]
                 ping_pong = 0
                 for f in sorted(common_mesh_factors, reverse=True): # try largest factors first
                     for _ in range(max(map(lambda dim : arch[0].factors[dim][f] if f in arch[0].factors[dim] else 0, level.dims))):
@@ -464,7 +464,7 @@ comp = Shape(
     )
 bias_read = False # True if bias is not 0 - outputs are read even the first time
 
-arch = arch_eyeriss
+arch = arch_simba
 
 ## MAIN:
 

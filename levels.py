@@ -456,7 +456,7 @@ Constructor arguments:
                      dimensions are generated during fanout maximization.
 """
 class FanoutLevel(Level):
-    def __init__(self, name, mesh, dim = None, dims = None, pe_to_pe = False, spatial_multicast_support = True, spatial_reduction_support = True, factors = None, tile_sizes = None, factors_contraints = None, try_extremes_only = False):
+    def __init__(self, name, mesh, dim = None, dims = None, pe_to_pe = False, spatial_multicast_support = True, spatial_reduction_support = True, factors = None, tile_sizes = None, factors_contraints = None):
         self.name = name
         assert (dim and not dims) or (dims and not dim) # exactly one of dim or dims must be specified
         assert not dims or len(dims) <= 2 # CURRENT LIMITATION: at most 2 dimensions on the same fanout
@@ -471,7 +471,6 @@ class FanoutLevel(Level):
         self.factors = factors if factors else Factors()
         self.tile_sizes = tile_sizes if tile_sizes else Shape(1, 1, 1)
         self.factors_contraints = factors_contraints if factors_contraints else {}
-        self.try_extremes_only = try_extremes_only
 
     # let inputs be the amount of operations for each leaf, returns the amount of
     # operations above the fanout accounting for PE-to-PE forwarding of operands!
