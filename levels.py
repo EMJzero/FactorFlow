@@ -496,8 +496,8 @@ class FanoutLevel(Level):
     def latency(self):
         return 0 # change this if we model the network's latency
 
-    def checkConstraints(self, mesh_split_factor = 1):
-        return self.factors.fullProduct() <= self.mesh//mesh_split_factor and super().checkConstraints()
+    def checkConstraints(self):
+        return self.factors.fullProduct() <= self.mesh and super().checkConstraints()
 
         
 """
