@@ -159,8 +159,11 @@ def powerset(iterable):
     s = list(iterable)
     return chain.from_iterable(combinations(s, r) for r in range(len(s)+1))
 
-# Interleaves the entries of "elements" of in all possible ways with the
-# elements of "array". The array elements retain their order, while elements may not
+"""
+Interleaves the entries of "elements" in all possible ways in between the
+elements of "array". The array elements retain their order, while those of
+"elements" may not.
+"""
 def interleave(array, elements):
     def recursive_insert(arr, elems):
         if not elems:
@@ -173,8 +176,14 @@ def interleave(array, elements):
     return recursive_insert(array, elements)
 
 """
+Returns a list of all versions of "array" that differ by a rotation (or shift).
+"""
+def rotations(array):
+    return [array[i:] + array[:i] for i in range(len(array))]
+
+"""
 Returns, if any, the sets of elements which can undergo a cyclic shift and
-in so reach the configuration of arr2 starting from arr1
+in so reach the configuration of arr2 starting from arr1.
 """
 def single_cyclic_shift(arr1, arr2):
     n = len(arr1)
