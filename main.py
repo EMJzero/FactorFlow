@@ -1,9 +1,11 @@
 from itertools import chain, combinations, permutations
 from functools import reduce
+import multiprocessing
 import math
 import copy
 import time
 import sys
+import os
 
 from architectures import *
 from factors import *
@@ -37,15 +39,28 @@ NO_CONSTRAINTS_CHECK_DURING_MULTISTEP = LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC and F
 # allocation during fanout maximization. If False, both dimensions equally get factors.
 ONLY_MAXIMIZE_FIRST_FANOUT_DIM = False
 # If True, saves time by assuming that any permutation differing from an optimal one by the order
+# of dimensions involving one with a single iteration can be optimized starting from where it
+# already is, and thus avoids a complete re-initialization.
+# NOTE: True is highly recommended to avoid prohibitive MSE times.
+PERM_SKIP = True 
+# If True, saves time by assuming that any permutation differing from an optimal one by the order
 # of dimensions involving one with a single iteration cannot be optimized further, thus skips
 # it entirely. Setting it to False can slightly improve the best found mapping.
-HARD_PERM_SKIP = False 
+# NOTE: unless PERM_SKIP is True, this setting is useless.
+HARD_PERM_SKIP = False
 # If True, the Wart will be multiplied by the utilization of the fanouts in the spatial architecture,
 # punishing mappings which underutilize fanouts.
 UTILIZATION_IN_WART = True
 
+# If True, the exploration of permutations done in optimizeDataflows will run across multiple
+# threads (or better, processes, due to the GIL).
+MULTITHREADED = True
+# Number of threads to use if MULTITHREADED is True. If None, it is set to the number of
+# logical CPUs available on the system.
+THREADS_COUNT = None
+
 def forcedSettingsUpdate(arch):
-    global FREEZE_SA, STEPS_TO_EXPLORE, LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC, NO_CONSTRAINTS_CHECK_DURING_MULTISTEP
+    global FREEZE_SA, STEPS_TO_EXPLORE, LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC, NO_CONSTRAINTS_CHECK_DURING_MULTISTEP, MULTITHREADED, THREADS_COUNT
     for level in arch:
         if isinstance(level, FanoutLevel) and len(level.dims) >= 2:
             FREEZE_SA = False
@@ -57,8 +72,11 @@ def forcedSettingsUpdate(arch):
             NO_CONSTRAINTS_CHECK_DURING_MULTISTEP = True
             print(f"INFO: forcefully updating setting NO_CONSTRAINTS_CHECK_DURING_MULTISTEP to {NO_CONSTRAINTS_CHECK_DURING_MULTISTEP}")
             print(f"INFO: --> the cause of this is the presence of a Fanout level ({level.name}) with multiple mapped dimensions({level.dims}). Runtime might increase to a few seconds...")
-            print("")
             break
+    if MULTITHREADED:
+        THREADS_COUNT = THREADS_COUNT if THREADS_COUNT else os.cpu_count()
+        print(f"INFO: running multithreaded with THREADS_COUNT = {THREADS_COUNT}")
+    print("")
 
 # updates the MOPs and Latency data of each level w.r.t. the current mapping
 def updateStats(arch, bias_read):
@@ -360,8 +378,8 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
     if verbose: printFactors(arch)
     return arch, best_wart
 
-def optimizeDataflows(arch, comp, bias_read, verbose = False):
-    if verbose: print("-------- optimizeDataflows --------")
+def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, threads_count = 1, return_list = None, verbose = False):
+    if verbose and thread_idx <= 0: print("-------- optimizeDataflows --------")
     mems = list(filter(lambda l : isinstance(l, MemLevel) or isinstance(l, ComputeLevel), arch))
     # TODO: pre-exclude some permutations according to the work on derivatives
     # HOW-TO:
@@ -373,10 +391,35 @@ def optimizeDataflows(arch, comp, bias_read, verbose = False):
     # NOTE: we cannot truly skip the configuration, but we can re-start the factorFlow exploration
     # from where it was left!
     permutations = [[perm for perm in interleave(level.dataflow_constraints, [dim for dim in level.dataflow if dim not in level.dataflow_constraints])] for level in mems]
+    
+    # divide permutations across threads (if multithreading is enabled)
+    #print(f"Original permutations: {permutations}")
+    if thread_idx != -1:
+        partitioning_idx = 0 # start splitting among threads from the top
+        threads_assigned_to_prev_partitions = 0
+        while threads_count > len(permutations[partitioning_idx]):
+            threads_per_permutation = [(threads_count + i) // len(permutations[partitioning_idx]) for i in range(len(permutations[partitioning_idx]))]
+            current_idx = 0
+            while thread_idx - threads_assigned_to_prev_partitions - sum(threads_per_permutation[:current_idx+1]) >= 0:
+                current_idx += 1
+            permutations[partitioning_idx] = permutations[partitioning_idx][current_idx:current_idx+1]
+            threads_count = threads_per_permutation[current_idx]
+            threads_assigned_to_prev_partitions += sum(threads_per_permutation[:current_idx])
+            partitioning_idx += 1
+        if threads_count > 1:
+            permutations_per_thread = len(permutations[partitioning_idx]) // threads_count
+            remainder = len(permutations[partitioning_idx]) % threads_count
+            start_idx = (thread_idx - threads_assigned_to_prev_partitions)*permutations_per_thread + min(thread_idx - threads_assigned_to_prev_partitions, remainder)
+            end_idx = start_idx + permutations_per_thread + (1 if thread_idx - threads_assigned_to_prev_partitions < remainder else 0)
+            permutations[partitioning_idx] = permutations[partitioning_idx][start_idx:end_idx]
+        #print(f"Permutations for thread {thread_idx}: {permutations}")
+    
     total_perms = reduce(lambda tot, perms : tot * len(perms), permutations, 1)
 
-    if verbose: print(f"Starting MSE:\n")
-    if verbose: print(f"Dataflow permutations to try: {total_perms}")
+    if verbose and thread_idx <= 0: print(f"Starting MSE:\n")
+    if verbose:
+        if thread_idx == -1: print(f"Dataflow permutations to try: {total_perms}")
+        else: print(f"Dataflow permutations to try in thread {thread_idx}: {total_perms}")
     
     # clockwork counter to try all permutations at all levels
     current_perms = [0 for _ in mems]
@@ -408,6 +451,7 @@ def optimizeDataflows(arch, comp, bias_read, verbose = False):
         for mem_idx in range(len(current_mems)):
             current_mems[mem_idx].dataflow = permutations[mem_idx][current_perms[mem_idx]]
         current_arch, wart = factorFlow(current_arch, comp, bias_read)
+        #if permutations[0][current_perms[0]] == ['L', 'D', 'E'] and permutations[1][current_perms[1]] == ['D', 'E', 'L']: print(f"GOTCHA!! wart {wart}")
         if wart > best_wart:
             best_perm = current_perms.copy()
             best_arch = current_arch
@@ -415,19 +459,21 @@ def optimizeDataflows(arch, comp, bias_read, verbose = False):
             
         tried_perms += 1
         if verbose and math.floor((tried_perms/total_perms)*10) > math.floor(((tried_perms - 1)/total_perms)*10):
-            print(f"Progress: {tried_perms}/{total_perms} tried...")
+            if thread_idx == -1: print(f"Progress: {tried_perms}/{total_perms} tried...")
+            else: print(f"Progress in thread {thread_idx}: {tried_perms}/{total_perms} tried...")
         # NOTE: "i" is the outermost memory hierarchy level which had its permutation updated right now
         i = nextPermutations(len(mems) - 1)
         
         # True if any set of dimensions which with a cyclic shift can yield the previous permutation from the current one is entirely made of dims with a factor of 1,
         # or true if of all dimensions involved in swaps between neighbouring nested loops to go from the previous permutation to the current one at least all except one have a factor of 1.
-        while i >= 0 and (any(map(lambda dims : all([factors_at_one[i][dim] for dim in dims]), single_cyclic_shift(permutations[i][current_perms[i]], permutations[i][current_perms[i] - 1])))
+        while PERM_SKIP and i >= 0 and (any(map(lambda dims : all([factors_at_one[i][dim] for dim in dims]), single_cyclic_shift(permutations[i][current_perms[i]], permutations[i][current_perms[i] - 1])))
                or (lambda dims : sum([factors_at_one[i][dim] for dim in dims]) >= len(dims) - 1)(pairwise_swaps(permutations[i][current_perms[i]], permutations[i][current_perms[i] - 1]))):
             if not HARD_PERM_SKIP:
                 current_mems[i].dataflow = permutations[i][current_perms[i]]
                 for j in range(i + 1, len(mems)):
                     current_mems[j].dataflow = permutations[j][best_perm[j]]
                 current_arch, wart = factorFlow(current_arch, comp, bias_read, True)
+                #if permutations[0][current_perms[0]] == ['L', 'D', 'E'] and permutations[1][current_perms[1]] == ['D', 'E', 'L']: print(f"GOTCHA SKIIIIIP!! wart {wart}")
                 if wart > best_wart:
                     best_perm = current_perms.copy()
                     best_arch = current_arch
@@ -436,16 +482,21 @@ def optimizeDataflows(arch, comp, bias_read, verbose = False):
             skipped_perms = reduce(lambda tot, perms : tot * len(perms), permutations[i+1:len(permutations)], 1)
             tried_perms += skipped_perms
             if verbose and math.floor((tried_perms/total_perms)*10) > math.floor(((tried_perms - skipped_perms)/total_perms)*10):
-                print(f"Progress: {tried_perms}/{total_perms} tried...")
+                if thread_idx == -1: print(f"Progress: {tried_perms}/{total_perms} tried...")
+                else: print(f"Progress in thread {thread_idx}: {tried_perms}/{total_perms} tried...")
             i = nextPermutations(i)
             if i < 0:
                 break
         if i < 0:
             break
     
-    if verbose: print(f"\nBest mapping found with Wart: {best_wart:.3e}, EDP: {EDP(best_arch, bias_read, True):.3e} (J*cycle)")
-    if verbose: printFactors(best_arch)
-    return best_arch, best_wart, best_perm
+    if verbose:
+        if thread_idx == -1: print(f"\nBest mapping found with Wart: {best_wart:.3e}, EDP: {EDP(best_arch, bias_read, True):.3e} (J*cycle)")
+        else: print(f"Terminating thread {thread_idx} with best Wart: {best_wart:.3e}, EDP: {EDP(best_arch, bias_read, True):.3e} (J*cycle)")
+    if verbose and thread_idx == -1: printFactors(best_arch)
+    
+    if thread_idx == -1: return best_arch, best_wart, best_perm
+    else: return_list[thread_idx] = (best_arch, best_wart, best_perm)
 
 
 # SPECIFICATION:
@@ -457,7 +508,7 @@ comp = Shape(
     )
 bias_read = False # True if bias is not 0 - outputs are read even the first time
 
-arch = arch_eyeriss
+arch = arch_gemmini
 
 ## MAIN:
 
@@ -466,8 +517,22 @@ if __name__ == "__main__":
     
     start_time = time.time()
 
-    #arch, _ = factorFlow(arch, comp, bias_read, verbose = True)
-    arch, _, _ = optimizeDataflows(arch, comp, bias_read, verbose = True)
+    if MULTITHREADED:
+        manager = multiprocessing.Manager()
+        return_list = manager.list([None]*THREADS_COUNT)
+        processes = []
+        for i in range(THREADS_COUNT):
+            p = multiprocessing.Process(target=optimizeDataflows, args=(copy.deepcopy(arch), copy.deepcopy(comp), bias_read, i, THREADS_COUNT, return_list, True))
+            processes.append(p)
+            p.start()
+        for p in processes:
+            p.join()
+        arch, wart, _ = max(return_list, key=lambda res : res[1])
+        print(f"\nBest mapping found with Wart: {wart:.3e}, EDP: {EDP(arch, bias_read, True):.3e} (J*cycle)")
+        printFactors(arch)
+    else:
+        #arch, _ = factorFlow(arch, comp, bias_read, verbose = True)
+        arch, _, _ = optimizeDataflows(arch, comp, bias_read, verbose = True)
     
     print(f"\nFinished in: {time.time() - start_time:.3f}s")
 
