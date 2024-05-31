@@ -1,3 +1,18 @@
+from enum import Enum
+
+"""
+Possible dataflows for GEMMs.
+They can be recognized according to the inner-most loop,
+ignoring those with a single iteration:
+- innermost L -> WS
+- innermost E -> OS
+- innermost D -> IS
+"""
+class Dataflow(Enum):
+    WS = 0
+    OS = 1
+    IS = 2
+
 """
 Shape of the Matrix Multiplication in the form Out = W*In.
 Dimensions are:

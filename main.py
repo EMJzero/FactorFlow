@@ -27,12 +27,15 @@ STEPS_TO_EXPLORE = 1
 # If True, any recursively explored step after the first one, will only attempt to move factors
 # into the destination level which was the source for the previous move.
 # NOTE: automatically set to True in case of 2 dimensions on the same fanout.
-LIMIT_FUTURE_STEPS_DST_TO_CURRENT_SRC = False
+LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC = False
 # If True, any intermediate step of a multi-step exploration will not need to satisfy architectural
 # constraints, on the condition that the final step will satisfy them.
-# NOTE: can be True iif LIMIT_FUTURE_STEPS_DST_TO_CURRENT_SRC is True
+# NOTE: can be True iif LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC is True
 # NOTE: automatically set to True in case of 2 dimensions on the same fanout.
-NO_CONSTRAINTS_CHECK_DURING_MULTISTEP = LIMIT_FUTURE_STEPS_DST_TO_CURRENT_SRC and False
+NO_CONSTRAINTS_CHECK_DURING_MULTISTEP = LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC and False
+# If True, in case of 2 dimensions on the same fanout only the FIRST dimension gets factors
+# allocation during fanout maximization. If False, both dimensions equally get factors.
+ONLY_MAXIMIZE_FIRST_FANOUT_DIM = False
 # If True, saves time by assuming that any permutation differing from an optimal one by the order
 # of dimensions involving one with a single iteration cannot be optimized further, thus skips
 # it entirely. Setting it to False can slightly improve the best found mapping.
@@ -42,15 +45,15 @@ HARD_PERM_SKIP = False
 UTILIZATION_IN_WART = True
 
 def forcedSettingsUpdate(arch):
-    global FREEZE_SA, STEPS_TO_EXPLORE, LIMIT_FUTURE_STEPS_DST_TO_CURRENT_SRC, NO_CONSTRAINTS_CHECK_DURING_MULTISTEP
+    global FREEZE_SA, STEPS_TO_EXPLORE, LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC, NO_CONSTRAINTS_CHECK_DURING_MULTISTEP
     for level in arch:
         if isinstance(level, FanoutLevel) and len(level.dims) >= 2:
             FREEZE_SA = False
             print(f"INFO: forcefully updating setting FREEZE_SA to {FREEZE_SA}")
             STEPS_TO_EXPLORE = max(2, STEPS_TO_EXPLORE)
             print(f"INFO: forcefully updating setting STEPS_TO_EXPLORE to {STEPS_TO_EXPLORE}")
-            LIMIT_FUTURE_STEPS_DST_TO_CURRENT_SRC = True
-            print(f"INFO: forcefully updating setting LIMIT_FUTURE_STEPS_DST_TO_CURRENT_SRC to {LIMIT_FUTURE_STEPS_DST_TO_CURRENT_SRC}")
+            LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC = True
+            print(f"INFO: forcefully updating setting LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC to {LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC}")
             NO_CONSTRAINTS_CHECK_DURING_MULTISTEP = True
             print(f"INFO: forcefully updating setting NO_CONSTRAINTS_CHECK_DURING_MULTISTEP to {NO_CONSTRAINTS_CHECK_DURING_MULTISTEP}")
             print(f"INFO: --> the cause of this is the presence of a Fanout level ({level.name}) with multiple mapped dimensions({level.dims}). Runtime might increase to a few seconds...")
@@ -94,8 +97,9 @@ def updateStats(arch, bias_read):
                 level.setAboveMOPs(0, 0)
             level.setMOPs(in_reads = in_reads, w_reads = w_reads, out_reads = out_reads, in_writes = in_writes, w_writes = w_writes, out_writes = out_writes)
             level.temporal_iterations = temporal_iterations
-            MOPs = in_reads + w_reads + out_reads + in_writes + w_writes + out_writes
-            WMOPs += level.WMOPs(MOPs)
+            reads = in_reads + w_reads + out_reads
+            writes = in_writes + w_writes + out_writes
+            WMOPs += level.WMOPs(reads, writes)
             temporal_iterations *= level.factors.fullProduct()
             acc_out_reads_factors *= level.factors.dimProduct('E')
         elif isinstance(level, FanoutLevel):
@@ -200,9 +204,46 @@ def Wart(arch, comp, bias_read):
     return (FLOPs/(WMOPs*max_latency))*utilization
 
 # Energy-Delay Product
-def EDP(arch, bias_read):
+def EDP(arch, bias_read, pJ_to_J = False):
     WMOPs, max_latency = updateStats(arch, bias_read)
-    return WMOPs*max_latency
+    return WMOPs*max_latency*(10**-12 if pJ_to_J else 1)
+
+def fanoutMaximization(arch, verbose = False):
+    # TECHNIQUE: Find the prime factors of the mesh, and pick the largest common ones with the dimension
+    # mapped along that mesh, continue picking from the largest ones in common until you run out!
+    # NOTE: When making this handle Fanouts with multiple unrolled dimensions, the issue is dividing the fanout size across dimensions
+    # IDEA: use a binary (ternary) tree expansion, start with 50-50 (30-30-30), explore each child and prune worse branches?
+    if verbose: print("\nStarting fanout maximization:\n")
+    if ONLY_MAXIMIZE_FIRST_FANOUT_DIM:
+        for i in range(1, len(arch) - 1):
+            level = arch[i]
+            if isinstance(level, FanoutLevel):
+                dim = level.dims[0]
+                common_mesh_factors = [f for f in primeFactors(level.mesh).keys() if f in arch[0].factors[dim]]
+                for f in sorted(common_mesh_factors, reverse=True): # try largest factors first
+                    amount = arch[0].factors[dim][f]
+                    while amount > 0:
+                        if moveFactor(arch, 0, i, dim, f, amount):
+                            break
+                        amount -= 1 # lower the amount until you succeed
+    else:
+        for i in range(1, len(arch) - 1):
+            level = arch[i]
+            if isinstance(level, FanoutLevel):
+                # TODO: as of now this accepts only at most 2 dimensions on same fanout - pick mesh_split_factor >= 3 to allow more?
+                mesh_prime_factors = primeFactors(level.mesh)
+                common_mesh_factors = [f for f in mesh_prime_factors.keys() if f in [ft for dim in level.dims for ft in arch[0].factors[dim]]]
+                ping_pong = 0
+                for f in sorted(common_mesh_factors, reverse=True): # try largest factors first
+                    for _ in range(max(map(lambda dim : arch[0].factors[dim][f] if f in arch[0].factors[dim] else 0, level.dims))):
+                        if f not in arch[0].factors[level.dims[ping_pong]]:
+                            ping_pong = len(level.dims) - 1 - ping_pong
+                        if moveFactor(arch, 0, i, level.dims[ping_pong], f):
+                            ping_pong = len(level.dims) - 1 - ping_pong
+        
+    updateInstances(arch)
+    if verbose: print(f"After fanout maximization (Wart: {Wart(arch, comp, bias_read):.3e}):")
+    if verbose: printFactors(arch)
 
 def factorsIterator(arch, iterate_amounts = False, skip_fanouts = False):
     for level_idx in range(len(arch)):
@@ -240,49 +281,8 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
     already_seen = [hashFromFactors(arch)]
 
     # maximize fanout dimensions
-    # TECHNIQUE: Find the prime factors of the mesh, and pick the largest common ones with the dimension
-    # mapped along that mesh, continue picking from the largest ones in common until you run out!
-    # NOTE: When making this handle Fanouts with multiple unrolled dimensions, the issue is dividing the fanout size across dimensions
-    # IDEA: use a binary (ternary) tree expansion, start with 50-50 (30-30-30), explore each child and prune worse branches?
     if not already_initialized:
-        if verbose: print("\nStarting fanout maximization:\n")
-        #for i in range(1, len(arch) - 1):
-        #    level = arch[i]
-        #    if isinstance(level, FanoutLevel):
-        #        # TODO: as of now this accepts only at most 2 dimensions on same fanout - pick mesh_split_factor >= 3 to allow more?
-        #        mesh_prime_factors = primeFactors(level.mesh)
-        #        # use the smallest available factor to split the mesh among dimensions
-        #        mesh_split_factor = min(mesh_prime_factors) if len(level.dims) >= 2 else 1
-        #        for j in range(len(level.dims)):
-        #            common_mesh_factors = [f for f in mesh_prime_factors.keys() if f in arch[0].factors[level.dims[j]]]
-        #            for f in sorted(common_mesh_factors, reverse=True): # try largest factors first
-        #                amount = arch[0].factors[level.dims[j]][f]
-        #                while amount > 0:
-        #                    # lower the amount until you succeed
-        #                    if moveFactor(arch, 0, i, level.dims[j], f, amount):
-        #                        if level.checkConstraints(mesh_split_factor) or j != 0:
-        #                            break
-        #                        else:
-        #                            assert moveFactor(arch, i, 0, level.dims[j], f, amount) # failed to revert move
-        #                    amount -= 1
-        
-        for i in range(1, len(arch) - 1):
-            level = arch[i]
-            if isinstance(level, FanoutLevel):
-                # TODO: as of now this accepts only at most 2 dimensions on same fanout - pick mesh_split_factor >= 3 to allow more?
-                mesh_prime_factors = primeFactors(level.mesh)
-                common_mesh_factors = [f for f in mesh_prime_factors.keys() if f in [ft for dim in level.dims for ft in arch[0].factors[dim]]]
-                ping_pong = 0
-                for f in sorted(common_mesh_factors, reverse=True): # try largest factors first
-                    for _ in range(max(map(lambda dim : arch[0].factors[dim][f] if f in arch[0].factors[dim] else 0, level.dims))):
-                        if f not in arch[0].factors[level.dims[ping_pong]]:
-                            ping_pong = len(level.dims) - 1 - ping_pong
-                        if moveFactor(arch, 0, i, level.dims[ping_pong], f):
-                            ping_pong = len(level.dims) - 1 - ping_pong
-        
-        updateInstances(arch)
-        if verbose: print(f"After fanout maximization (Wart: {Wart(arch, comp, bias_read):.3e}):")
-        if verbose: printFactors(arch)
+        fanoutMaximization(arch)
     else:
         if verbose: print("\nSkipping fanout maximization...\n")
     
@@ -297,13 +297,6 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
             if target_src_level_idx and target_dim and target_factor and (target_src_level_idx != src_level_idx or target_dim != dim or target_factor != factor):
                 continue
             #print("Initial proposal: ", src_level_idx, dim, factor)
-            # make this -2, -3, etc. if the next layer is bound by a constraint
-            #init_dst_level_idx = src_level_idx + 1
-            #dst_level_idx = src_level_idx + 1
-            #while dst_level_idx < len(arch) and (dim in arch[dst_level_idx].factors_contraints or dim not in arch[dst_level_idx].dataflow):
-            #    dst_level_idx += 1
-            #if dst_level_idx >= len(arch):
-            #    continue
 
             # go back to the first valid source
             while src_level_idx >= 0 and dim in arch[src_level_idx].factors_contraints:
@@ -328,7 +321,7 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
                         if hsh not in already_seen:
                             already_seen.append(hsh)
                             if remaining_steps > 1:
-                                nested_choices = exploreOneStep(remaining_steps - 1, target_dst_level_idx = src_level_idx if LIMIT_FUTURE_STEPS_DST_TO_CURRENT_SRC else None)
+                                nested_choices = exploreOneStep(remaining_steps - 1, target_dst_level_idx = src_level_idx if LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC else None)
                                 if len(nested_choices) == 0:
                                     choices[(src_level_idx, dst_level_idx, dim, factor, amount)] = Wart(arch, comp, bias_read)
                                 else:
@@ -363,7 +356,7 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
 
     updateInstances(arch)
     updateStats(arch, bias_read)
-    if verbose: print(f"Final condition:\nWart: {best_wart}\nEDP: {EDP(arch, bias_read):.3e}")
+    if verbose: print(f"Final condition:\nWart: {best_wart}\nEDP: {EDP(arch, bias_read, True):.3e} (J*cycle)")
     if verbose: printFactors(arch)
     return arch, best_wart
 
@@ -450,7 +443,7 @@ def optimizeDataflows(arch, comp, bias_read, verbose = False):
         if i < 0:
             break
     
-    if verbose: print(f"\nBest mapping found with Wart: {best_wart:.3e}, EDP: {EDP(best_arch, bias_read):.3e}")
+    if verbose: print(f"\nBest mapping found with Wart: {best_wart:.3e}, EDP: {EDP(best_arch, bias_read, True):.3e} (J*cycle)")
     if verbose: printFactors(best_arch)
     return best_arch, best_wart, best_perm
 
@@ -464,7 +457,7 @@ comp = Shape(
     )
 bias_read = False # True if bias is not 0 - outputs are read even the first time
 
-arch = arch_simba
+arch = arch_eyeriss
 
 ## MAIN:
 
