@@ -57,11 +57,11 @@ class Level:
         if len(innermost) == 0:
             return None
         elif innermost[-1] == 'L':
-            return "WS"
+            return Dataflow.WS
         elif innermost[-1] == 'E':
-            return "OS"
+            return Dataflow.OS
         elif innermost[-1] == 'D':
-            return "IS"
+            return Dataflow.IS
         else:
             raise Exception(f"Unrecognized Dataflow in level {self.name} with dimension {innermost[-1]} != D, E, or L!")
 
@@ -103,23 +103,30 @@ Constructor arguments:
                         fixed the relative order of constrained dimensions.
 - bypasses: operands which should bypass this level (i.o.w. not be stored here)
 - multiple_buffering: factor of multiple buffering employed by this level, must be >1
+- read_access_energy: energy required for reads accesses, if specified overrides "access_energy"
+- write_access_energy: energy required for write accesses, if specified overrides "access_energy"
+  - Note: either both or none of read_access_energy and write_access_energy must be specified
 - read_bandwidth: bandwidth allocated for reads, if specified overrides "bandwidth"
 - write_bandwidth: bandwidth allocated for writes, if specified overrides "bandwidth"
+  - Note: either both or none of read_bandwidth and write_bandwidth must be specified
 """
 class MemLevel(Level):
-    def __init__(self, name, size, access_energy, bandwidth, dataflow = None, factors = None, tile_sizes = None, factors_contraints = None, dataflow_constraints = None, bypasses = None, multiple_buffering = 1, read_bandwidth = None, write_bandwidth = None):
+    def __init__(self, name, size, access_energy = None, bandwidth = None, dataflow = None, factors = None, tile_sizes = None, factors_contraints = None, dataflow_constraints = None, bypasses = None, multiple_buffering = 1,  read_access_energy = None, write_access_energy = None, read_bandwidth = None, write_bandwidth = None):
         self.name = name
         # NOTE: this way of constructing the dataflow from the constraints is redundant, but useful if one wants to skip the
         # exploration of permutations since with this method the dataflow will be immediately consistent with constraints.
         self.dataflow = dataflow if dataflow else (dataflow_constraints + [dim for dim in ['D', 'E', 'L'] if dim not in dataflow_constraints] if dataflow_constraints else ['D', 'E', 'L']) # dimensions over which to iterate
         assert size >= 0 # a negative size does not mean anything
         self.size = size
-        assert access_energy >= 0 # a negative access energy does not mean anything (unless you are into sci-fi stuff)
-        self.access_energy = access_energy
+        assert (access_energy and not read_access_energy and not write_access_energy) or (read_access_energy and write_access_energy) # access_energy or read_access_energy and write_access_energy must be specified, if either of read_access_energy or write_access_energy is specified, the other must be specified as well
+        self.read_access_energy = read_access_energy if read_access_energy else access_energy
+        self.write_access_energy = write_access_energy if write_access_energy else access_energy
+        assert self.read_access_energy >= 0 and self.write_access_energy >= 0 # a negative access energy does not mean anything (unless you are into sci-fi stuff)
         # NOTE: 1/2 split of bandwidth for consistency with Timeloop - not a true must...
-        assert (not read_bandwidth and not write_bandwidth) or (read_bandwidth and write_bandwidth) # if either of read_bandwidth or write_bandwidth is specified, the other must be specified as well
+        assert (bandwidth and not read_bandwidth and not write_bandwidth) or (read_bandwidth and write_bandwidth) # bandwidth or read_bandwidth and write_bandwidth must be specified, if either of read_bandwidth or write_bandwidth is specified, the other must be specified as well
         self.read_bandwidth = read_bandwidth if read_bandwidth else bandwidth/2
         self.write_bandwidth = write_bandwidth if write_bandwidth else bandwidth/2
+        assert self.read_bandwidth >= 0 and self.write_bandwidth >= 0 # a negative bandwidth does not mean anything
         # This models how much an update costs w.r.t. a read. The true cost of an update is "update_cost" times cost of a read.
         self.update_cost = 1
         self.factors = factors if factors else Factors()
@@ -311,16 +318,16 @@ class MemLevel(Level):
             out_reads = out_reads*factors_E
             out_reads_factors *= factors_E
             out_writes = out_writes*factors_E
-        elif dataflow == "WS":
+        elif dataflow == Dataflow.WS:
             in_reads = in_reads*factors_D
             out_reads = out_reads*factors_E
             out_reads_factors *= factors_E
             out_writes = out_writes*factors_E
-        elif dataflow == "OS":
+        elif dataflow == Dataflow.OS:
             in_reads = in_reads*factors_D
             out_reads = out_reads
             w_reads = w_reads*factors_L
-        elif dataflow == "IS":
+        elif dataflow == Dataflow.IS:
             out_reads = out_reads*factors_E
             out_reads_factors *= factors_E
             w_reads = w_reads*factors_L
@@ -350,15 +357,15 @@ class MemLevel(Level):
                                 dataflow_bp = in_btwn.actualDataflow()
                                 if dataflow_bp != None:
                                     stationarity_to_address = False
-                                if dataflow_bp == "WS":
+                                if dataflow_bp == Dataflow.WS:
                                     in_reads_bp = in_reads_bp*in_btwn.factors.dimProduct('D')
                                     out_reads_bp = out_reads_bp*in_btwn.factors.dimProduct('E')
                                     out_reads_bp_factors *= in_btwn.factors.dimProduct('E')
                                     out_writes_bp = out_writes_bp*in_btwn.factors.dimProduct('E')
-                                elif dataflow_bp == "OS":
+                                elif dataflow_bp == Dataflow.OS:
                                     in_reads_bp = in_reads_bp*in_btwn.factors.dimProduct('D')
                                     w_reads_bp = w_reads_bp*in_btwn.factors.dimProduct('L')
-                                elif dataflow_bp == "IS":
+                                elif dataflow_bp == Dataflow.IS:
                                     out_reads_bp = out_reads_bp*in_btwn.factors.dimProduct('E')
                                     out_reads_bp_factors *= in_btwn.factors.dimProduct('E')
                                     w_reads_bp = w_reads_bp*in_btwn.factors.dimProduct('L')
@@ -382,15 +389,15 @@ class MemLevel(Level):
                         in_reads_bp = factors_E*factors_L*in_reads_bp
                         out_reads_bp = factors_D*factors_L*out_reads_bp
                         out_writes_bp = factors_D*factors_L*out_writes_bp
-                        if dataflow == "WS":
+                        if dataflow == Dataflow.WS:
                             in_reads_bp = in_reads_bp*factors_D
                             out_reads_bp = out_reads_bp*factors_E
                             out_reads_bp_factors *= factors_E
                             out_writes_bp = out_writes_bp*factors_E
-                        elif dataflow == "OS":
+                        elif dataflow == Dataflow.OS:
                             in_reads_bp = in_reads_bp*factors_D
                             w_reads_bp = w_reads_bp*factors_L
-                        elif dataflow == "IS":
+                        elif dataflow == Dataflow.IS:
                             out_reads_bp = out_reads_bp*factors_E
                             out_reads_bp_factors *= factors_E
                             w_reads_bp = w_reads_bp*factors_L
@@ -416,8 +423,11 @@ class MemLevel(Level):
     Returns the provided MOPs (or newly calculated MOPs for this level)
     scaled by the MOPs's weight/energy at this level.
     """
-    def WMOPs(self, MOPs = None):
-        return MOPs*self.access_energy if MOPs else sum(self.MOPs())*self.access_energy
+    def WMOPs(self, reads = None, writes = None):
+        if not (reads and writes):
+            reads = reads if reads else self.in_reads + self.w_reads + self.out_reads
+            writes = writes if writes else self.in_writes + self.w_writes + self.out_writes
+        return self.read_access_energy * reads + self.write_access_energy * writes
 
     """
     Returns True iif factors present on this level satisfy all of
