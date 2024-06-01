@@ -5,16 +5,9 @@ WS = ['D', 'E', 'L']
 OS = ['D', 'L', 'E']
 IS = ['E', 'L', 'D']
 
-# TODO: currently a dataflow is always required, but in the absence of constraints and with
-# permutations exploration enabled, such dataflow will be subject to change. It might be better
-# to refactor it like this:
-# - on MemLevels do not allow dataflow to be set, set if by default to ['D', 'E', 'L'] and then act according to constraints
-# - add dataflow_constraints as an attribute
-# - on FanoutLevel1D use "dim" to act as both constraint and exploration space. If dim has more than one dimension
-#   additional ones will be explored, otherwise the only provided one is used.
-
 
 # >>> GEMMINI <<<
+# > WS version  <
 
 arch_gemmini = [
     MemLevel(
@@ -781,6 +774,96 @@ arch_simba_factorflow_1 = [
         dataflow = WS[2],
         size = 1,
         compute_energy = 0.32, # per compute (pJ)
+        cycles = 1,
+        factors_contraints = {'L': 1}
+    )]
+
+
+# >>>  TPU  <<<
+# > 8bit mode <
+
+arch_tpu = [
+    MemLevel(
+        name = "DRAM",
+        dataflow_constraints = [],
+        size = 8*2**30, # number of entries
+        access_energy = 64.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {},
+        bypasses = ['w']
+    ),
+    MemLevel(
+        name = "WeightsDRAM",
+        dataflow_constraints = [],
+        size = 8*2**30, # number of entries
+        access_energy = 64.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {},
+        bypasses = ['in', 'out']
+    ),
+    MemLevel(
+        name = "UnifiedBuffer",
+        dataflow_constraints = [],
+        size = 512*(2**10), # number of entries
+        access_energy = 3.47, # per operand (pJ)
+        bandwidth = 32, # operands per cycle (shared)
+        factors_contraints = {},
+        # The Unified Buffer also stores outputs after the activation is
+        # performed. Not modeled as we are only interested in GEMMs.
+        bypasses = ['w', 'out']
+    ),
+    MemLevel(
+        name = "WeightsFIFO",
+        dataflow_constraints = [],
+        size = 4*2**16, # number of entries
+        access_energy = 64.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {},
+        bypasses = ['in', 'out']
+    ),
+    FanoutLevel(
+        name = "SARows",
+        dim = WS[0],
+        mesh = 256,
+        # pe_to_pe should be used, since the TPU uses a systolic array, but Timeloop
+        # does not have this feature, so for sake of comparison, it is turned off
+        #pe_to_pe = True, 
+        factors_contraints = {'D': 256}
+    ),
+    MemLevel(
+        name = "Accumulator",
+        dataflow_constraints = [],
+        size = 4096, # number of entries (PER ONE INSTANCE!!) (remeber to account for operand size)
+        access_energy = 4.01, # per operand (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        multiple_buffering = 2,
+        factors_contraints = {}, # the systolic array does a 16x16 matmul in this case
+        bypasses = ['in', 'w']
+    ),
+    FanoutLevel(
+        name = "SACols",
+        dim = WS[1],
+        mesh = 256,
+        # pe_to_pe should be used, since the TPU uses a systolic array, but Timeloop
+        # does not have this feature, so for sake of comparison, it is turned off
+        #pe_to_pe = True, 
+        factors_contraints = {'E': 256}
+    ),
+    MemLevel(
+        name = "Register",
+        dataflow_constraints = WS,
+        size = 2, # number of entries
+        access_energy = 0.01, # per operand (pJ)
+        bandwidth = 2, # operands per cycle (shared)
+        multiple_buffering = 2,
+        factors_contraints = {'D': 1, 'E': 1}, # L is free
+        bypasses = ['in', 'out']
+    ),
+    ComputeLevel(
+        name = "Compute",
+        dataflow = WS[2],
+        size = 1,
+        compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_contraints = {'L': 1}
     )]

@@ -152,6 +152,9 @@ def printMOPs(arch, per_instance = False):
                 last_out_writes //= level.factors.fullProduct()
 
 def printMOPsNew(arch, per_instance = False):
+    tot_reads = 0
+    tot_writes = 0
+    WMOPs = 0
     for level in arch:
         if isinstance(level, MemLevel):
             scaling = level.instances if per_instance else 1
@@ -160,10 +163,16 @@ def printMOPsNew(arch, per_instance = False):
             reads = level.in_reads + level.w_reads + level.out_reads
             writes = level.in_writes + level.w_writes + level.out_writes
             print(f"{level.name}:{chr(9) * (2 - (len(level.name) + 1)//8)}{level.in_reads/scaling:.0f} In_R, {level.w_reads/scaling:.0f} W_R, {level.out_reads/scaling:.0f} Our_R, {reads/scaling:.0f} Tot_R,\n\t\t{level.in_writes/scaling:.0f} In_W, {level.w_writes/scaling:.0f} W_W, {level.out_writes/scaling:.0f} Out_W, {writes/scaling:.0f} Tot_W")
+            tot_reads += reads
+            tot_writes += writes
+            WMOPs += level.WMOPs(reads, writes)
         elif isinstance(level, FanoutLevel):
             continue
         elif isinstance(level, ComputeLevel):
+            WMOPs += level.computeCost(level.temporal_iterations*level.instances)
             break
+    print(f"Totals:\t\t{tot_reads:.0f} R, {tot_writes:.0f} W, {tot_reads+tot_writes:.0f} Tot")
+    print(f"Energy:\t\t{WMOPs*10**-6:.3f} uJ")
 
 def printLatency(arch):
     max_latency, max_latency_level_name = 0, "<<Error>>"

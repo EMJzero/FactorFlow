@@ -8,12 +8,17 @@ import sys
 import os
 
 from architectures import *
+from computations import *
 from factors import *
 from levels import *
 from prints import *
 from utils import *
 
 # SETTINGS:
+
+# If True, enables logging of the MSE process. Note that such prints occur during the timed
+# section of the program, set to False for accurate timing results.
+VERBOSE = True
 
 # If False, FF only searches for better solutions at a one-factor distance from the current one,
 # if True, FF searches for solutions at a distance of multiple factors, all be it only arity is
@@ -61,7 +66,7 @@ UTILIZATION_IN_WART = True
 MULTITHREADED = True
 # Number of threads to use if MULTITHREADED is True. If None, it is set to the number of
 # logical CPUs available on the system.
-THREADS_COUNT = 4
+THREADS_COUNT = 8
 
 def forcedSettingsUpdate(arch):
     global FREEZE_SA, STEPS_TO_EXPLORE, LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC, NO_CONSTRAINTS_CHECK_DURING_MULTISTEP, MULTITHREADED, THREADS_COUNT
@@ -80,6 +85,8 @@ def forcedSettingsUpdate(arch):
     if MULTITHREADED:
         THREADS_COUNT = THREADS_COUNT if THREADS_COUNT else os.cpu_count()
         print(f"INFO: running multithreaded with THREADS_COUNT = {THREADS_COUNT}")
+    if not VERBOSE:
+        print(f"INFO: VERBOSE output disabled, wait patiently...")
     print("")
 
 # updates the MOPs and Latency data of each level w.r.t. the current mapping
@@ -152,6 +159,7 @@ def updateStats(arch, bias_read):
                     last_w_reads *= iterations
         elif isinstance(level, ComputeLevel):
             # TODO: remove cost of first output accumulate if bias_read is False!
+            level.temporal_iterations = temporal_iterations
             WMOPs += level.computeCost(temporal_iterations*spatial_iterations)
             # compute is meant to be the innermost level
             break
@@ -495,10 +503,7 @@ def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, threads_count = 1,
         if i < 0:
             break
     
-    if verbose:
-        if thread_idx == -1: print(f"\nBest mapping found with Wart: {best_wart:.3e}, EDP: {EDP(best_arch, bias_read, True):.3e} (J*cycle)")
-        else: print(f"Terminating thread {thread_idx} with best Wart: {best_wart:.3e}, EDP: {EDP(best_arch, bias_read, True):.3e} (J*cycle)")
-    if verbose and thread_idx == -1: printFactors(best_arch)
+    if verbose and thread_idx != -1: print(f"Terminating thread {thread_idx} with best Wart: {best_wart:.3e}, EDP: {EDP(best_arch, bias_read, True):.3e} (J*cycle)")
     
     if thread_idx == -1: return best_arch, best_wart, best_perm
     else: return_list[thread_idx] = (best_arch, best_wart, best_perm)
@@ -506,11 +511,7 @@ def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, threads_count = 1,
 
 # SPECIFICATION:
 
-comp = Shape(
-    D = 1024*3, #768*3
-    E = 1024, #768
-    L = 4096 #1024
-    )
+comp = comp_BERT_large['KQV']
 bias_read = False # True if bias is not 0 - outputs are read even the first time
 
 arch = arch_gemmini
@@ -527,19 +528,20 @@ if __name__ == "__main__":
         return_list = manager.list([None]*THREADS_COUNT)
         processes = []
         for i in range(THREADS_COUNT):
-            p = multiprocessing.Process(target=optimizeDataflows, args=(copy.deepcopy(arch), copy.deepcopy(comp), bias_read, i, THREADS_COUNT, return_list, True))
+            p = multiprocessing.Process(target=optimizeDataflows, args=(copy.deepcopy(arch), copy.deepcopy(comp), bias_read, i, THREADS_COUNT, return_list, VERBOSE))
             processes.append(p)
             p.start()
         for p in processes:
             p.join()
         arch, wart, _ = max(return_list, key=lambda res : res[1])
-        print(f"\nBest mapping found with Wart: {wart:.3e}, EDP: {EDP(arch, bias_read, True):.3e} (J*cycle)")
-        printFactors(arch)
     else:
-        #arch, _ = factorFlow(arch, comp, bias_read, verbose = True)
-        arch, _, _ = optimizeDataflows(arch, comp, bias_read, verbose = True)
+        #arch, _ = factorFlow(arch, comp, bias_read, verbose = VERBOSE)
+        arch, wart, _ = optimizeDataflows(arch, comp, bias_read, verbose = VERBOSE)
     
     print(f"\nFinished in: {time.time() - start_time:.3f}s")
+
+    print(f"\nBest mapping found with Wart: {wart:.3e}, EDP: {EDP(arch, bias_read, True):.3e} (J*cycle)")
+    printFactors(arch)
 
     print("\nFinal MOPs per memory level:")
     printMOPsNew(arch)
