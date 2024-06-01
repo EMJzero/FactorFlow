@@ -131,6 +131,8 @@ def updateInstances(arch):
         elif isinstance(level, MemLevel):
             level.instances = spatial_fanout
             level.next_is_compute = isinstance(arch[i+1], ComputeLevel) if i+1 < len(arch) else False
+        elif isinstance(level, ComputeLevel):
+            level.instances = spatial_fanout
 
 def resetTilesAndFactors(arch):
     for level in arch:

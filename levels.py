@@ -557,6 +557,10 @@ class ComputeLevel(Level):
         self.dataflow_constraints = dataflow_constraints if dataflow_constraints else []
         assert all([constr in self.dataflow for constr in self.dataflow_constraints]) # all dims specified as dataflow constraints must be part of the dataflow
 
+        # STATISTICS:
+        self.instances = 1
+        self.temporal_iterations = 0
+
     # TODO: remove size, factors, and constraints from here, this must become just an empty shell
 
     # => The returned value must be multiplied by the factors above it.
