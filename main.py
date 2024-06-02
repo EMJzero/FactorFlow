@@ -292,18 +292,16 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
     if not already_initialized:
         initFactors(arch, comp)
         enforceFactorsConstraints(arch)
-    assert not findConstraintsViolation(arch) # factor constraints or dataflow violation in the given architecture
+    assert not findConstraintsViolation(arch), "Factor constraints or dataflow violation in the given architecture."
     constraints_check = [level.checkConstraints() for level in arch]
-    if not all(constraints_check):
-        print(f"Constraints violation on level \"{arch[constraints_check.index(False)].name}\"")
-        assert False # ill-posed constraints (usually due to a dimension missmatch)
+    assert all(constraints_check), f"Constraints violation on level \"{arch[constraints_check.index(False)].name}\", ill-posed constraints (usually due to a dimension missmatch)."
     if not already_initialized:
         setupBypasses(arch)
         updateInstances(arch)
-    assert isinstance(arch[-1], ComputeLevel) # the last/innermost level must be compute
-    assert not any(map(lambda l : isinstance(l, ComputeLevel), arch[:-1])) # no other compute levels admitted beside the last/innermost one
-    assert any(map(lambda l : isinstance(l, MemLevel), arch[:-1])) # at least one memory level must be present
-    assert checkDataflowConstraints(arch) # dataflow constraints violated
+    assert isinstance(arch[-1], ComputeLevel), f"The last/innermost level must a ComputeLevel, the provided one is {type(arch[-1])}."
+    assert not any(map(lambda l : isinstance(l, ComputeLevel), arch[:-1])), "No other compute levels admitted beside the last/innermost one."
+    assert any(map(lambda l : isinstance(l, MemLevel), arch[:-1])), "At least one memory level must be present."
+    assert checkDataflowConstraints(arch), "Dataflow constraints violated."
 
     if verbose: print(f"Initial condition (Wart: {Wart(arch, comp, bias_read):.3e}):")
     if verbose: printFactors(arch)
@@ -533,6 +531,7 @@ if __name__ == "__main__":
             p.start()
         for p in processes:
             p.join()
+        assert None not in return_list, f"Some threads failed to return, see above logs..."
         arch, wart, _ = max(return_list, key=lambda res : res[1])
     else:
         #arch, _ = factorFlow(arch, comp, bias_read, verbose = VERBOSE)

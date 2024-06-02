@@ -7,7 +7,7 @@ from main import updateStats
 def runTest(arch, correct_data, comp, bias_read):
     initFactors(arch, comp)
     enforceFactorsConstraints(arch)
-    assert checkDataflowConstraints(arch) # dataflow constraints violated
+    assert checkDataflowConstraints(arch), "Dataflow constraints violated."
     setupBypasses(arch)
     updateInstances(arch)
     updateStats(arch, bias_read)
@@ -20,7 +20,7 @@ def runTest(arch, correct_data, comp, bias_read):
             if not level[key] == correct_data_level[key]:
                 passed = False
                 print(f"{level.name}:{chr(9) * (2 - (len(level.name) + 1)//8)}Error on result: {key}\n\t\tExpected: {correct_data_level[key]}\n\t\tObtained: {level[key]}")
-    assert passed # test failed
+    assert passed, "Test FAILED..."
 
 def generateTestMOPs(arch):
     string = "correct_mops = ["
