@@ -116,31 +116,31 @@ class MemLevel(Level):
         # NOTE: this way of constructing the dataflow from the constraints is redundant, but useful if one wants to skip the
         # exploration of permutations since with this method the dataflow will be immediately consistent with constraints.
         self.dataflow = dataflow if dataflow else (dataflow_constraints + [dim for dim in ['D', 'E', 'L'] if dim not in dataflow_constraints] if dataflow_constraints else ['D', 'E', 'L']) # dimensions over which to iterate
-        assert size >= 0 # a negative size does not mean anything
+        assert size >= 0, f"Level: {name}: a negative size ({size}) does not mean anything."
         self.size = size
-        assert (access_energy and not read_access_energy and not write_access_energy) or (read_access_energy and write_access_energy) # access_energy or read_access_energy and write_access_energy must be specified, if either of read_access_energy or write_access_energy is specified, the other must be specified as well
+        assert (access_energy and not read_access_energy and not write_access_energy) or (read_access_energy and write_access_energy), f"Level: {name}: either access_energy ({access_energy}) or read_access_energy ({read_access_energy}) and write_access_energy ({write_access_energy}) must be specified, if either of read_access_energy or write_access_energy is specified, the other must be specified as well."
         self.read_access_energy = read_access_energy if read_access_energy else access_energy
         self.write_access_energy = write_access_energy if write_access_energy else access_energy
-        assert self.read_access_energy >= 0 and self.write_access_energy >= 0 # a negative access energy does not mean anything (unless you are into sci-fi stuff)
+        assert self.read_access_energy >= 0 and self.write_access_energy >= 0, f"Level: {name}: a negative access energy ({self.read_access_energy} R, {self.read_access_energy} W) does not mean anything (unless you are into sci-fi stuff)."
         # NOTE: 1/2 split of bandwidth for consistency with Timeloop - not a true must...
-        assert (bandwidth and not read_bandwidth and not write_bandwidth) or (read_bandwidth and write_bandwidth) # bandwidth or read_bandwidth and write_bandwidth must be specified, if either of read_bandwidth or write_bandwidth is specified, the other must be specified as well
+        assert (bandwidth and not read_bandwidth and not write_bandwidth) or (read_bandwidth and write_bandwidth), f"Level: {name}: either bandwidth ({bandwidth}) or read_bandwidth ({read_bandwidth}) and write_bandwidth ({write_bandwidth}) must be specified, if either of read_bandwidth or write_bandwidth is specified, the other must be specified as well."
         self.read_bandwidth = read_bandwidth if read_bandwidth else bandwidth/2
         self.write_bandwidth = write_bandwidth if write_bandwidth else bandwidth/2
-        assert self.read_bandwidth >= 0 and self.write_bandwidth >= 0 # a negative bandwidth does not mean anything
+        assert self.read_bandwidth >= 0 and self.write_bandwidth >= 0, f"Level: {name}: a negative bandwidth ({self.read_bandwidth} R, {self.write_bandwidth} W) does not mean anything."
         # This models how much an update costs w.r.t. a read. The true cost of an update is "update_cost" times cost of a read.
         self.update_cost = 1
         self.factors = factors if factors else Factors()
         self.tile_sizes = tile_sizes if tile_sizes else Shape(1, 1, 1)
         self.factors_contraints = factors_contraints if factors_contraints else {}
-        assert all([constr in self.dataflow for constr in self.factors_contraints.keys()]) # all dims with factor constraints must be part of the dataflow
+        assert all([constr in self.dataflow for constr in self.factors_contraints.keys()]), f"Level: {name}: all dims with factor constraints ({self.factors_contraints.keys()}) must be part of the dataflow ({self.dataflow})."
         self.dataflow_constraints = dataflow_constraints if dataflow_constraints else []
-        assert all([constr in self.dataflow for constr in self.dataflow_constraints]) # all dims specified as dataflow constraints must be part of the dataflow
+        assert all([constr in self.dataflow for constr in self.dataflow_constraints]), f"Level: {name}: all dims specified as dataflow constraints ({self.dataflow_constraints}) must be part of the dataflow ({self.dataflow})."
         self.bypasses = bypasses if bypasses else []
         self.in_bp = 0 if (bypasses and 'in' in bypasses) else 1
         self.w_bp = 0 if (bypasses and 'w' in bypasses) else 1
         self.out_bp = 0 if (bypasses and 'out' in bypasses) else 1
         self.multiple_buffering = multiple_buffering
-        assert self.multiple_buffering >= 1 # multiple buffering must be at least 1
+        assert self.multiple_buffering >= 1, f"Level: {name}: multiple buffering ({self.multiple_buffering}) must be at least 1."
         # NOTE: removed for consistency with Timeloop - not necessarily wrong...
         #if not self.in_bp and not self.w_bp:
         #    self.factors_contraints['E'] = 1
@@ -468,13 +468,13 @@ Constructor arguments:
 class FanoutLevel(Level):
     def __init__(self, name, mesh, dim = None, dims = None, pe_to_pe = False, spatial_multicast_support = True, spatial_reduction_support = True, factors = None, tile_sizes = None, factors_contraints = None):
         self.name = name
-        assert (dim and not dims) or (dims and not dim) # exactly one of dim or dims must be specified
-        assert not dims or len(dims) <= 2 # CURRENT LIMITATION: at most 2 dimensions on the same fanout
+        assert (dim and not dims) or (dims and not dim), f"Level: {name}: exactly one of dim ({dim}) or dims ({dims}) must be specified."
+        assert not dims or len(dims) <= 2, f"Level: {name}: CURRENT LIMITATION - at most 2 dimensions on the same fanout, limit dims ({dims}) to at most 2 entries."
         self.dims = [dim] if dim else dims
         self.dataflow = self.dims
-        assert mesh > 0 # a spatial fanout must have a mesh of at least 1
+        assert mesh > 0, f"Level: {name}: a spatial fanout must have a mesh ({mesh}) of at least 1."
         self.mesh = mesh
-        assert not pe_to_pe or (spatial_multicast_support and spatial_reduction_support) # pe-to-pe forwarding is a form of multicast or reduction, which must then both be supported to use it
+        assert not pe_to_pe or (spatial_multicast_support and spatial_reduction_support), f"Level: {name}: pe-to-pe forwarding is a form of spatial multicast or reduction, which must then both be supported to use it."
         self.pe_to_pe = pe_to_pe # True in all cases where the operand independent (ex: if dim = D, the operand is the input) of "dim" is forwarded pe->pe rather than multicasted
         self.spatial_multicast_support = spatial_multicast_support
         self.spatial_reduction_support = spatial_reduction_support
@@ -545,9 +545,9 @@ class ComputeLevel(Level):
         # NOTE: this way of constructing the dataflow from the constraints is redundant, but useful if one wants to skip the
         # exploration of permutations since with this method the dataflow will be immediately consistent with constraints.
         self.dataflow = dataflow if dataflow else (dataflow_constraints + [dim for dim in ['D', 'E', 'L'] if dim not in dataflow_constraints] if dataflow_constraints else ['D', 'E', 'L']) # dimensions over which to iterate
-        assert size > 0 # a zero or negative size does not make sense
+        assert size > 0, f"Level: {name}: a zero or negative size ({size}) does not make sense."
         self.size = size # for a systolic array, this is the length of the operand buffers
-        assert compute_energy >= 0 # a negative compute energy does not mean anything (unless you watched too much Gundam and discovered Minovsky particles...)
+        assert compute_energy >= 0, f"Level: {name}: a negative compute energy ({compute_energy}) does not mean anything (unless you watched too much Gundam and discovered Minovsky particles...)."
         self.compute_energy = compute_energy
         assert cycles >= 0 # a negative number of clock-cycles per MAC does not mean anything
         self.cycles = cycles # clock cycles used per element in the inner dimension (latency of one MAC)
@@ -555,7 +555,7 @@ class ComputeLevel(Level):
         self.tile_sizes = tile_sizes if tile_sizes else Shape(1, 1, 1)
         self.factors_contraints = factors_contraints if factors_contraints else {}
         self.dataflow_constraints = dataflow_constraints if dataflow_constraints else []
-        assert all([constr in self.dataflow for constr in self.dataflow_constraints]) # all dims specified as dataflow constraints must be part of the dataflow
+        assert all([constr in self.dataflow for constr in self.dataflow_constraints]), f"Level: {name}: all dims specified as dataflow constraints ({self.dataflow_constraints}) must be part of the dataflow ({self.dataflow})."
 
         # STATISTICS:
         self.instances = 1

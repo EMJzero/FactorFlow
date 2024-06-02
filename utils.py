@@ -73,9 +73,9 @@ def enforceFactorsConstraints(arch):
     # assuming that initially all factors are on the first level
     for i in range(1, len(arch)):
         level = arch[i]
-        assert 'D' not in level.factors_contraints or 'D' in level.dataflow # cannot enforce constraint on element dimension not in dataflow
-        assert 'E' not in level.factors_contraints or 'E' in level.dataflow # cannot enforce constraint on element dimension not in dataflow
-        assert 'L' not in level.factors_contraints or 'L' in level.dataflow # cannot enforce constraint on element dimension not in dataflow
+        assert 'D' not in level.factors_contraints or 'D' in level.dataflow, f"Level {level.name}: cannot enforce constraint on dimension 'D' not in dataflow {level.dataflow}."
+        assert 'E' not in level.factors_contraints or 'E' in level.dataflow, f"Level {level.name}: cannot enforce constraint on dimension 'E' not in dataflow {level.dataflow}."
+        assert 'L' not in level.factors_contraints or 'L' in level.dataflow, f"Level {level.name}: cannot enforce constraint on dimension 'L' not in dataflow {level.dataflow}."
         constr_factors = Factors(
             D = primeFactors(level.factors_contraints['D']) if 'D' in level.factors_contraints else {},
             E = primeFactors(level.factors_contraints['E']) if 'E' in level.factors_contraints else {},
@@ -84,7 +84,7 @@ def enforceFactorsConstraints(arch):
         if arch[0].factors.isSubset(constr_factors):
             for dim in ['D', 'E', 'L']:
                 for fact, amount in constr_factors[dim].items():
-                    assert moveFactor(arch, 0, i, dim, fact, amount, True, True) #if this assert fails, constraints are not satisfiable!
+                    assert moveFactor(arch, 0, i, dim, fact, amount, True, True), f"Constraints are not satisfiable! Cannot give {amount} instances of prime factor {fact} to level {level.name} on dimension {dim}."
 
 def checkDataflowConstraints(arch):
     for level in filter(lambda l : isinstance(l, MemLevel), arch):
