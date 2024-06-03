@@ -8,6 +8,7 @@ import sys
 import os
 
 from architectures import *
+from solutions_db import *
 from computations import *
 from factors import *
 from levels import *
