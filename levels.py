@@ -27,24 +27,16 @@ class Level:
     "dimension" in the current level.
     """
     def addFactor(self, dimension, factor, amount = 1):
-        if factor in self.factors[dimension]:
-            self.factors[dimension][factor] += amount
-        else:
-            self.factors[dimension][factor] = amount
+        self.factors.addFactor(dimension, factor, amount)
 
     """
     Remove "amount" instances of the provided factor from those of
     "dimension" in the current level.
-    Return False if the removal failed because th current level does not
+    Return False if the removal failed because the current level does not
     have at least "amount" instances of "factor" along "dimension".
     """
     def removeFactor(self, dimension, factor, amount = 1):
-        if factor not in self.factors[dimension] or self.factors[dimension][factor] < amount:
-            return False
-        self.factors[dimension][factor] -= amount
-        if self.factors[dimension][factor] == 0:
-            self.factors[dimension].pop(factor)
-        return True
+        return self.factors.removeFactor(dimension, factor, amount)
 
     """
     Returns the dataflow class for this level, one of:

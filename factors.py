@@ -1,3 +1,4 @@
+from functools import reduce
 from enum import Enum
 
 """
@@ -39,62 +40,60 @@ class Shape():
         setattr(self, key, value)
 
 """
-Dictionary wrapper which keeps a valid flag updated w.r.t.
-changes to its content, the flag is reset to False every time
-that the dictionary is updated, and must be set manually
-by invoking setValid(). Check validity with isValid() instead.
-"""
-class LazyDict(dict):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._valid = False
-    
-    def __setitem__(self, key, value):
-        if key not in self or self[key] != value:
-            self._valid = False
-        super().__setitem__(key, value)
-
-    def isValid(self):
-        return self._valid
-
-    def setValid(self):
-        self._valid = True
-
-"""
 Factors constituting the number of iterations unfolding over all
 dimensions of any level of the architecture.
 
 All dimensions are represented by a dictionary, which associates
 to every prime factor (key) the number of times it occurs (value)
 over that dimension.
-
-The class is lazy, it does not re-evaluate the full product of
-prime factos along a dimension unless such dimension is altered.
 """
 class Factors():
     def __init__(self, D = None, E = None, L = None):
-        self.D = LazyDict(D) if D else LazyDict()
-        self.E = LazyDict(E) if E else LazyDict()
-        self.L = LazyDict(L) if L else LazyDict()
-        self._dim_products = {'D': 1, 'E': 1, 'L': 1}
+        self.D = D if D else {}
+        self.E = E if E else {}
+        self.L = L if L else {}
+        self._dim_products = {
+            'D': reduce(lambda tot, f_a : tot*(f_a[0]**f_a[1]), self.D.items(), 1),
+            'E': reduce(lambda tot, f_a : tot*(f_a[0]**f_a[1]), self.E.items(), 1),
+            'L': reduce(lambda tot, f_a : tot*(f_a[0]**f_a[1]), self.L.items(), 1)
+            }
+
+    """
+    Add "amount" instances of the provided factor to those of
+    "dimension" in the current set of factors.
+    """
+    def addFactor(self, dimension, factor, amount):
+        if factor in self[dimension]:
+            self[dimension][factor] += amount
+        else:
+            self[dimension][factor] = amount
+        self._dim_products[dimension] *= factor**amount
+
+    """
+    Remove "amount" instances of the provided factor from those of
+    "dimension" in the current set of factors.
+    Return False if the removal failed because the current factors do
+    not have at least "amount" instances of "factor" along "dimension".
+    """
+    def removeFactor(self, dimension, factor, amount):
+        if factor not in self[dimension] or self[dimension][factor] < amount:
+            return False
+        self[dimension][factor] -= amount
+        if self[dimension][factor] == 0:
+            self[dimension].pop(factor)
+        self._dim_products[dimension] //= factor**amount
+        return True
 
     """
     Product of all prime factors along a dimension, equivalent
     to the actual number of iterations along said dimension.
     """
     def dimProduct(self, dimension):
-        if self[dimension].isValid():
-            return self._dim_products[dimension]
-        res = 1
-        for f, v in self[dimension].items():
-            res *= f**v
-        self._dim_products[dimension] = res
-        self[dimension].setValid()
-        return res
+        return self._dim_products[dimension]
 
     """Total number of iterations across all three dimensions."""
     def fullProduct(self):
-        return self.dimProduct('D')*self.dimProduct('E')*self.dimProduct('L')
+        return self._dim_products['D']*self._dim_products['E']*self._dim_products['L']
 
     """
     Checks whether "subset" has less or the same occurencies of prime
@@ -125,6 +124,15 @@ class Factors():
         return (self.dimProduct('D')*self.dimProduct('E')*w_bp*tile_sizes.D*tile_sizes.E +
                 self.dimProduct('E')*self.dimProduct('L')*in_bp*tile_sizes.E*tile_sizes.L +
                 self.dimProduct('D')*self.dimProduct('L')*out_bp*tile_sizes.D*tile_sizes.L)
+
+    """
+    Reset this "Factors" instance to no factors along any dimension.
+    """
+    def clear(self):
+        self.D.clear()
+        self.E.clear()
+        self.L.clear()
+        self._dim_products = {'D': 1, 'E': 1, 'L': 1}
 
     def __getitem__(self, key):
         return getattr(self, key)

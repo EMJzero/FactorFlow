@@ -136,8 +136,8 @@ def updateInstances(arch):
 
 def resetTilesAndFactors(arch):
     for level in arch:
+        level.factors.clear()
         for dim in ['D', 'E', 'L']:
-            level.factors[dim].clear()
             level.tile_sizes[dim] = 1
 
 def fanoutsUtilization(arch):
