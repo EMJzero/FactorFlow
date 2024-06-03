@@ -474,8 +474,11 @@ class FanoutLevel(Level):
         self.tile_sizes = tile_sizes if tile_sizes else Shape(1, 1, 1)
         self.factors_contraints = factors_contraints if factors_contraints else {}
 
-    # let inputs be the amount of operations for each leaf, returns the amount of
-    # operations above the fanout accounting for PE-to-PE forwarding of operands!
+    """
+    Let inputs be the amount of operations occuring on a level below this fanout,
+    this method returns the amount of operations the seen above the fanout, accounting
+    for spatial multicast and spatial reduction support of operands!
+    """
     def mulByDim(self, in_reads, w_reads, out_reads, out_writes):
         factor_D = self.factors.dimProduct('D')
         factor_E = self.factors.dimProduct('E')
@@ -493,10 +496,21 @@ class FanoutLevel(Level):
                         
         return in_reads, w_reads, out_reads, out_writes
 
-    # => The returned value must be multiplied by the factors above it.
+    """
+    Returns the clock cycles required by this fanout level to sustain the bandwidth
+    to move all operands across the above and below memory/compute levels.
+    
+    TODO: implement this w.r.t. a NoC model.
+    
+    => The returned value must be multiplied by the factors above it.
+    """
     def latency(self):
         return 0 # change this if we model the network's latency
 
+    """
+    Returns True iif factors present on this level satisfy all of its constraints,
+    including not exceeding the physical mesh.
+    """
     def checkConstraints(self):
         return self.factors.fullProduct() <= self.mesh and super().checkConstraints()
 
@@ -511,6 +525,9 @@ that the data required for all iterations done at this level is held within hard
 registers whose energy cost is modeled by the "compute energy", together with the
 actual compute cost. As such, iterations done here are equivalent to a PE capable
 of multiple concurrent (simultaneous or pipelined) MACs.
+Then intuitively, increasing the number of iterations done at this level linearly
+increases the required bandwidth of all memory levels feeding it, as they need to
+keep up with the concurrent MACs done here.
 
 Constructor arguments:
 - name: the level's name
@@ -553,14 +570,28 @@ class ComputeLevel(Level):
         self.instances = 1
         self.temporal_iterations = 0
 
-    # TODO: remove size, factors, and constraints from here, this must become just an empty shell
-
-    # => The returned value must be multiplied by the factors above it.
+    """
+    Returns the clock cycles required by this compute level to perform ALL its
+    allocated iterations. The reasoning being that such iterations occur all either
+    within the same set of cycles or in pipeline with one step requiring the hereby
+    returned amount of cycles.
+    
+    => The returned value must be multiplied by the factors above it.
+    """
     def latency(self):
-        return self.factors.fullProduct()*self.cycles
+        return self.cycles
 
+    """
+    Returns the energy required by this level to perform all MACs across its internal
+    iterations, times "iterations", which represents the number of iterations done by
+    the hierarchy of levels on top of this one.
+    """
     def computeCost(self, iterations = 1):
         return self.compute_energy*self.factors.fullProduct()*iterations
 
+    """
+    Returns True iif factors present on this level satisfy all of its constraints,
+    including not exceeding the phisical number of concurrent MACs performed here.
+    """
     def checkConstraints(self):
         return self.factors.fullProduct() <= self.size and super().checkConstraints()

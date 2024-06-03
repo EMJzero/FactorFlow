@@ -3,6 +3,9 @@ import collections.abc
 from levels import *
 from factors import *
 
+"""
+Returns a string with a pretty textual representation of the provided dictionary.
+"""
 def pretty_format_dict(dictionary, level = 0):
     string = ""
     for key, value in (dictionary.items() if isinstance(dictionary, dict) else zip(["" for i in dictionary], dictionary)):
@@ -16,7 +19,11 @@ def pretty_format_dict(dictionary, level = 0):
         string += "\n"
     return string.rstrip()
 
-# use it with arch[::-1]!!
+"""
+Prints to stdout the provided object in a nicely formatted way.
+Explicitly supported objects are: classes, iterables, dictionaries, and atomics.
+Any other object should also work reasonably well.
+"""
 def prettyPrint(obj):
     seen = set()
     
@@ -63,6 +70,10 @@ def prettyPrint(obj):
             print(f"{' ' * (indent + 4)}- {obj}")
     pp(obj)
 
+"""
+Print to stdout a summary of the factors allocated to each dimension across the
+entire architecture. Dimensions order also reflects dataflows.
+"""
 def printFactors(arch):
     for level in arch:
         fac_str = f"{level.name} -> "
@@ -70,6 +81,10 @@ def printFactors(arch):
             fac_str += f"{dim}: {level.factors.dimProduct(dim)}, "
         print(fac_str[:-2])
 
+"""
+Print to stdout a summary of the tile sizes for each dimension across the
+entire architecture. Dimensions order also reflects dataflows.
+"""
 def printTileSizes(arch):
     for level in arch:
         fac_str = f"{level.name} -> "
@@ -77,6 +92,9 @@ def printTileSizes(arch):
             fac_str += f"{dim}: {level.tile_sizes[dim]}, "
         print(fac_str[:-2])
 
+"""
+DEPRECATED: printMOPsNew instead.
+"""
 def printMOPs(arch, per_instance = False):
     temporal_iterations_inputs = 1
     temporal_iterations_weights = 1
@@ -151,6 +169,18 @@ def printMOPs(arch, per_instance = False):
                 last_out_reads //= level.factors.fullProduct()
                 last_out_writes //= level.factors.fullProduct()
 
+"""
+Print to stdout a summary of the memory operations (MOPs) across the memory levels
+in the architecture, broken down per-operand. A few notes:
+- If "per_instance" is True, reported MOPs are divided by the number of instances
+  of a certain component, otherwise they are aggregate across all such instances.
+  Default is False.
+- R is short for READS, while W for WRITES.
+- the fill/drain/read/update terms refer to the Buffet model adopted to describe
+  the memory levels, and are explicitated only for levels not bypassing the outputs,
+  since otherwise drain and updates are 0, while fill and read can be inferred
+  from Tot_W and Tot_R respectively.
+"""
 def printMOPsNew(arch, per_instance = False):
     tot_reads = 0
     tot_writes = 0
@@ -174,6 +204,9 @@ def printMOPsNew(arch, per_instance = False):
     print(f"Totals:\t\t{tot_reads:.0f} R, {tot_writes:.0f} W, {tot_reads+tot_writes:.0f} Tot")
     print(f"Energy:\t\t{WMOPs*10**-6:.3f} uJ")
 
+"""
+DEPRECATED: printLatencyNew instead.
+"""
 def printLatency(arch):
     max_latency, max_latency_level_name = 0, "<<Error>>"
     temporal_iterations = 1
@@ -222,6 +255,17 @@ def printLatency(arch):
             break
     print(f"Max Latency:\t{max_latency:.0f}cc of level {max_latency_level_name}")
 
+"""
+Print to stdout a summary of the latency, bandwidth and stalls across the levels
+in the architecture, broken down per operation. A few notes:
+- R is short for READS, while W for WRITES.
+- RD is short for READ & DRAIN (the two Buffet read operations), while FU for
+  FILL & UPDATE (the two Buffet write operations).
+- The "ideal bandwidth" represents the bandwidth that would have been required to
+  incur in zero stall cycles. It follows then that "stall cycles" are the cycles
+  required to move data which exceed those required by the computation, thus
+  forcing the ladder to wait/stall.
+"""
 def printLatencyNew(arch):
     max_latency, max_latency_level_name = 0, "<<Unavailable>>"
     for level in arch:
@@ -236,5 +280,8 @@ def printLatencyNew(arch):
             break
     print(f"Max Latency:\t{max_latency:.0f}cc of level {max_latency_level_name}")
 
+"""
+Shorthand to invoke prettyPrint on an architecture.
+"""
 def printArch(arch):
     prettyPrint(arch[::-1])

@@ -1,5 +1,5 @@
+from solutions_db import *
 from factors import *
-from architectures import *
 from utils import *
 from prints import prettyPrint
 from main import updateStats
