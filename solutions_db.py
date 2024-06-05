@@ -489,3 +489,85 @@ arch_simba_factorflow_1 = [
         cycles = 1,
         factors_contraints = {'L': 1}
     )]
+
+
+# >>> TPU <<<
+
+# SOLUTION GIVEN BY FF:
+arch_tpu_factorflow_1 = [
+    MemLevel(
+        name = "DRAM",
+        dataflow_constraints = ['L', 'E', 'D'],
+        size = 8*2**30, # number of entries
+        access_energy = 560.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['w']
+    ),
+    MemLevel(
+        name = "WeightsDRAM",
+        dataflow_constraints = ['L', 'E', 'D'],
+        size = 8*2**30, # number of entries
+        access_energy = 560.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 32},
+        bypasses = ['in', 'out']
+    ),
+    MemLevel(
+        name = "UnifiedBuffer",
+        dataflow_constraints = ['L', 'E', 'D'],
+        size = 512*(2**10), # number of entries
+        access_energy = 2.69, # per operand (pJ)
+        bandwidth = 32, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['w', 'out']
+    ),
+    MemLevel(
+        name = "WeightsFIFO",
+        dataflow_constraints = ['L', 'E', 'D'],
+        size = 4*2**16, # number of entries
+        access_energy = 2.05, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['in', 'out']
+    ),
+    FanoutLevel(
+        name = "SARows",
+        dim = WS[0],
+        mesh = 256,
+        factors_contraints = {'D': 64}
+    ),
+    MemLevel(
+        name = "Accumulator",
+        dataflow_constraints = ['E', 'D', 'L'],
+        size = 4096, # number of entries (PER ONE INSTANCE!!) (remeber to account for operand size)
+        access_energy = 3.03, # per operand (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        multiple_buffering = 2,
+        factors_contraints = {'D': 1, 'E': 16, 'L': 128},
+        bypasses = ['in', 'w']
+    ),
+    FanoutLevel(
+        name = "SACols",
+        dim = WS[1],
+        mesh = 256,
+        factors_contraints = {'E': 256}
+    ),
+    MemLevel(
+        name = "Register",
+        dataflow_constraints = WS,
+        size = 2, # number of entries
+        access_energy = 0.01, # per operand (pJ)
+        bandwidth = 2, # operands per cycle (shared)
+        multiple_buffering = 2,
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['in', 'out']
+    ),
+    ComputeLevel(
+        name = "Compute",
+        dataflow = WS[2],
+        size = 1,
+        compute_energy = 0.15, # per compute (pJ)
+        cycles = 1,
+        factors_contraints = {'L': 1}
+    )]

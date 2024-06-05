@@ -303,12 +303,14 @@ arch_simba = [
 # >>>  TPU  <<<
 # > 8bit mode <
 
+# NOTE: use STEPS_TO_EXPLORE = 2
+
 arch_tpu = [
     MemLevel(
         name = "DRAM",
         dataflow_constraints = [],
         size = 8*2**30, # number of entries
-        access_energy = 64.00, # per operand/scalar access (pJ)
+        access_energy = 560.00, # per operand/scalar access (pJ)
         bandwidth = 8, # operands per cycle (shared)
         factors_contraints = {},
         bypasses = ['w']
@@ -317,7 +319,7 @@ arch_tpu = [
         name = "WeightsDRAM",
         dataflow_constraints = [],
         size = 8*2**30, # number of entries
-        access_energy = 64.00, # per operand/scalar access (pJ)
+        access_energy = 560.00, # per operand/scalar access (pJ)
         bandwidth = 8, # operands per cycle (shared)
         factors_contraints = {},
         bypasses = ['in', 'out']
@@ -326,7 +328,7 @@ arch_tpu = [
         name = "UnifiedBuffer",
         dataflow_constraints = [],
         size = 512*(2**10), # number of entries
-        access_energy = 3.47, # per operand (pJ)
+        access_energy = 2.69, # per operand (pJ)
         bandwidth = 32, # operands per cycle (shared)
         factors_contraints = {},
         # The Unified Buffer also stores outputs after the activation is
@@ -337,7 +339,7 @@ arch_tpu = [
         name = "WeightsFIFO",
         dataflow_constraints = [],
         size = 4*2**16, # number of entries
-        access_energy = 64.00, # per operand/scalar access (pJ)
+        access_energy = 2.05, # per operand/scalar access (pJ)
         bandwidth = 8, # operands per cycle (shared)
         factors_contraints = {},
         bypasses = ['in', 'out']
@@ -355,10 +357,10 @@ arch_tpu = [
         name = "Accumulator",
         dataflow_constraints = [],
         size = 4096, # number of entries (PER ONE INSTANCE!!) (remeber to account for operand size)
-        access_energy = 4.01, # per operand (pJ)
+        access_energy = 3.03, # per operand (pJ)
         bandwidth = 8, # operands per cycle (shared)
         multiple_buffering = 2,
-        factors_contraints = {}, # the systolic array does a 16x16 matmul in this case
+        factors_contraints = {},
         bypasses = ['in', 'w']
     ),
     FanoutLevel(
@@ -384,7 +386,7 @@ arch_tpu = [
         name = "Compute",
         dataflow = WS[2],
         size = 1,
-        compute_energy = 0.28, # per compute (pJ)
+        compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_contraints = {'L': 1}
     )]

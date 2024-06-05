@@ -23,7 +23,7 @@ VERBOSE = True
 
 # If False, FF only searches for better solutions at a one-factor distance from the current one,
 # if True, FF searches for solutions at a distance of multiple factors, all be it only arity is
-# varied, with the tried factor being just one.
+# varied, with the tried factor being just one. (tries different multiplicities)
 ITERATE_AMOUNTS = False
 # If True, factors allocated on fanout levels will not be optimized (as if they were constraints),
 # and this is done after factor allocation in the fanouts is maximized.
