@@ -30,7 +30,7 @@ class Level:
         self.factors.addFactor(dimension, factor, amount)
 
     """
-    Remove "amount" instances of the provided factor from those of
+    Removes "amount" instances of the provided factor from those of
     "dimension" in the current level.
     Return False if the removal failed because the current level does not
     have at least "amount" instances of "factor" along "dimension".
@@ -75,7 +75,7 @@ class Level:
 
 """
 A Memory Level within the architecture, with the possibility to store
-data and provided it as tiles to the levels below it.
+data and provide it as tiles to the levels below it.
 
 Constructor arguments:
 - name: the level's name
@@ -89,11 +89,14 @@ Constructor arguments:
 - tile_sizes: specifies the initial tile sizes for this level, should not be normally
               specified aside for initializing MSE from a specific configuration,
               in which case it must be consistent with any other factors initialization
-- factors_contraints: constraints for the factor that must be placed on this level
+- factors_contraints: constraints on the factors that must be placed on this level.
+                      Valid dictionary keys are 'D', 'E', and 'L'.
 - dataflow_constraints: constraints for the order of loops at this level, for any dim
                         not specified here, all permutations are tried while keeping
                         fixed the relative order of constrained dimensions.
-- bypasses: operands which should bypass this level (i.o.w. not be stored here)
+                        Valid strings are 'D', 'E', and 'L'.
+- bypasses: list of operands which should bypass this level (i.o.w. not be stored here),
+            valid strings are 'in', 'w', and 'out'.
 - multiple_buffering: factor of multiple buffering employed by this level, must be >1
 - read_access_energy: energy required for reads accesses, if specified overrides "access_energy"
 - write_access_energy: energy required for write accesses, if specified overrides "access_energy"
@@ -264,10 +267,10 @@ class MemLevel(Level):
     # Let "size" be the tile_size of the above layer!
     # => The returned value must be multiplied by the factors above it.
     """
-    Returns the memory operation between this level and the one below it.
+    Returns the memory operations between this level and the one below it.
     Specifically: returns reads going downward from this level and writes
     coming upward from lower levels. In other words, reads and writes
-    between this level and the one below it.
+    between this level and the one(s) below it.
 
     => The returned value must be multiplied by the iterations happening
        on levels above this one in order to get the true total.
@@ -440,7 +443,7 @@ Constructor arguments:
 - dim: single dimension to spatially unroll at this level, if specified, dims
        must not be specified
 - dims: list of dimensions to spatially unroll at this level, if specified, dims
-        must not be specified
+        must not be specified. The order in dims does not matter
 - pe_to_pe: if True, data is not multicasted in one shot, but sent to only the first
             fanout entry, which then forwards it to the second, and so on, just like
             the operands flowing in/out of a systolic array (or, like in a pipeline).
@@ -452,10 +455,8 @@ Constructor arguments:
 - tile_sizes: specifies the initial tile sizes for this level, should not be normally
               specified aside for initializing MSE from a specific configuration,
               in which case it must be consistent with any other factors initialization
-- factors_contraints: constraints for the factor that must be placed on this level
-- try_extremes_only: if True, and multiple dimensions are specified in "dim", then only
-                     factor allocations where all factors lie entirely on one of the
-                     dimensions are generated during fanout maximization.
+- factors_contraints: constraints on the factors that must be placed on this level.
+                      Valid dictionary keys are 'D', 'E', and 'L'.
 """
 class FanoutLevel(Level):
     def __init__(self, name, mesh, dim = None, dims = None, pe_to_pe = False, spatial_multicast_support = True, spatial_reduction_support = True, factors = None, tile_sizes = None, factors_contraints = None):
@@ -543,10 +544,12 @@ Constructor arguments:
 - tile_sizes: specifies the initial tile sizes for this level, should not be normally
               specified aside for initializing MSE from a specific configuration,
               in which case it must be consistent with any other factors initialization
-- factors_contraints: constraints for the factor that must be placed on this level
+- factors_contraints: constraints on the factors that must be placed on this level.
+                      Valid dictionary keys are 'D', 'E', and 'L'.
 - dataflow_constraints: constraints for the order of loops at this level, for any dim
                         not specified here, all permutations are tried while keeping
                         fixed the relative order of constrained dimensions.
+                        Valid strings are 'D', 'E', and 'L'.
 """
 class ComputeLevel(Level):
     def __init__(self, name, size, compute_energy, cycles, dataflow = None, factors = None, tile_sizes = None, factors_contraints = None, dataflow_constraints = None):

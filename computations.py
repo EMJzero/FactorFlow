@@ -1,6 +1,7 @@
 from factors import Shape
 
 def comp_BERT(embedding, seq_length, heads, ff_dim):
+    assert embedding % heads == 0, f"Embedding dim ({embedding}) must be divisible by the number of heads ({heads})."
     return {
         'KQV': Shape(
             D = embedding*3,
@@ -34,5 +35,11 @@ def comp_BERT(embedding, seq_length, heads, ff_dim):
             )
     }
 
-comp_BERT_base = comp_BERT(768, 1024, 15, 3072)
+comp_BERT_base = comp_BERT(768, 1024, 12, 3072)
 comp_BERT_large = comp_BERT(1024, 4096, 16, 4096)
+
+comp_harsh_factos = Shape(
+    D = 4000,
+    E = 6032,
+    L = 12000
+    )

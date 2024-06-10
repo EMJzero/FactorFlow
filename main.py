@@ -15,6 +15,8 @@ from levels import *
 from prints import *
 from utils import *
 
+from comparisons.ZigZag.zigzag_archs import *
+
 # SETTINGS:
 
 # If True, enables logging of the MSE process. Note that such prints occur during the timed
@@ -295,7 +297,7 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
         enforceFactorsConstraints(arch)
     assert not findConstraintsViolation(arch), "Factor constraints or dataflow violation in the given architecture."
     constraints_check = [level.checkConstraints() for level in arch]
-    assert all(constraints_check), f"Constraints violation on level \"{arch[constraints_check.index(False)].name}\", ill-posed constraints (usually due to a dimension missmatch)."
+    assert all(constraints_check), f"Constraints violation on level \"{arch[constraints_check.index(False)].name}\", ill-posed constraints (usually due to a dimension missmatch or exceeded size constraints)."
     if not already_initialized:
         setupBypasses(arch)
         updateInstances(arch)
@@ -408,16 +410,25 @@ def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, threads_count = 1,
     if thread_idx != -1:
         partitioning_idx = 0 # start splitting among threads from the top
         threads_assigned_to_prev_partitions = 0
-        while threads_count > len(permutations[partitioning_idx]):
+        while threads_count > len(permutations[partitioning_idx]): # more threads than partitions, assign threads to partitions and go split the sub-partitions
             threads_per_permutation = [(threads_count + i) // len(permutations[partitioning_idx]) for i in range(len(permutations[partitioning_idx]))]
             current_idx = 0
+            # (thread_idx - threads_assigned_to_prev_partitions) is the idx of the thread among ones that are not yet assigned
             while thread_idx - threads_assigned_to_prev_partitions - sum(threads_per_permutation[:current_idx+1]) >= 0:
                 current_idx += 1
             permutations[partitioning_idx] = permutations[partitioning_idx][current_idx:current_idx+1]
             threads_count = threads_per_permutation[current_idx]
             threads_assigned_to_prev_partitions += sum(threads_per_permutation[:current_idx])
             partitioning_idx += 1
-        if threads_count > 1:
+            if partitioning_idx >= len(permutations):
+                if thread_idx - threads_assigned_to_prev_partitions >= len(permutations[partitioning_idx - 1]):
+                    if verbose: print(f"Dataflow permutations to try in thread {thread_idx}: 0")
+                    return_list[thread_idx] = (arch, 0, [0 for _ in targets])
+                    return
+                else:
+                    threads_count = 1
+                    break
+        if threads_count > 1: # less or same threads as partitions, assign >=1 partition per thread
             permutations_per_thread = len(permutations[partitioning_idx]) // threads_count
             remainder = len(permutations[partitioning_idx]) % threads_count
             start_idx = (thread_idx - threads_assigned_to_prev_partitions)*permutations_per_thread + min(thread_idx - threads_assigned_to_prev_partitions, remainder)
@@ -532,7 +543,7 @@ if __name__ == "__main__":
             p.start()
         for p in processes:
             p.join()
-        assert None not in return_list, f"Some threads failed to return, see above logs..."
+        assert None not in return_list, f"Some threads failed to return or found no valid mapping, see above logs..."
         arch, wart, _ = max(return_list, key=lambda res : res[1])
     else:
         #arch, _ = factorFlow(arch, comp, bias_read, verbose = VERBOSE)
@@ -553,3 +564,8 @@ if __name__ == "__main__":
         print("\nGenerated tests:")
         generateTestMOPs(arch)
         generateTestLatency(arch)
+        
+# HOW TO PROFILE:
+# arch = arch_simba
+# import profile
+# profile.run("optimizeDataflows(arch, comp, bias_read, verbose = VERBOSE)")
