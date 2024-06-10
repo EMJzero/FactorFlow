@@ -4,6 +4,11 @@ from utils import *
 from prints import prettyPrint
 from main import updateStats
 
+"""
+Runs a test by recoputing an architecture's statistics given a mapping in
+the form of a complete constraints set. The test passes iif all the newly
+evaluated statistics match those in "correct_data".
+"""
 def runTest(arch, correct_data, comp, bias_read):
     initFactors(arch, comp)
     enforceFactorsConstraints(arch)
@@ -22,6 +27,11 @@ def runTest(arch, correct_data, comp, bias_read):
                 print(f"{level.name}:{chr(9) * (2 - (len(level.name) + 1)//8)}Error on result: {key}\n\t\tExpected: {correct_data_level[key]}\n\t\tObtained: {level[key]}")
     assert passed, "Test FAILED..."
 
+"""
+Helper function that dumps the entirety of an architecture's MOPs statistics
+in the form of python code for an array of dictionaries, the same as those
+below in this file.
+"""
 def generateTestMOPs(arch):
     string = "correct_mops = ["
     indentation = 1
@@ -40,6 +50,11 @@ def generateTestMOPs(arch):
     string = string[:-1] + "]\n"
     print(string)
 
+"""
+Helper function that dumps the entirety of an architecture's latency statistics
+in the form of python code for an array of dictionaries, the same as those
+below in this file.
+"""
 def generateTestLatency(arch):
     string = "correct_latency = ["
     indentation = 1
