@@ -1,6 +1,10 @@
 from itertools import chain, combinations, permutations
+import math
+
 from levels import *
 
+
+# >>> Helper functions to operate on the architecture (camelCase ones)
 
 def findConstraintsViolation(arch):
     violation = False
@@ -29,6 +33,22 @@ def primeFactors(n):
             factors[i] = factors.get(i, 0) + 1
     if n > 1:
         factors[n] = factors.get(n, 0) + 1
+    return factors
+
+"""
+Computes the prime factors of 'n' and returns them as a list.
+"""
+def primeFactorsList(n):
+    factors = []
+    while n % 2 == 0:
+        factors.append(2)
+        n //= 2
+    for i in range(3, int(n**0.5) + 1, 2):
+        while n % i == 0:
+            factors.append(i)
+            n //= i
+    if n > 2:
+        factors.append(n)
     return factors
 
 # moves a factor and updates tile sizes accordingly, returns False (and reverts changes) if it violates any constraint
@@ -69,7 +89,7 @@ def initFactors(arch, comp):
     # TODO: to support a random starting point, add here a set of moveFactor
     # invocations, and add a method to "reset" the architecture (tile sizes and all)
 
-def enforceFactorsConstraints(arch):
+def enforceFactorsConstraints(arch, allow_padding = False, verbose_padding = True):
     # assuming that initially all factors are on the first level
     for i in range(1, len(arch)):
         level = arch[i]
@@ -81,10 +101,20 @@ def enforceFactorsConstraints(arch):
             E = primeFactors(level.factors_contraints['E']) if 'E' in level.factors_contraints else {},
             L = primeFactors(level.factors_contraints['L']) if 'L' in level.factors_contraints else {}
             )
-        if arch[0].factors.isSubset(constr_factors):
+        if arch[0].factors.isSubset(constr_factors) or allow_padding:
             for dim in ['D', 'E', 'L']:
-                for fact, amount in constr_factors[dim].items():
-                    assert moveFactor(arch, 0, i, dim, fact, amount, True, True), f"Constraints are not satisfiable! Cannot give {amount} instances of prime factor {fact} to level {level.name} on dimension {dim}."
+                dim_size = arch[0].factors.dimProduct(dim)
+                constraint = constr_factors.dimProduct(dim)
+                if dim_size%constraint == 0:
+                    for fact, amount in constr_factors[dim].items():
+                        assert moveFactor(arch, 0, i, dim, fact, amount, True, True), f"Constraints are not satisfiable! Cannot give {amount} instances of prime factor {fact} to level {level.name} on dimension {dim}."
+                else:
+                    padded_dim_size = dim_size + constraint - dim_size%constraint
+                    if verbose_padding: print(f"PADDING: enlarged {dim} from {dim_size} to {padded_dim_size} to respect constraints on level {level.name}")
+                    arch[0].factors[dim] = primeFactors(padded_dim_size)
+                    arch[0].factors.resetDimProducts([dim])
+                    for fact, amount in constr_factors[dim].items():
+                        assert moveFactor(arch, 0, i, dim, fact, amount, True, True), "Failed to enforce constraints even with padding..."
 
 def checkDataflowConstraints(arch):
     for level in filter(lambda l : isinstance(l, MemLevel), arch):
@@ -157,14 +187,21 @@ def hashFromFactors(arch):
                 hsh += f"{factor}{amount}"
     return hash(hsh)
 
+
+# >>> Miscellaneus functions working with iterables/arrays (snake_cased ones)
+
+"""
+Returns the powerset of an iterable, that being all its possible subsets,
+including the complete and empty ones.
+"""
 def powerset(iterable):
     s = list(iterable)
     return chain.from_iterable(combinations(s, r) for r in range(len(s)+1))
 
 """
-Interleaves the entries of "elements" in all possible ways in between the
-elements of "array". The array elements retain their order, while those of
-"elements" may not.
+Interleaves the entries of 'elements' in all possible ways in between the
+elements of 'array'. The array elements retain their order, while those of
+'elements' may not.
 """
 def interleave(array, elements):
     def recursive_insert(arr, elems):
@@ -178,14 +215,14 @@ def interleave(array, elements):
     return recursive_insert(array, elements)
 
 """
-Returns a list of all versions of "array" that differ by a rotation (or shift).
+Returns a list of all versions of 'array' that differ by a rotation (or shift).
 """
 def rotations(array):
     return [array[i:] + array[:i] for i in range(len(array))]
 
 """
 Returns, if any, the sets of elements which can undergo a cyclic shift and
-in so reach the configuration of arr2 starting from arr1.
+in so reach the configuration of 'arr2' starting from 'arr1'.
 """
 def single_cyclic_shift(arr1, arr2):
     n = len(arr1)
@@ -200,7 +237,7 @@ def single_cyclic_shift(arr1, arr2):
 
 """
 Returns all elements which need to be involved in swaps between neighbours
-to reach arr2 from arr1 (no cyclic behaviour allowed).
+to reach 'arr2' from 'arr1' (no cyclic behaviour allowed).
 """
 def pairwise_swaps(arr1, arr2):
     swaps = set()
@@ -216,3 +253,37 @@ def pairwise_swaps(arr1, arr2):
                 swaps.add(arr1[j - 1])
                 j -= 1
     return swaps
+
+"""
+Finds the subarray of 'arr', if any, whose product exceeds 'target' by
+the least amount and returns that subarray and the excess amount.
+(the product is allowed to be equal to the target)
+"""
+def smallest_product_greater_than(arr, target):
+    min_excess = math.inf
+    best_subarray = []
+    for r in range(1, len(arr) + 1):
+        for comb in combinations(arr, r):
+            product = math.prod(comb)
+            if product >= target and (product - target) < min_excess:
+                min_excess = product - target
+                best_subarray = comb
+    return list(best_subarray), min_excess
+
+"""
+Finds the subarray of 'arr', if any, whose product is short of 'target'
+by the least amount and returns that subarray and the defect amount.
+(the product is allowed to be equal to the target)
+"""
+def largest_product_less_than(arr, target):
+    min_defect = math.inf
+    best_subarray = []
+
+    for r in range(1, len(arr) + 1):
+        for comb in combinations(arr, r):
+            product = math.prod(comb)
+            if product <= target and (target - product) < min_defect:
+                min_defect = target - product
+                best_subarray = comb
+
+    return list(best_subarray), min_defect

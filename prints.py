@@ -281,6 +281,19 @@ def printLatencyNew(arch):
     print(f"Max Latency:\t{max_latency:.0f}cc of level {max_latency_level_name}")
 
 """
+Print to stdout the total amount of padding required by the different dimensions
+of the computation. This is non-zero iif the PADDED_MAPPINGS is True.
+"""
+def printPadding(arch, comp):
+    total_iterations = {'D': 1, 'E': 1, 'L': 1}
+    for level in arch:
+        for dim in ['D', 'E', 'L']:
+            total_iterations[dim] *= level.factors.dimProduct(dim)
+    print("Padding required:")
+    for dim in ['D', 'E', 'L']:
+        print(f"\t{dim}: {total_iterations[dim] - comp[dim]:.0f} ({comp[dim]} -> {total_iterations[dim]})")
+
+"""
 Shorthand to invoke prettyPrint on an architecture.
 """
 def printArch(arch):

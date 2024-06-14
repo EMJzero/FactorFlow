@@ -15,8 +15,7 @@ class Level:
     name: None
     dataflow: None # order of the loops | e.g. ['D', 'E', 'L']
     dataflow_constraints: None
-    # NOTE:
-    # Tile sizes are updated in "moveFactor".
+    # NOTE: tile sizes are updated in "moveFactor".
     factors: None # iterations done for the dimensions at this lever
     tile_sizes: None # indicate the size of a tile used in the level BELOW
     constraints: None
