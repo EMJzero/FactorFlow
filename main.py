@@ -45,7 +45,8 @@ LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC = False
 NO_CONSTRAINTS_CHECK_DURING_MULTISTEP = LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC and False
 # If True, in case of 2 dimensions on the same fanout only the FIRST dimension gets factors
 # allocation during fanout maximization. If False, both dimensions equally get factors.
-# NOTE: when this is True, dataflowOptimization also iterates over which dimension is maximized
+# NOTE: when this is True, optimizeDataflows also iterates over which dimension is maximized,
+#        in other words also fanout dimensions are permutated to pick the one to maximize.
 # >>> Play with this in case of 2 dimensions on the same fanout!!!
 # >>> Setting this to True costs Nx time, where N is the number of rotations of fanout dimensions.
 # >>> Henceforth, usage is suggested when MULTITHREADED is True.
@@ -63,6 +64,14 @@ HARD_PERM_SKIP = False
 # If True, the Wart will be multiplied by the utilization of the fanouts in the spatial architecture,
 # punishing mappings which underutilize fanouts.
 UTILIZATION_IN_WART = True
+# If True, GEMM dimensions might get padded to reach the least larger-than-current size which can
+# be allocated to the entirety of a fanout's instances.
+# This is performed as part of the fanout maximization.
+# NOTE: this is useless unless ONLY_MAXIMIZE_ONE_FANOUT_DIM is True.
+PADDED_MAPPINGS = ONLY_MAXIMIZE_ONE_FANOUT_DIM and False
+# If True, any padding applied due to PADDED_MAPPINGS will be logged.
+# NOTE: this is useless unless PADDED_MAPPINGS is True.
+VERBOSE_PADDED_MAPPINGS = PADDED_MAPPINGS and False
 
 # If True, the exploration of permutations done in optimizeDataflows will run across multiple
 # threads (or better, processes, due to the GIL).
@@ -248,7 +257,26 @@ def fanoutMaximization(arch, verbose = False):
     # IDEA: use a binary (ternary) tree expansion, start with 50-50 (30-30-30), explore each child and prune worse branches?
     if verbose: print("\nStarting fanout maximization:\n")
     if ONLY_MAXIMIZE_ONE_FANOUT_DIM:
-        for i in range(1, len(arch) - 1):
+        if PADDED_MAPPINGS:
+            for dim in ['D', 'E', 'L']:
+                total_mesh = math.prod([level.mesh for level in arch if isinstance(level, FanoutLevel) and level.dataflow[0] == dim])
+                mesh_factors = [f for level in arch if isinstance(level, FanoutLevel) and level.dataflow[0] == dim for f in primeFactorsList(level.mesh)]
+                dim_size = arch[0].factors.dimProduct(dim)
+                dim_factors = arch[0].factors.toList(dim)
+                if total_mesh > dim_size:
+                    used_factors, padding = smallest_product_greater_than(mesh_factors, dim_size)
+                    if padding != math.inf and not all([f in dim_factors for f in used_factors]): # only pad if some different factor achieved higher utilization
+                        if VERBOSE_PADDED_MAPPINGS: print(f"PADDING: enlarged {dim} from {dim_size} to {dim_size + padding}")
+                        arch[0].factors[dim] = primeFactors(dim_size + padding)
+                        arch[0].factors.resetDimProducts([dim])
+                else:
+                    if not all([f in dim_factors for f in mesh_factors]): # only pad if you are not already a multiple
+                        padded_dim_size = dim_size + total_mesh - dim_size%total_mesh
+                        if VERBOSE_PADDED_MAPPINGS: print(f"PADDING: enlarged {dim} from {dim_size} to {padded_dim_size}")
+                        arch[0].factors[dim] = primeFactors(padded_dim_size)
+                        arch[0].factors.resetDimProducts([dim])
+        
+        for i in range(1, len(arch) - 1): # first round: start from common factors
             level = arch[i]
             if isinstance(level, FanoutLevel):
                 dim = level.dataflow[0]
@@ -259,6 +287,17 @@ def fanoutMaximization(arch, verbose = False):
                         if moveFactor(arch, 0, i, dim, f, amount):
                             break
                         amount -= 1 # lower the amount until you succeed
+        
+        for i in range(1, len(arch) - 1): # second round: fill any remaining space as best as you can
+            level = arch[i]
+            if isinstance(level, FanoutLevel):
+                dim = level.dataflow[0]
+                if level.factors.dimProduct(dim) < level.mesh:
+                    space = level.mesh // level.factors.dimProduct(dim)
+                    factors, _ = largest_product_less_than(level.factors.toList(dim), space)
+                    for f in factors:
+                        assert moveFactor(arch, 0, i, dim, f, 1), "Fanout maximization failed to fill up the leftover space..."
+    
     else:
         for i in range(1, len(arch) - 1):
             level = arch[i]
@@ -294,16 +333,16 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
     if verbose: print("-------- factorFlow --------")
     if not already_initialized:
         initFactors(arch, comp)
-        enforceFactorsConstraints(arch)
+        enforceFactorsConstraints(arch, PADDED_MAPPINGS, VERBOSE_PADDED_MAPPINGS)
     assert not findConstraintsViolation(arch), "Factor constraints or dataflow violation in the given architecture."
     constraints_check = [level.checkConstraints() for level in arch]
     assert all(constraints_check), f"Constraints violation on level \"{arch[constraints_check.index(False)].name}\", ill-posed constraints (usually due to a dimension missmatch or exceeded size constraints)."
     if not already_initialized:
         setupBypasses(arch)
         updateInstances(arch)
+    assert isinstance(arch[0], MemLevel), f"The first/outermost level must a MemoryLevel, the provided one is {type(arch[-1])}."
     assert isinstance(arch[-1], ComputeLevel), f"The last/innermost level must a ComputeLevel, the provided one is {type(arch[-1])}."
     assert not any(map(lambda l : isinstance(l, ComputeLevel), arch[:-1])), "No other compute levels admitted beside the last/innermost one."
-    assert any(map(lambda l : isinstance(l, MemLevel), arch[:-1])), "At least one memory level must be present."
     assert checkDataflowConstraints(arch), "Dataflow constraints violated."
 
     if verbose: print(f"Initial condition (Wart: {Wart(arch, comp, bias_read):.3e}):")
@@ -524,7 +563,7 @@ def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, threads_count = 1,
 comp = comp_BERT_large['KQV']
 bias_read = False # True if bias is not 0 - outputs are read even the first time
 
-arch = arch_gemmini
+arch = arch_eyeriss
 
 ## MAIN:
 
@@ -558,6 +597,10 @@ if __name__ == "__main__":
     printMOPsNew(arch)
     print("\nFinal Latency per level:")
     printLatencyNew(arch)
+    
+    if PADDED_MAPPINGS:
+        print("")
+        printPadding(arch, comp)
 
     if len(sys.argv) > 1 and sys.argv[1] == "--gen-tests":
         from test import generateTestMOPs, generateTestLatency

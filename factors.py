@@ -96,6 +96,21 @@ class Factors():
         return self._dim_products['D']*self._dim_products['E']*self._dim_products['L']
 
     """
+    Recomputes the correct values for the dimProducts as of the current
+    factors. Must be called any time factors are updated directly, without
+    going through the addFactor and removeFactor methods.
+    
+    Pass dimensions as an array of dimensions to only reset indicated ones.
+    """
+    def resetDimProducts(self, dimensions = None):
+        dimensions = dimensions if dimensions else self._dim_products.keys()
+        for dim in dimensions:
+            res = 1
+            for f, v in self[dim].items():
+                res *= f**v
+            self._dim_products[dim] = res
+    
+    """
     Checks whether "subset" has less or the same occurencies of prime
     factors along each dimension (independently) as this instance.
     False if "subset" has an additional factor or more occurrencies
@@ -124,6 +139,13 @@ class Factors():
         return (self.dimProduct('D')*self.dimProduct('E')*w_bp*tile_sizes.D*tile_sizes.E +
                 self.dimProduct('E')*self.dimProduct('L')*in_bp*tile_sizes.E*tile_sizes.L +
                 self.dimProduct('D')*self.dimProduct('L')*out_bp*tile_sizes.D*tile_sizes.L)
+
+    """
+    Returns the factors present on the specified dimension as a list rather
+    than as a dictionary. Factors multiplicity in the list reflects arity.
+    """
+    def toList(self, dimension):
+        return [k for k in self[dimension] for _ in range(self[dimension][k])]
 
     """
     Reset this "Factors" instance to no factors along any dimension.

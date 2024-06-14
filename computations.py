@@ -43,3 +43,9 @@ comp_harsh_factos = Shape(
     E = 6032,
     L = 12000
     )
+
+comp_requiring_padding = Shape(
+    D = 4037,
+    E = 6011,
+    L = 12071
+    )
