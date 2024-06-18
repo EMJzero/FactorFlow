@@ -16,6 +16,8 @@ from prints import *
 from utils import *
 
 from comparisons.ZigZag.zigzag_archs import *
+from comparisons.CoSA.cosa_archs import *
+from comparisons.MAESTRO.maestro_archs import *
 
 # SETTINGS:
 
@@ -80,26 +82,26 @@ MULTITHREADED = True
 # logical CPUs available on the system.
 THREADS_COUNT = 8
 
-def forcedSettingsUpdate(arch):
+def forcedSettingsUpdate(arch, verbose = True):
     global FREEZE_SA, STEPS_TO_EXPLORE, LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC, NO_CONSTRAINTS_CHECK_DURING_MULTISTEP, MULTITHREADED, THREADS_COUNT
     for level in arch:
         if isinstance(level, FanoutLevel) and len(level.dims) >= 2:
             FREEZE_SA = False
-            print(f"INFO: forcefully updating setting FREEZE_SA to {FREEZE_SA}")
+            if verbose: print(f"INFO: forcefully updating setting FREEZE_SA to {FREEZE_SA}")
             STEPS_TO_EXPLORE = max(2, STEPS_TO_EXPLORE)
-            print(f"INFO: forcefully updating setting STEPS_TO_EXPLORE to {STEPS_TO_EXPLORE}")
+            if verbose: print(f"INFO: forcefully updating setting STEPS_TO_EXPLORE to {STEPS_TO_EXPLORE}")
             LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC = True
-            print(f"INFO: forcefully updating setting LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC to {LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC}")
+            if verbose: print(f"INFO: forcefully updating setting LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC to {LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC}")
             NO_CONSTRAINTS_CHECK_DURING_MULTISTEP = True
-            print(f"INFO: forcefully updating setting NO_CONSTRAINTS_CHECK_DURING_MULTISTEP to {NO_CONSTRAINTS_CHECK_DURING_MULTISTEP}")
-            print(f"INFO: --> the cause of this is the presence of a Fanout level ({level.name}) with multiple mapped dimensions({level.dims}). Runtime might increase to a few seconds...")
+            if verbose: print(f"INFO: forcefully updating setting NO_CONSTRAINTS_CHECK_DURING_MULTISTEP to {NO_CONSTRAINTS_CHECK_DURING_MULTISTEP}")
+            if verbose: print(f"INFO: --> the cause of this is the presence of a Fanout level ({level.name}) with multiple mapped dimensions({level.dims}). Runtime might increase to a few seconds...")
             break
     if MULTITHREADED:
         THREADS_COUNT = THREADS_COUNT if THREADS_COUNT else os.cpu_count()
-        print(f"INFO: running multithreaded with THREADS_COUNT = {THREADS_COUNT}")
+        if verbose: print(f"INFO: running multithreaded with THREADS_COUNT = {THREADS_COUNT}")
     if not VERBOSE:
-        print(f"INFO: VERBOSE output disabled, wait patiently...")
-    print("")
+        if verbose: print(f"INFO: VERBOSE output disabled, wait patiently...")
+    if verbose: print("")
 
 # updates the MOPs and Latency data of each level w.r.t. the current mapping
 def updateStats(arch, bias_read):
@@ -294,7 +296,7 @@ def fanoutMaximization(arch, verbose = False):
                 dim = level.dataflow[0]
                 if level.factors.dimProduct(dim) < level.mesh:
                     space = level.mesh // level.factors.dimProduct(dim)
-                    factors, _ = largest_product_less_than(level.factors.toList(dim), space)
+                    factors, _ = largest_product_less_than(arch[0].factors.toList(dim), space)
                     for f in factors:
                         assert moveFactor(arch, 0, i, dim, f, 1), "Fanout maximization failed to fill up the leftover space..."
     
@@ -375,11 +377,11 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
                 continue
 
             # pick the factor from the highest level that you can
-            new_src = src_level_idx - 1
-            while new_src >= 0 and factor in arch[new_src].factors[dim]:
-                if dim not in arch[new_src].factors_contraints:
-                    src_level_idx = new_src
-                new_src -= 1
+            #new_src = src_level_idx - 1
+            #while new_src >= 0 and factor in arch[new_src].factors[dim]:
+            #    if dim not in arch[new_src].factors_contraints:
+            #        src_level_idx = new_src
+            #    new_src -= 1
 
             for dst_level_idx in range(len(arch)):
                 if dst_level_idx != src_level_idx and dim not in arch[dst_level_idx].factors_contraints and dim in arch[dst_level_idx].dataflow:
