@@ -224,6 +224,141 @@ arch_gemmini_zigzag_loma_2 = [
         factors_contraints = {'L': 1}
     )]
 
+# SOLUTION GIVEN BY ZigZag WITH SALSA:
+# NOTE: unfair compared to the Gemmini architecture in "architectures.py"
+#       because SALSA can "split" memories at will. Hence compare only
+#       with the Gemmini version in this file!
+# Comp: bert large KQV
+arch_gemmini_zigzag_salsa_1 = [
+    MemLevel(
+        name = "DRAM",
+        dataflow_constraints = ['D', 'E', 'L'],
+        size = 2**64-1, # number of entries
+        access_energy = 64.00, # per operand (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 8, 'E': 1, 'L': 32},
+        bypasses = []
+    ),
+    MemLevel(
+        name = "Scratchpad",
+        dataflow_constraints = ['D', 'E', 'L'],
+        size = 512*(2**10), # number of entries
+        access_energy = 3.47, # per operand (pJ)
+        bandwidth = 32, # operands per cycle (shared)
+        factors_contraints = {'D':2, 'E': 1, 'L': 1},
+        bypasses = ['out']
+    ),
+    FanoutLevel(
+        name = "SARows",
+        dim = WS[0],
+        mesh = 16,
+        factors_contraints = {'D': 16}
+    ),
+    MemLevel(
+        name = "Accumulator",
+        dataflow_constraints = ['D', 'E', 'L'],
+        size = (256//4)*(2**10)//16, # number of entries (PER ONE INSTANCE!!) (remeber to account for operand size)
+        access_energy = 4.01, # per operand (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 12, 'E': 64, 'L': 1}, # the systolic array does a 16x16 matmul in this case
+        bypasses = ['in', 'w']
+    ),
+    FanoutLevel(
+        name = "SACols",
+        dim = WS[1],
+        mesh = 16,
+        factors_contraints = {'E': 16}
+    ),
+    MemLevel(
+        name = "Register",
+        dataflow_constraints = WS,
+        size = 1, # number of entries
+        access_energy = 0.01, # per operand (pJ)
+        bandwidth = 2, # operands per cycle (shared) -> 2 is a classic register which can be read & written in the same cc
+        factors_contraints = {'D': 1, 'E': 1, 'L': 128},
+        bypasses = ['in', 'out']
+    ),
+    ComputeLevel(
+        name = "Compute",
+        dataflow = WS[2],
+        size = 1,
+        compute_energy = 0.28, # per compute (pJ)
+        cycles = 1,
+        factors_contraints = {'L': 1}
+    )]
+
+# SOLUTION GIVEN BY ZigZag WITH SALSA:
+# NOTE: unfair compared to the Gemmini architecture in "architectures.py"
+#       because SALSA can "split" memories at will. Hence compare only
+#       with the Gemmini version in this file!
+# Comp: bert large VScores
+arch_gemmini_zigzag_salsa_2 = [
+    MemLevel(
+        name = "DRAM",
+        dataflow_constraints = ['D', 'E', 'L'],
+        size = 2**64-1, # number of entries
+        access_energy = 64.00, # per operand (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 8},
+        bypasses = []
+    ),
+    MemLevel(
+        name = "Scratchpad",
+        dataflow_constraints = ['D', 'E', 'L'],
+        size = 512*(2**10), # number of entries
+        access_energy = 3.47, # per operand (pJ)
+        bandwidth = 32, # operands per cycle (shared)
+        factors_contraints = {'D':1, 'E': 8, 'L': 1},
+        bypasses = ['out', 'in']
+    ),
+    MemLevel(
+        name = "Scratchpad",
+        dataflow_constraints = ['D', 'E', 'L'],
+        size = 512*(2**10), # number of entries
+        access_energy = 3.47, # per operand (pJ)
+        bandwidth = 32, # operands per cycle (shared)
+        factors_contraints = {'D':1, 'E': 2, 'L': 1},
+        bypasses = ['out', 'w']
+    ),
+    FanoutLevel(
+        name = "SARows",
+        dim = WS[0],
+        mesh = 16,
+        factors_contraints = {'D': 16}
+    ),
+    MemLevel(
+        name = "Accumulator",
+        dataflow_constraints = ['D', 'E', 'L'],
+        size = (256//4)*(2**10)//16, # number of entries (PER ONE INSTANCE!!) (remeber to account for operand size)
+        access_energy = 4.01, # per operand (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 4, 'E': 16, 'L': 1}, # the systolic array does a 16x16 matmul in this case
+        bypasses = ['in', 'w']
+    ),
+    FanoutLevel(
+        name = "SACols",
+        dim = WS[1],
+        mesh = 16,
+        factors_contraints = {'E': 16}
+    ),
+    MemLevel(
+        name = "Register",
+        dataflow_constraints = WS,
+        size = 1, # number of entries
+        access_energy = 0.01, # per operand (pJ)
+        bandwidth = 2, # operands per cycle (shared) -> 2 is a classic register which can be read & written in the same cc
+        factors_contraints = {'D': 1, 'E': 1, 'L': 512},
+        bypasses = ['in', 'out']
+    ),
+    ComputeLevel(
+        name = "Compute",
+        dataflow = WS[2],
+        size = 1,
+        compute_energy = 0.28, # per compute (pJ)
+        cycles = 1,
+        factors_contraints = {'L': 1}
+    )]
+
 
 # >>> EYERISS <<<
 
@@ -499,6 +634,78 @@ arch_eyeriss_zigzag_loma_3 = [
         access_energy = 0.69, # per operand (pJ)
         bandwidth = 4, # operands per cycle (shared)
         factors_contraints = {'D': 4, 'E': 1, 'L': 1},
+        bypasses = ['w', 'out', 'in']
+    ),
+    ComputeLevel(
+        name = "Compute",
+        dataflow = WS[2],
+        size = 1,
+        compute_energy = 0.21, # per compute (pJ)
+        cycles = 1,
+        factors_contraints = {'L': 1}
+    )]
+
+# SOLUTION GIVEN BY ZigZag WITH SALSA:
+# NOTE: unfair compared to the Eyeriss architecture in "architectures.py"
+#       because SALSA can "split" memories at will. Hence compare only
+#       with the Eyeriss version in this file!
+# Comp: bert large KQV
+arch_eyeriss_zigzag_salsa_1 = [
+    MemLevel(
+        name = "DRAM",
+        dataflow_constraints = ['E', 'D', 'L'],
+        size = 2**64-1, # number of entries
+        access_energy = 64.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 16, 'E': 8, 'L': 256},
+        bypasses = []
+    ),
+    MemLevel(
+        name = "GlobalBuffer",
+        dataflow_constraints = ['E', 'L', 'D'],
+        size = 16384*8, # number of entries
+        access_energy = 2.02, # per operand (pJ)
+        bandwidth = 32, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['w']
+    ),
+    FanoutLevel(
+        name = "SACols",
+        dim = 'E',
+        mesh = 14,
+        factors_contraints = {'E': 8}
+    ),
+    FanoutLevel(
+        name = "SARows",
+        dim = 'D', # one of D or E
+        mesh = 12,
+        factors_contraints = {'D': 12}
+    ),
+    MemLevel(
+        name = "WRegister",
+        dataflow_constraints = ['L', 'D', 'E'],
+        size = 192*2, # number of entries
+        access_energy = 1.97, # per operand (pJ)
+        bandwidth = 4, # operands per cycle (shared)
+        factors_contraints = {'D': 16, 'E': 1, 'L': 1},
+        bypasses = ['in', 'out']
+    ),
+    MemLevel(
+        name = "OutRegister",
+        dataflow_constraints = ['E', 'D', 'L'],
+        size = 16*2, # number of entries
+        access_energy = 1.34, # per operand (pJ)
+        bandwidth = 4, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 16, 'L': 1},
+        bypasses = ['in', 'w']
+    ),
+    MemLevel(
+        name = "InRegister",
+        dataflow_constraints = WS,
+        size = 12*2, # number of entries
+        access_energy = 0.69, # per operand (pJ)
+        bandwidth = 4, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 16},
         bypasses = ['w', 'out', 'in']
     ),
     ComputeLevel(

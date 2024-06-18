@@ -80,6 +80,19 @@ def printFactors(arch):
         for dim in level.dataflow:
             fac_str += f"{dim}: {level.factors.dimProduct(dim)}, "
         print(fac_str[:-2])
+        
+"""
+Returns a summary string representing the factors allocated to each dimension
+across the entire architecture.
+"""
+def factorsString(arch):
+    res = ""
+    for level in arch:
+        res += f"{level.name}["
+        for dim in level.dataflow:
+            res += f"{dim}{level.factors.dimProduct(dim)} "
+        res = res[:-1] + "] "
+    return res
 
 """
 Print to stdout a summary of the tile sizes for each dimension across the

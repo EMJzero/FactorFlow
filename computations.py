@@ -49,3 +49,31 @@ comp_requiring_padding = Shape(
     E = 6011,
     L = 12071
     )
+
+comp_maestro_blas = [
+    Shape(
+        D = 8192,
+        E = 8192,
+        L = 8192
+    ), Shape(
+        D = 1024,
+        E = 8192,
+        L = 1024
+    ), Shape(
+        D = 8,
+        E = 8192,
+        L = 8
+    ), Shape(
+        D = 8,
+        E = 1024,
+        L = 8192
+    ), Shape(
+        D = 8192,
+        E = 1024,
+        L = 8
+    ), Shape(
+        D = 512,
+        E = 256,
+        L = 256
+    )
+]
