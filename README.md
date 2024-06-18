@@ -32,6 +32,8 @@ The proposed approach reaches (as of now) better or equivalent results than othe
 
 **Note:** Fixing permutations can dramatically reduce execution time to a few milliseconds if the developer has some knowledge of the workload and architecture.
 
+**Note:** Batches are not modeled, but can always be achived by chaining multiple inputs along the L dimension.
+
 ## Relevant Traits
 
 - **Analytical Model for GEMMs:**

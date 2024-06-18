@@ -6,15 +6,15 @@ from levels import *
 
 # >>> Helper functions to operate on the architecture (camelCase ones)
 
-def findConstraintsViolation(arch):
+def findConstraintsViolation(arch, verbose = True):
     violation = False
     for level in arch:
         for dim in ['D', 'E', 'L']:
             if dim not in level.dataflow and len(level.factors[dim]) != 0:
-                print(f"Factor-dataflow missmatch for constraint ({dim}: {level.factors.dimProduct(dim)}) enforced on level \"{level.name}\"")
+                if verbose: print(f"Factor-dataflow missmatch for constraint ({dim}: {level.factors.dimProduct(dim)}) enforced on level \"{level.name}\"")
                 violation = True
             if dim in level.factors_contraints and level.factors_contraints[dim] != level.factors.dimProduct(dim):
-                print(f"Constraint violation, desired was ({dim}: {level.factors_contraints[dim]}), obtained was ({dim}: {level.factors.dimProduct(dim)}), on level \"{level.name}\"")
+                if verbose: print(f"Constraint violation, desired was ({dim}: {level.factors_contraints[dim]}), obtained was ({dim}: {level.factors.dimProduct(dim)}), on level \"{level.name}\"")
                 violation = True
     return violation
 
