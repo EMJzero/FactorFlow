@@ -294,11 +294,11 @@ def fanoutMaximization(arch, verbose = False):
             level = arch[i]
             if isinstance(level, FanoutLevel):
                 dim = level.dataflow[0]
-                if level.factors.dimProduct(dim) < level.mesh:
+                if level.factors.fullProduct() < level.mesh:
                     space = level.mesh // level.factors.dimProduct(dim)
                     factors, _ = largest_product_less_than(arch[0].factors.toList(dim), space)
                     for f in factors:
-                        assert moveFactor(arch, 0, i, dim, f, 1), "Fanout maximization failed to fill up the leftover space..."
+                        assert moveFactor(arch, 0, i, dim, f, 1), f"Fanout maximization failed to fill up the leftover space on level {level.name}, dim {dim}..."
     
     else:
         for i in range(1, len(arch) - 1):
