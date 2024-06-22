@@ -524,7 +524,7 @@ arch_tpu_factorflow_1 = [
     MemLevel(
         name = "UnifiedBuffer",
         dataflow_constraints = ['L', 'E', 'D'],
-        size = 512*(2**10), # number of entries
+        size = 24*(2**20), # number of entries
         access_energy = 2.69, # per operand (pJ)
         bandwidth = 32, # operands per cycle (shared)
         factors_contraints = {'D': 1, 'E': 1, 'L': 1},

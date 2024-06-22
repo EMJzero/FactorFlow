@@ -5,11 +5,11 @@ import math
 import copy
 import time
 import sys
-import os
 
 from architectures import *
 from solutions_db import *
 from computations import *
+from settings import *
 from factors import *
 from levels import *
 from prints import *
@@ -19,89 +19,6 @@ from comparisons.ZigZag.zigzag_archs import *
 from comparisons.CoSA.cosa_archs import *
 from comparisons.MAESTRO.maestro_archs import *
 
-# SETTINGS:
-
-# If True, enables logging of the MSE process. Note that such prints occur during the timed
-# section of the program, set to False for accurate timing results.
-VERBOSE = True
-
-# If False, FF only searches for better solutions at a one-factor distance from the current one,
-# if True, FF searches for solutions at a distance of multiple factors, all be it only arity is
-# varied, with the tried factor being just one. (tries different multiplicities)
-ITERATE_AMOUNTS = False
-# If True, factors allocated on fanout levels will not be optimized (as if they were constraints),
-# and this is done after factor allocation in the fanouts is maximized.
-# NOTE: automatically set to False in case of 2 dimensions on the same fanout.
-FREEZE_SA = True
-# Number of one-factor steps to try after of which the best choice is picked.
-# NOTE: automatically raised to (at least) 2 in case of 2 dimensions on the same fanout.
-STEPS_TO_EXPLORE = 1
-# If True, any recursively explored step after the first one, will only attempt to move factors
-# into the destination level which was the source for the previous move.
-# NOTE: automatically set to True in case of 2 dimensions on the same fanout.
-LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC = False
-# If True, any intermediate step of a multi-step exploration will not need to satisfy architectural
-# constraints, on the condition that the final step will satisfy them.
-# NOTE: can be True iif LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC is True
-# NOTE: automatically set to True in case of 2 dimensions on the same fanout.
-NO_CONSTRAINTS_CHECK_DURING_MULTISTEP = LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC and False
-# If True, in case of 2 dimensions on the same fanout only the FIRST dimension gets factors
-# allocation during fanout maximization. If False, both dimensions equally get factors.
-# NOTE: when this is True, optimizeDataflows also iterates over which dimension is maximized,
-#        in other words also fanout dimensions are permutated to pick the one to maximize.
-# >>> Play with this in case of 2 dimensions on the same fanout!!!
-# >>> Setting this to True costs Nx time, where N is the number of rotations of fanout dimensions.
-# >>> Henceforth, usage is suggested when MULTITHREADED is True.
-ONLY_MAXIMIZE_ONE_FANOUT_DIM = True
-# If True, saves time by assuming that any permutation differing from an optimal one by the order
-# of dimensions involving one with a single iteration can be optimized starting from where it
-# already is, and thus avoids a complete re-initialization.
-# NOTE: True is highly recommended to avoid prohibitive MSE times.
-PERM_SKIP = True
-# If True, saves time by assuming that any permutation differing from an optimal one by the order
-# of dimensions involving one with a single iteration cannot be optimized further, thus skips
-# it entirely. Setting it to False can slightly improve the best found mapping.
-# NOTE: unless PERM_SKIP is True, this setting is useless.
-HARD_PERM_SKIP = False
-# If True, the Wart will be multiplied by the utilization of the fanouts in the spatial architecture,
-# punishing mappings which underutilize fanouts.
-UTILIZATION_IN_WART = True
-# If True, GEMM dimensions might get padded to reach the least larger-than-current size which can
-# be allocated to the entirety of a fanout's instances.
-# This is performed as part of the fanout maximization.
-# NOTE: this is useless unless ONLY_MAXIMIZE_ONE_FANOUT_DIM is True.
-PADDED_MAPPINGS = ONLY_MAXIMIZE_ONE_FANOUT_DIM and False
-# If True, any padding applied due to PADDED_MAPPINGS will be logged.
-# NOTE: this is useless unless PADDED_MAPPINGS is True.
-VERBOSE_PADDED_MAPPINGS = PADDED_MAPPINGS and False
-
-# If True, the exploration of permutations done in optimizeDataflows will run across multiple
-# threads (or better, processes, due to the GIL).
-MULTITHREADED = True
-# Number of threads to use if MULTITHREADED is True. If None, it is set to the number of
-# logical CPUs available on the system.
-THREADS_COUNT = 8
-
-def forcedSettingsUpdate(arch, verbose = True):
-    global FREEZE_SA, STEPS_TO_EXPLORE, LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC, NO_CONSTRAINTS_CHECK_DURING_MULTISTEP, MULTITHREADED, THREADS_COUNT
-    for level in arch:
-        if isinstance(level, FanoutLevel) and len(level.dims) >= 2:
-            FREEZE_SA = False
-            if verbose: print(f"INFO: forcefully updating setting FREEZE_SA to {FREEZE_SA}")
-            STEPS_TO_EXPLORE = max(2, STEPS_TO_EXPLORE)
-            if verbose: print(f"INFO: forcefully updating setting STEPS_TO_EXPLORE to {STEPS_TO_EXPLORE}")
-            LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC = True
-            if verbose: print(f"INFO: forcefully updating setting LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC to {LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC}")
-            NO_CONSTRAINTS_CHECK_DURING_MULTISTEP = True
-            if verbose: print(f"INFO: forcefully updating setting NO_CONSTRAINTS_CHECK_DURING_MULTISTEP to {NO_CONSTRAINTS_CHECK_DURING_MULTISTEP}")
-            if verbose: print(f"INFO: --> the cause of this is the presence of a Fanout level ({level.name}) with multiple mapped dimensions({level.dims}). Runtime might increase to a few seconds...")
-            break
-    if MULTITHREADED:
-        THREADS_COUNT = THREADS_COUNT if THREADS_COUNT else os.cpu_count()
-        if verbose: print(f"INFO: running multithreaded with THREADS_COUNT = {THREADS_COUNT}")
-    if not VERBOSE:
-        if verbose: print(f"INFO: VERBOSE output disabled, wait patiently...")
-    if verbose: print("")
 
 # updates the MOPs and Latency data of each level w.r.t. the current mapping
 def updateStats(arch, bias_read):
@@ -244,7 +161,7 @@ def updateStats(arch, bias_read):
 def Wart(arch, comp, bias_read):
     FLOPs = comp.FLOPs()
     WMOPs, max_latency = updateStats(arch, bias_read)
-    utilization = fanoutsUtilization(arch) if UTILIZATION_IN_WART else 1
+    utilization = fanoutsUtilization(arch) if Settings.UTILIZATION_IN_WART else 1
     return (FLOPs/(WMOPs*max_latency))*utilization
 
 # Energy-Delay Product
@@ -258,8 +175,8 @@ def fanoutMaximization(arch, verbose = False):
     # NOTE: When making this handle Fanouts with multiple unrolled dimensions, the issue is dividing the fanout size across dimensions
     # IDEA: use a binary (ternary) tree expansion, start with 50-50 (30-30-30), explore each child and prune worse branches?
     if verbose: print("\nStarting fanout maximization:\n")
-    if ONLY_MAXIMIZE_ONE_FANOUT_DIM:
-        if PADDED_MAPPINGS:
+    if Settings.ONLY_MAXIMIZE_ONE_FANOUT_DIM:
+        if Settings.PADDED_MAPPINGS:
             for dim in ['D', 'E', 'L']:
                 total_mesh = math.prod([level.mesh for level in arch if isinstance(level, FanoutLevel) and level.dataflow[0] == dim])
                 mesh_factors = [f for level in arch if isinstance(level, FanoutLevel) and level.dataflow[0] == dim for f in primeFactorsList(level.mesh)]
@@ -268,13 +185,13 @@ def fanoutMaximization(arch, verbose = False):
                 if total_mesh > dim_size:
                     used_factors, padding = smallest_product_greater_than(mesh_factors, dim_size)
                     if padding != math.inf and not all([f in dim_factors for f in used_factors]): # only pad if some different factor achieved higher utilization
-                        if VERBOSE_PADDED_MAPPINGS: print(f"PADDING: enlarged {dim} from {dim_size} to {dim_size + padding}")
+                        if Settings.VERBOSE_PADDED_MAPPINGS: print(f"PADDING: enlarged {dim} from {dim_size} to {dim_size + padding}")
                         arch[0].factors[dim] = primeFactors(dim_size + padding)
                         arch[0].factors.resetDimProducts([dim])
                 else:
                     if not all([f in dim_factors for f in mesh_factors]): # only pad if you are not already a multiple
                         padded_dim_size = dim_size + total_mesh - dim_size%total_mesh
-                        if VERBOSE_PADDED_MAPPINGS: print(f"PADDING: enlarged {dim} from {dim_size} to {padded_dim_size}")
+                        if Settings.VERBOSE_PADDED_MAPPINGS: print(f"PADDING: enlarged {dim} from {dim_size} to {padded_dim_size}")
                         arch[0].factors[dim] = primeFactors(padded_dim_size)
                         arch[0].factors.resetDimProducts([dim])
         
@@ -335,7 +252,7 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
     if verbose: print("-------- factorFlow --------")
     if not already_initialized:
         initFactors(arch, comp)
-        enforceFactorsConstraints(arch, PADDED_MAPPINGS, VERBOSE_PADDED_MAPPINGS)
+        enforceFactorsConstraints(arch, Settings.PADDED_MAPPINGS, Settings.VERBOSE_PADDED_MAPPINGS)
     assert not findConstraintsViolation(arch), "Factor constraints or dataflow violation in the given architecture."
     constraints_check = [level.checkConstraints() for level in arch]
     assert all(constraints_check), f"Constraints violation on level \"{arch[constraints_check.index(False)].name}\", ill-posed constraints (usually due to a dimension missmatch or exceeded size constraints)."
@@ -365,7 +282,7 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
     
     def exploreOneStep(remaining_steps = 1, target_src_level_idx = None, target_dim = None, target_factor = None, target_dst_level_idx = None):
         choices = {}
-        for src_level_idx, dim, factor, amount in factorsIterator(arch, iterate_amounts = ITERATE_AMOUNTS, skip_fanouts= FREEZE_SA):
+        for src_level_idx, dim, factor, amount in factorsIterator(arch, iterate_amounts = Settings.ITERATE_AMOUNTS, skip_fanouts= Settings.FREEZE_SA):
             if target_src_level_idx and target_dim and target_factor and (target_src_level_idx != src_level_idx or target_dim != dim or target_factor != factor):
                 continue
             #print("Initial proposal: ", src_level_idx, dim, factor)
@@ -388,12 +305,12 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
                     #print(src_level_idx, dst_level_idx, dim, factor)
                     if target_dst_level_idx and dst_level_idx != target_dst_level_idx:
                         continue
-                    if moveFactor(arch, src_level_idx, dst_level_idx, dim, factor, amount, skip_src_constraints = NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and remaining_steps > 1):
+                    if moveFactor(arch, src_level_idx, dst_level_idx, dim, factor, amount, skip_src_constraints = Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and remaining_steps > 1):
                         hsh = hashFromFactors(arch)
                         if hsh not in already_seen:
                             already_seen.append(hsh)
                             if remaining_steps > 1:
-                                nested_choices = exploreOneStep(remaining_steps - 1, target_dst_level_idx = src_level_idx if LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC else None)
+                                nested_choices = exploreOneStep(remaining_steps - 1, target_dst_level_idx = src_level_idx if Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC else None)
                                 if len(nested_choices) == 0:
                                     choices[(src_level_idx, dst_level_idx, dim, factor, amount)] = Wart(arch, comp, bias_read)
                                 else:
@@ -406,11 +323,11 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
                                         choices[(src_level_idx, dst_level_idx, dim, factor, amount)] = wart
                             else:
                                 choices[(src_level_idx, dst_level_idx, dim, factor, amount)] = Wart(arch, comp, bias_read)
-                        assert moveFactor(arch, dst_level_idx, src_level_idx, dim, factor, amount, skip_dst_constraints = NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and remaining_steps > 1) # something went wrong, unreversible move of a factor    
+                        assert moveFactor(arch, dst_level_idx, src_level_idx, dim, factor, amount, skip_dst_constraints = Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and remaining_steps > 1) # something went wrong, unreversible move of a factor    
         return choices
     
     while True:
-        choices = exploreOneStep(remaining_steps = STEPS_TO_EXPLORE)
+        choices = exploreOneStep(remaining_steps = Settings.STEPS_TO_EXPLORE)
         if len(choices) == 0:
             if verbose: print(f"No valid follow-up configuration, stopping, current Wart: {best_wart:.3e}")
             break
@@ -423,7 +340,7 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
             # each individual choice is defined by 5 parameters, chained to another 5 for each nested exploration step
             multisteps = len(best_choice) // 5
             for i in range(multisteps):
-                assert moveFactor(arch, best_choice[5*i + 0], best_choice[5*i + 1], best_choice[5*i + 2], best_choice[5*i + 3], best_choice[5*i + 4], skip_src_constraints = NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and i < multisteps - 1) # best choice is an invalid mapping
+                assert moveFactor(arch, best_choice[5*i + 0], best_choice[5*i + 1], best_choice[5*i + 2], best_choice[5*i + 3], best_choice[5*i + 4], skip_src_constraints = Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and i < multisteps - 1) # best choice is an invalid mapping
             best_wart = choices[best_choice]
 
     updateInstances(arch)
@@ -434,7 +351,7 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
 
 def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, threads_count = 1, return_list = None, verbose = False):
     if verbose and thread_idx <= 0: print("-------- optimizeDataflows --------")
-    targets = list(filter(lambda l : isinstance(l, MemLevel) or isinstance(l, ComputeLevel) or (ONLY_MAXIMIZE_ONE_FANOUT_DIM and isinstance(l, FanoutLevel)), arch))
+    targets = list(filter(lambda l : isinstance(l, MemLevel) or isinstance(l, ComputeLevel) or (Settings.ONLY_MAXIMIZE_ONE_FANOUT_DIM and isinstance(l, FanoutLevel)), arch))
     # TODO: pre-exclude some permutations according to the work on derivatives
     # HOW-TO:
     # - prevent from permuting any dimension with iterations/factors constrainted at 1
@@ -510,7 +427,7 @@ def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, threads_count = 1,
         # TODO: remove this deepcopy and just reset factors (requires a "reset" method implemented in each layer)
         #resetTilesAndFactors(arch)
         current_arch = copy.deepcopy(arch)
-        current_targets = list(filter(lambda l : isinstance(l, MemLevel) or isinstance(l, ComputeLevel) or (ONLY_MAXIMIZE_ONE_FANOUT_DIM and isinstance(l, FanoutLevel)), current_arch))
+        current_targets = list(filter(lambda l : isinstance(l, MemLevel) or isinstance(l, ComputeLevel) or (Settings.ONLY_MAXIMIZE_ONE_FANOUT_DIM and isinstance(l, FanoutLevel)), current_arch))
         for mem_idx in range(len(current_targets)):
             current_targets[mem_idx].dataflow = permutations[mem_idx][current_perms[mem_idx]]
         current_arch, wart = factorFlow(current_arch, comp, bias_read)
@@ -529,10 +446,10 @@ def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, threads_count = 1,
         
         # True if any set of dimensions which with a cyclic shift can yield the previous permutation from the current one is entirely made of dims with a factor of 1,
         # or true if of all dimensions involved in swaps between neighbouring nested loops to go from the previous permutation to the current one at least all except one have a factor of 1.
-        while (PERM_SKIP and i >= 0 and not isinstance(current_targets[i], FanoutLevel) and
+        while (Settings.PERM_SKIP and i >= 0 and not isinstance(current_targets[i], FanoutLevel) and
                (any(map(lambda dims : all([factors_at_one[i][dim] for dim in dims]), single_cyclic_shift(permutations[i][current_perms[i]], permutations[i][current_perms[i] - 1])))
                or (lambda dims : sum([factors_at_one[i][dim] for dim in dims]) >= len(dims) - 1)(pairwise_swaps(permutations[i][current_perms[i]], permutations[i][current_perms[i] - 1])))):
-            if not HARD_PERM_SKIP:
+            if not Settings.HARD_PERM_SKIP:
                 current_targets[i].dataflow = permutations[i][current_perms[i]]
                 for j in range(i + 1, len(targets)):
                     current_targets[j].dataflow = permutations[j][best_perm[j]]
@@ -570,16 +487,16 @@ arch = arch_eyeriss
 ## MAIN:
 
 if __name__ == "__main__":
-    forcedSettingsUpdate(arch)
+    Settings.forcedSettingsUpdate(arch)
     
     start_time = time.time()
 
-    if MULTITHREADED:
+    if Settings.MULTITHREADED:
         manager = multiprocessing.Manager()
-        return_list = manager.list([None]*THREADS_COUNT)
+        return_list = manager.list([None]*Settings.THREADS_COUNT)
         processes = []
-        for i in range(THREADS_COUNT):
-            p = multiprocessing.Process(target=optimizeDataflows, args=(copy.deepcopy(arch), copy.deepcopy(comp), bias_read, i, THREADS_COUNT, return_list, VERBOSE))
+        for i in range(Settings.THREADS_COUNT):
+            p = multiprocessing.Process(target=optimizeDataflows, args=(copy.deepcopy(arch), copy.deepcopy(comp), bias_read, i, Settings.THREADS_COUNT, return_list, Settings.VERBOSE))
             processes.append(p)
             p.start()
         for p in processes:
@@ -588,7 +505,7 @@ if __name__ == "__main__":
         arch, wart, _ = max(return_list, key=lambda res : res[1])
     else:
         #arch, _ = factorFlow(arch, comp, bias_read, verbose = VERBOSE)
-        arch, wart, _ = optimizeDataflows(arch, comp, bias_read, verbose = VERBOSE)
+        arch, wart, _ = optimizeDataflows(arch, comp, bias_read, verbose = Settings.VERBOSE)
     
     print(f"\nFinished in: {time.time() - start_time:.3f}s")
 
@@ -600,7 +517,7 @@ if __name__ == "__main__":
     print("\nFinal Latency per level:")
     printLatencyNew(arch)
     
-    if PADDED_MAPPINGS:
+    if Settings.PADDED_MAPPINGS:
         print("")
         printPadding(arch, comp)
 

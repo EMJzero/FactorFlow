@@ -9,15 +9,37 @@ import copy
 import sys
 sys.path.append("..")
 
-from main import factorFlow, forcedSettingsUpdate
+from main import factorFlow, EDP
 from architectures import *
 from computations import *
 from solutions_db import *
 from computations import *
+from settings import *
 from factors import *
 from levels import *
 from prints import *
 from utils import *
+
+def args_match_and_remove(flag, with_value = False):
+    try:
+        idx = sys.argv.index(flag)
+        sys.argv.pop(idx)
+        if with_value:
+            return sys.argv.pop(idx)
+        else:
+            return True
+        return
+    except:
+        return False
+
+def parse_options():
+    options = {
+        "help": args_match_and_remove("-h") or args_match_and_remove("--help"),
+        "max_tries": args_match_and_remove("-mt", True) or args_match_and_remove("--max_tries", True),
+        "random_moves": args_match_and_remove("-rm", True) or args_match_and_remove("--random_moves", True),
+        "store_init_conds": args_match_and_remove("-sic") or args_match_and_remove("--store_init_conds"),
+    }
+    return options
 
 """
 def partitions(arr, n, seen=None):
@@ -78,7 +100,7 @@ def randomFactorsInitializations(arch, comp):
 """
 
 # Random-ish but faster
-def randomFactorsInitializationsSlow(arch, comp, random_moves = 10):
+def randomFactorsInitializationsFast(arch, comp, random_moves = 10):
     initFactors(arch, comp)
     enforceFactorsConstraints(arch)
     setupBypasses(arch)
@@ -106,7 +128,7 @@ def randomFactorsInitializationsSlow(arch, comp, random_moves = 10):
             yield random_arch
 
 # Truly random, but slower
-def randomFactorsInitializationsFast(arch, comp, random_moves = 10):
+def randomFactorsInitializationsSlow(arch, comp, random_moves = 10):
     initFactors(arch, comp)
     enforceFactorsConstraints(arch)
     setupBypasses(arch)
@@ -138,9 +160,34 @@ def randomFactorsInitializationsFast(arch, comp, random_moves = 10):
 if __name__ == "__main__":
     # CONFIGURATION:
 
-    MAX_TRIES = 1000
+    MAX_TRIES = 10000
     RANDOM_MOVES = 20
     STORE_INITIAL_CONDITIONS = False
+
+    # PARSE CLI ARGS:
+
+    options = parse_options()
+
+    if options["help"]:
+        print("Supported options:")
+        print("-h, --help\t\t\tDisplay this help menu.")
+        print("-mt, --max_tries <tries>\tSets to <tries> the number of starting point tried. Default is 10000.")
+        print("-rm, --random_moves <moves>\tSets to <moves> the number of moves attempted for each prime factor in the mapping. Default is 20.")
+        print("-sic, --store_init_conds\tIf given, the initial random starting points are also stored and displayed at the end.")
+        sys.exit(1)
+
+    MAX_TRIES = int(options["max_tries"]) if options["max_tries"] else MAX_TRIES
+    RANDOM_MOVES = int(options["random_moves"]) if options["random_moves"] else RANDOM_MOVES
+    STORE_INITIAL_CONDITIONS = STORE_INITIAL_CONDITIONS or options["store_init_conds"]
+
+    supported_archs = ["gemmini", "eyeriss", "simba", "tpu"]
+    if len(sys.argv) < 2 or sys.argv[1] not in supported_archs:
+        print("The first argument must be a valid architecture name. Please choose one of the following:")
+        for arch in supported_archs:
+            print(f"- {arch}")
+        sys.exit(1)
+
+    arch_name = sys.argv[1]
 
     # SPECIFICATION:
     
@@ -148,36 +195,67 @@ if __name__ == "__main__":
     bias_read = False
 
     # << Gemmini >>
-    base_arch = arch_gemmini
-    arch = arch_gemmini_factorflow_2
+    if arch_name == "gemmini":
+        base_arch = arch_gemmini
+        arch = arch_gemmini_factorflow_2
 
     # << Eyeriss >>
-    #base_arch = arch_eyeriss
-    #arch = arch_eyeriss_factorflow_1
-    #arch[2].dims = ['D', 'E']
-    #arch[2].dataflow = ['D', 'E']
+    elif arch_name == "eyeriss":
+        base_arch = arch_eyeriss
+        arch = arch_eyeriss_factorflow_1
+        arch[2].dims = ['D', 'E']
+        arch[2].dataflow = ['D', 'E']
+    
+    # << Simba >>
+    elif arch_name == "simba":
+        base_arch = arch_simba
+        arch = arch_simba_factorflow_1
+        arch[2].dims = ['D', 'E']
+        arch[2].dataflow_constraints = ['D', 'E']
+    
+    # << TPU >>
+    elif arch_name == "tpu":
+        base_arch = arch_tpu
+        arch = arch_tpu_factorflow_1
+        Settings.STEPS_TO_EXPLORE = 2
+        print(f"INFO: tpu selected, forcefully updating setting STEPS_TO_EXPLORE to {Settings.STEPS_TO_EXPLORE}.")
+        #arch[0].dataflow_constraints = ['L', 'D', 'E']
+        #arch[1].dataflow_constraints = ['D', 'E', 'L']
+        #arch[2].dataflow_constraints = ['L', 'E', 'D']
+        #arch[3].dataflow_constraints = ['L', 'E', 'D']
+        #arch[5].dataflow_constraints = ['L', 'D', 'E']
+        #arch[7].dataflow_constraints = ['D', 'E', 'L']
+        #arch[0].dataflow = ['L', 'D', 'E']
+        #arch[1].dataflow = ['D', 'E', 'L']
+        #arch[2].dataflow = ['L', 'E', 'D']
+        #arch[3].dataflow = ['L', 'E', 'D']
+        #arch[5].dataflow = ['L', 'D', 'E']
+        #arch[7].dataflow = ['D', 'E', 'L']
     
     for level_idx in range(len(arch)):
         #if not isinstance(arch[level_idx], ComputeLevel):
         arch[level_idx].factors_contraints = base_arch[level_idx].factors_contraints
-    forcedSettingsUpdate(arch, False)
+    Settings.forcedSettingsUpdate(arch, False)
 
     tried = 0
     warts = []
+    edps = []
     initial_conditions = []
     
     #print("Generating random starting points...")
-    random_archs = randomFactorsInitializationsSlow(copy.deepcopy(arch), comp, RANDOM_MOVES)
+    random_archs = randomFactorsInitializationsFast(copy.deepcopy(arch), comp, RANDOM_MOVES)
     #_ = next(random_archs)
     print(f"Starting optimization of {MAX_TRIES} different starting points:")
     for current_arch in random_archs:
         try:
             assert not findConstraintsViolation(current_arch, False)
             if STORE_INITIAL_CONDITIONS: initial_conditions.append(factorsString(current_arch))
-            _, wart = factorFlow(current_arch, comp, bias_read, already_initialized = True)
+            current_arch, wart = factorFlow(current_arch, comp, bias_read, already_initialized = True)
+            edp = EDP(current_arch, bias_read, True)
         except AssertionError:
             continue
         warts.append(wart)
+        edps.append(edp)
         
         if math.floor((tried/MAX_TRIES)*10) > math.floor(((tried - 1)/MAX_TRIES)*10):
             print(f"Progress: {tried}/{MAX_TRIES} tried...")
@@ -186,14 +264,27 @@ if __name__ == "__main__":
         else:
             tried += 1
             
-    _, factorflow_wart = factorFlow(arch, comp, bias_read)
+    print(f"FF INIT: {factorsString(arch)}")
+    arch, factorflow_wart = factorFlow(arch, comp, bias_read)
+    print(f"FF FINAL: {factorsString(arch)}")
+    factorflow_edp = EDP(arch, bias_read, True)
     
-    print("\nResults (higher is better):")
+    print("\nResults for Wart (higher is better):")
     print(f"All factors on first level - Wart: {factorflow_wart:.3e}")
     print(f"Random starting points:\n\t- avg. Wart: {sum(warts)/len(warts):.3e}\n\t- min Wart: {min(warts):.3e}\n\t- max Wart: {max(warts):.3e}")
     short_warts = [f"{w:.3e}" for w in warts]
     if STORE_INITIAL_CONDITIONS:
         for initial_condition, wart in zip(initial_conditions, short_warts):
             print(f"Initial condition: {initial_condition}, Wart: {wart}")
-    else:
-        print(f"\nComplete random starting point Warts: {short_warts}")
+    #else:
+    #    print(f"\nComplete random starting point Warts: {short_warts}")
+    
+    print("\nResults for EDP (lower is better):")
+    print(f"All factors on first level - EDP: {factorflow_edp:.3e}")
+    print(f"Random starting points:\n\t- avg. EDP: {sum(edps)/len(edps):.3e}\n\t- min EDP: {min(edps):.3e}\n\t- max EDP: {max(edps):.3e}")
+    short_edps = [f"{e:.3e}" for e in edps]
+    if STORE_INITIAL_CONDITIONS:
+        for initial_condition, edp in zip(initial_conditions, short_edps):
+            print(f"Initial condition: {initial_condition}, EDP: {edp}")
+    #else:
+    #    print(f"\nComplete random starting point Warts: {short_warts}")

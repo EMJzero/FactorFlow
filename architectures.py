@@ -284,7 +284,7 @@ arch_simba = [
     MemLevel(
         name = "PEWeightRegs",
         dataflow_constraints = [],
-        size = 1, # number of entries
+        size = 1, # number of entries (64 in TL)
         access_energy = 0.70, # per operand (pJ)
         bandwidth = 2**10, # operands per cycle (shared)
         factors_contraints = {},
@@ -327,7 +327,7 @@ arch_tpu = [
     MemLevel(
         name = "UnifiedBuffer",
         dataflow_constraints = [],
-        size = 512*(2**10), # number of entries
+        size = 24*(2**20), # number of entries
         access_energy = 2.69, # per operand (pJ)
         bandwidth = 32, # operands per cycle (shared)
         factors_contraints = {},
