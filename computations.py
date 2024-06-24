@@ -38,10 +38,16 @@ def comp_BERT(embedding, seq_length, heads, ff_dim):
 comp_BERT_base = comp_BERT(768, 1024, 12, 3072)
 comp_BERT_large = comp_BERT(1024, 4096, 16, 4096)
 
-comp_harsh_factos = Shape(
+comp_harsh_factos_1 = Shape(
     D = 4000,
     E = 6032,
     L = 12000
+    )
+
+comp_harsh_factos_2 = Shape(
+    D = 7000,
+    E = 1440,
+    L = 4224
     )
 
 comp_requiring_padding = Shape(
@@ -50,30 +56,35 @@ comp_requiring_padding = Shape(
     L = 12071
     )
 
-comp_maestro_blas = [
-    Shape(
+comp_maestro_blas = {
+    'MB1': Shape(
         D = 8192,
         E = 8192,
         L = 8192
-    ), Shape(
+    ),
+    'MB2': Shape(
         D = 1024,
         E = 8192,
         L = 1024
-    ), Shape(
+    ),
+    'MB3': Shape(
         D = 8,
         E = 8192,
         L = 8
-    ), Shape(
+    ),
+    'MB4': Shape(
         D = 8,
         E = 1024,
         L = 8192
-    ), Shape(
+    ),
+    'MB5': Shape(
         D = 8192,
         E = 1024,
         L = 8
-    ), Shape(
+    ),
+    'MB6': Shape(
         D = 512,
         E = 256,
         L = 256
     )
-]
+}
