@@ -328,7 +328,7 @@ arch_tpu = [
         name = "UnifiedBuffer",
         dataflow_constraints = [],
         size = 24*(2**20), # number of entries
-        access_energy = 2.69, # per operand (pJ)
+        access_energy = 19.66, # per operand (pJ)
         bandwidth = 32, # operands per cycle (shared)
         factors_contraints = {},
         # The Unified Buffer also stores outputs after the activation is
@@ -339,7 +339,7 @@ arch_tpu = [
         name = "WeightsFIFO",
         dataflow_constraints = [],
         size = 4*2**16, # number of entries
-        access_energy = 2.05, # per operand/scalar access (pJ)
+        access_energy = 2.11, # per operand/scalar access (pJ)
         bandwidth = 8, # operands per cycle (shared)
         factors_contraints = {},
         bypasses = ['in', 'out']
