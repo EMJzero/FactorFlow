@@ -461,7 +461,6 @@ class FanoutLevel(Level):
     def __init__(self, name, mesh, dim = None, dims = None, pe_to_pe = False, spatial_multicast_support = True, spatial_reduction_support = True, factors = None, tile_sizes = None, factors_contraints = None):
         self.name = name
         assert (dim and not dims) or (dims and not dim), f"Level: {name}: exactly one of dim ({dim}) or dims ({dims}) must be specified."
-        assert not dims or len(dims) <= 2, f"Level: {name}: CURRENT LIMITATION - at most 2 dimensions on the same fanout, limit dims ({dims}) to at most 2 entries."
         self.dims = [dim] if dim else dims
         self.dataflow = self.dims
         assert mesh > 0, f"Level: {name}: a spatial fanout must have a mesh ({mesh}) of at least 1."

@@ -221,6 +221,7 @@ def fanoutMaximization(arch, verbose = False):
         for i in range(1, len(arch) - 1):
             level = arch[i]
             if isinstance(level, FanoutLevel):
+                assert len(level.dims) <= 2, f"Level: {level.name}: CURRENT LIMITATION - at most 2 dimensions on the same fanout, limit dims ({level.dims}) to at most 2 entries when Settings.ONLY_MAXIMIZE_ONE_FANOUT_DIM is False."
                 # TODO: as of now this accepts only at most 2 dimensions on same fanout - pick mesh_split_factor >= 3 to allow more?
                 mesh_prime_factors = primeFactors(level.mesh)
                 common_mesh_factors = [f for f in mesh_prime_factors.keys() if f in [ft for dim in level.dims for ft in arch[0].factors[dim]]]
@@ -408,6 +409,7 @@ def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, threads_count = 1,
     factors_at_one = [{'D': False, 'E': False, 'L': False} for _ in targets]
     best_perm, best_arch, best_wart = current_perms.copy(), None, 0
     tried_perms = 0
+    #skipped_perms_total = 0
     
     def nextPermutations(i):
         while i >= 0:
@@ -462,6 +464,7 @@ def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, threads_count = 1,
             
             skipped_perms = reduce(lambda tot, perms : tot * len(perms), permutations[i+1:len(permutations)], 1)
             tried_perms += skipped_perms
+            #skipped_perms_total += skipped_perms
             if verbose and math.floor((tried_perms/total_perms)*10) > math.floor(((tried_perms - skipped_perms)/total_perms)*10):
                 if thread_idx == -1: print(f"Progress: {tried_perms}/{total_perms} tried...")
                 else: print(f"Progress in thread {thread_idx}: {tried_perms}/{total_perms} tried...")
@@ -472,6 +475,7 @@ def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, threads_count = 1,
             break
     
     if verbose and thread_idx != -1: print(f"Terminating thread {thread_idx} with best Wart: {best_wart:.3e}, EDP: {EDP(best_arch, bias_read, True):.3e} (J*cycle)")
+    #print(f"Terminating thread {thread_idx} with skipped permutations (total): {skipped_perms_total}")
     
     if thread_idx == -1: return best_arch, best_wart, best_perm
     else: return_list[thread_idx] = (best_arch, best_wart, best_perm)
@@ -526,8 +530,3 @@ if __name__ == "__main__":
         print("\nGenerated tests:")
         generateTestMOPs(arch)
         generateTestLatency(arch)
-        
-# HOW TO PROFILE:
-# arch = arch_simba
-# import profile
-# profile.run("optimizeDataflows(arch, comp, bias_read, verbose = VERBOSE)")
