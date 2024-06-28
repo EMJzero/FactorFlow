@@ -12,6 +12,12 @@ Focusing on GEMMs enables a simplification and an improvement to the evaluation 
 
 The proposed approach reaches (as of now) better or equivalent results than other mapping tools on GEMMs, while being consistently faster.
 
+## Notation
+
+Throughout FactorFlow the following compact notation for triplets of nested loops on a level is used:
+
+![compact form like: M:2 K:24 N:64 (outermost to innermost loop)](/static/compact_notation.png)
+
 ## Contributions
 
 - **Analytical Models and Map-Space Exploration (MSE):** 

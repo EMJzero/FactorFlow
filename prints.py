@@ -277,7 +277,7 @@ in the architecture, broken down per operation. A few notes:
 - The "ideal bandwidth" represents the bandwidth that would have been required to
   incur in zero stall cycles. It follows then that "stall cycles" are the cycles
   required to move data which exceed those required by the computation, thus
-  forcing the ladder to wait/stall.
+  forcing the latter to wait/stall.
 """
 def printLatencyNew(arch):
     max_latency, max_latency_level_name = 0, "<<Unavailable>>"

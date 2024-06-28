@@ -88,7 +88,7 @@ arch_gemmini_zigzag_compatible = [
 #       because LOMA can "split" memories at will. Hence compare only
 #       with the Gemmini version in this file!
 # Comp: bert large KQV
-arch_gemmini_zigzag_loma_1 = [
+arch_gemmini_zigzag_loma_kqv = [
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['L', 'E', 'D'],
@@ -157,7 +157,7 @@ arch_gemmini_zigzag_loma_1 = [
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: bert large VScores
-arch_gemmini_zigzag_loma_2 = [
+arch_gemmini_zigzag_loma_vscores = [
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['L', 'E', 'D'],
@@ -229,7 +229,7 @@ arch_gemmini_zigzag_loma_2 = [
 #       because SALSA can "split" memories at will. Hence compare only
 #       with the Gemmini version in this file!
 # Comp: bert large KQV
-arch_gemmini_zigzag_salsa_1 = [
+arch_gemmini_zigzag_salsa_kqv = [
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['D', 'E', 'L'],
@@ -292,7 +292,7 @@ arch_gemmini_zigzag_salsa_1 = [
 #       because SALSA can "split" memories at will. Hence compare only
 #       with the Gemmini version in this file!
 # Comp: bert large VScores
-arch_gemmini_zigzag_salsa_2 = [
+arch_gemmini_zigzag_salsa_vscores = [
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['D', 'E', 'L'],
@@ -434,7 +434,7 @@ arch_eyeriss_zigzag_compatible = [
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # NOTE: solution obtained by constraining the fanout levels to the known best. Ignore.
 # Comp: bert large KQV
-arch_eyeriss_zigzag_loma_1 = [
+arch_eyeriss_zigzag_loma_kqv = [
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['D', 'L', 'E'],
@@ -505,8 +505,8 @@ arch_eyeriss_zigzag_loma_1 = [
 # NOTE: unfair compared to the Eyeriss architecture in "architectures.py"
 #       because LOMA can "split" memories at will. Hence compare only
 #       with the Eyeriss version in this file!
-# Comp: bert large KQV
-arch_eyeriss_zigzag_loma_2 = [
+# Comp: bert large VScores
+arch_eyeriss_zigzag_loma_vscores = [
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['E', 'D', 'L'],
@@ -578,7 +578,7 @@ arch_eyeriss_zigzag_loma_2 = [
 #       because LOMA can "split" memories at will. Hence compare only
 #       with the Eyeriss version in this file!
 # Comp: bert large VScores
-arch_eyeriss_zigzag_loma_3 = [
+arch_eyeriss_zigzag_loma_vscores = [
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['D', 'E', 'L'],
@@ -650,7 +650,7 @@ arch_eyeriss_zigzag_loma_3 = [
 #       because SALSA can "split" memories at will. Hence compare only
 #       with the Eyeriss version in this file!
 # Comp: bert large KQV
-arch_eyeriss_zigzag_salsa_1 = [
+arch_eyeriss_zigzag_salsa_kqv = [
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['E', 'D', 'L'],
@@ -722,7 +722,7 @@ arch_eyeriss_zigzag_salsa_1 = [
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: bert large KQV
-arch_simba_zigzag_loma_1 = [
+arch_simba_zigzag_loma_kqv = [
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['D', 'L', 'E'],
@@ -806,7 +806,7 @@ arch_simba_zigzag_loma_1 = [
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: bert large VScores
-arch_simba_zigzag_loma_2 = [
+arch_simba_zigzag_loma_vscores = [
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['D', 'L', 'E'],
@@ -888,12 +888,683 @@ arch_simba_zigzag_loma_2 = [
         factors_contraints = {'L': 1}
     )]
 
+# SOLUTION GIVEN BY ZigZag WITH LOMA:
+# Comp: bert large KTQ
+arch_simba_zigzag_loma_ktq = [
+    MemLevel(
+        name = "DRAM",
+        dataflow_constraints = ['D', 'L', 'E'],
+        size = 2**64-1, # number of entries
+        access_energy = 64.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 16},
+        bypasses = []
+    ),
+    FanoutLevel(
+        name = "PEs",
+        mesh = 16,
+        dims = ['D'],
+        factors_contraints = {'D': 16}
+    ),
+    MemLevel(
+        name = "PEInputBuffer",
+        dataflow_constraints = WS,
+        size = 65536, # number of entries
+        access_energy = 30.26, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['w', 'out']
+    ),
+    FanoutLevel(
+        name = "DistributionBuffers",
+        mesh = 4,
+        dims = ['D'],
+        factors_contraints = {'D': 4}
+    ),
+    MemLevel(
+        name = "PEWeightBuffer",
+        dataflow_constraints = ['D', 'L', 'E'],
+        size = 32768, # number of entries
+        access_energy = 15.16, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 64, 'E': 1, 'L': 1},
+        bypasses = ['in', 'out']
+    ),
+    MemLevel(
+        name = "GlobalBuffer",
+        dataflow_constraints = ['E', 'D', 'L'], #WS,
+        size = 65536, # number of entries
+        access_energy = 1.85, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 256},
+        bypasses = ['w', 'in']
+    ),
+    MemLevel(
+        name = "PEAccuBuffer",
+        dataflow_constraints = ['E', 'D', 'L'],
+        size = 128, # number of entries
+        access_energy = 3.93, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 16, 'L': 1},
+        bypasses = ['in', 'w']
+    ),
+    FanoutLevel(
+        name = "RegMac",
+        mesh = 4,
+        dims = ['E'],
+        factors_contraints = {'E': 4}
+    ),
+    MemLevel(
+        name = "PEWeightRegs",
+        dataflow_constraints = WS,
+        size = 1, # number of entries
+        access_energy = 0.70, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['in', 'out']
+    ),
+    ComputeLevel(
+        name = "Compute",
+        dataflow = WS[2],
+        size = 1,
+        compute_energy = 0.32, # per compute (pJ)
+        cycles = 1,
+        factors_contraints = {'L': 1}
+    )]
+
+# SOLUTION GIVEN BY ZigZag WITH LOMA:
+# Comp: bert large FF1
+arch_simba_zigzag_loma_ff1 = [
+    MemLevel(
+        name = "DRAM",
+        dataflow_constraints = ['D', 'L', 'E'],
+        size = 2**64-1, # number of entries
+        access_energy = 64.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 4, 'E': 1, 'L': 256},
+        bypasses = []
+    ),
+    MemLevel(
+        name = "GlobalBuffer",
+        dataflow_constraints = ['E', 'D', 'L'], #WS,
+        size = 65536, # number of entries
+        access_energy = 1.85, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['w', 'in']
+    ),
+    FanoutLevel(
+        name = "PEs",
+        mesh = 16,
+        dims = ['D'],
+        factors_contraints = {'D': 16,}
+    ),
+    MemLevel(
+        name = "PEInputBuffer",
+        dataflow_constraints = WS,
+        size = 65536, # number of entries
+        access_energy = 30.26, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['w', 'out']
+    ),
+    FanoutLevel(
+        name = "DistributionBuffers",
+        mesh = 4,
+        dims = ['D'],
+        factors_contraints = {'D': 4}
+    ),
+    MemLevel(
+        name = "PEWeightBuffer",
+        dataflow_constraints = ['L', 'D', 'E'],
+        size = 32768, # number of entries
+        access_energy = 15.16, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 16, 'E': 16, 'L': 1},
+        bypasses = ['in', 'out']
+    ),
+    MemLevel(
+        name = "PEAccuBuffer",
+        dataflow_constraints = ['E', 'D', 'L'],
+        size = 128, # number of entries
+        access_energy = 3.93, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 16, 'L': 1},
+        bypasses = ['in', 'w']
+    ),
+    FanoutLevel(
+        name = "RegMac",
+        mesh = 4,
+        dims = ['E'],
+        factors_contraints = {'E': 4}
+    ),
+    MemLevel(
+        name = "PEWeightRegs",
+        dataflow_constraints = WS,
+        size = 1, # number of entries
+        access_energy = 0.70, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 16},
+        bypasses = ['in', 'out']
+    ),
+    ComputeLevel(
+        name = "Compute",
+        dataflow = WS[2],
+        size = 1,
+        compute_energy = 0.32, # per compute (pJ)
+        cycles = 1,
+        factors_contraints = {'L': 1}
+    )]
+
+# SOLUTION GIVEN BY ZigZag WITH LOMA:
+# Comp: MAESTRO-BLAS 1
+arch_simba_zigzag_loma_mb1 = [
+    MemLevel(
+        name = "DRAM",
+        dataflow_constraints = ['E', 'L', 'D'],
+        size = 2**64-1, # number of entries
+        access_energy = 64.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 8, 'E': 16, 'L': 256},
+        bypasses = []
+    ),
+    #MemLevel(
+    #    name = "GlobalBuffer",
+    #    dataflow_constraints = ['E', 'D', 'L'], #WS,
+    #    size = 65536, # number of entries
+    #    access_energy = 1.85, # per operand (pJ)
+    #    bandwidth = 2**10, # operands per cycle (shared)
+    #    factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+    #    bypasses = ['w', 'in']
+    #),
+    FanoutLevel(
+        name = "PEs",
+        mesh = 16,
+        dims = ['D'],
+        factors_contraints = {'D': 16}
+    ),
+    MemLevel(
+        name = "PEInputBuffer",
+        dataflow_constraints = WS,
+        size = 65536, # number of entries
+        access_energy = 30.26, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['w', 'out']
+    ),
+    FanoutLevel(
+        name = "DistributionBuffers",
+        mesh = 4,
+        dims = ['D'],
+        factors_contraints = {'D': 4}
+    ),
+    MemLevel(
+        name = "PEWeightBuffer",
+        dataflow_constraints = ['L', 'D', 'E'],
+        size = 32768, # number of entries
+        access_energy = 15.16, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 16, 'E': 1, 'L': 1},
+        bypasses = ['in', 'out']
+    ),
+    MemLevel(
+        name = "PEAccuBuffer",
+        dataflow_constraints = ['E', 'D', 'L'],
+        size = 128, # number of entries
+        access_energy = 3.93, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 128, 'L': 1},
+        bypasses = ['in', 'w']
+    ),
+    FanoutLevel(
+        name = "RegMac",
+        mesh = 4,
+        dims = ['E'],
+        factors_contraints = {'E': 4}
+    ),
+    MemLevel(
+        name = "PEWeightRegs",
+        dataflow_constraints = WS,
+        size = 1, # number of entries
+        access_energy = 0.70, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 32},
+        bypasses = ['in', 'out']
+    ),
+    ComputeLevel(
+        name = "Compute",
+        dataflow = WS[2],
+        size = 1,
+        compute_energy = 0.32, # per compute (pJ)
+        cycles = 1,
+        factors_contraints = {'L': 1}
+    )]
+
+# SOLUTION GIVEN BY ZigZag WITH LOMA:
+# Comp: MAESTRO-BLAS 2
+arch_simba_zigzag_loma_mb2 = [
+    MemLevel(
+        name = "DRAM",
+        dataflow_constraints = ['D', 'L', 'E'],
+        size = 2**64-1, # number of entries
+        access_energy = 64.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 4, 'E': 1, 'L': 16},
+        bypasses = []
+    ),
+    MemLevel(
+        name = "GlobalBuffer",
+        dataflow_constraints = ['E', 'D', 'L'], #WS,
+        size = 65536, # number of entries
+        access_energy = 1.85, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['w', 'in']
+    ),
+    FanoutLevel(
+        name = "PEs",
+        mesh = 16,
+        dims = ['D'],
+        factors_contraints = {'D': 16}
+    ),
+    FanoutLevel(
+        name = "DistributionBuffers",
+        mesh = 4,
+        dims = ['D'],
+        factors_contraints = {'D': 4}
+    ),
+    MemLevel(
+        name = "PEWeightBuffer",
+        dataflow_constraints = ['L', 'D', 'E'],
+        size = 32768, # number of entries
+        access_energy = 15.16, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 16, 'L': 1},
+        bypasses = ['in', 'out']
+    ),
+    MemLevel(
+        name = "PEInputBuffer",
+        dataflow_constraints = WS,
+        size = 65536, # number of entries
+        access_energy = 30.26, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 64},
+        bypasses = ['w', 'out']
+    ),
+    MemLevel(
+        name = "PEAccuBuffer",
+        dataflow_constraints = ['E', 'D', 'L'],
+        size = 128, # number of entries
+        access_energy = 3.93, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 4, 'E': 128, 'L': 1},
+        bypasses = ['in', 'w']
+    ),
+    FanoutLevel(
+        name = "RegMac",
+        mesh = 4,
+        dims = ['E'],
+        factors_contraints = {'E': 4}
+    ),
+    MemLevel(
+        name = "PEWeightRegs",
+        dataflow_constraints = WS,
+        size = 1, # number of entries
+        access_energy = 0.70, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['in', 'out']
+    ),
+    ComputeLevel(
+        name = "Compute",
+        dataflow = WS[2],
+        size = 1,
+        compute_energy = 0.32, # per compute (pJ)
+        cycles = 1,
+        factors_contraints = {'L': 1}
+    )]
+
+# SOLUTION GIVEN BY ZigZag WITH LOMA:
+# Comp: MAESTRO-BLAS 3
+arch_simba_zigzag_loma_mb3 = [
+    MemLevel(
+        name = "DRAM",
+        dataflow_constraints = ['D', 'L', 'E'],
+        size = 2**64-1, # number of entries
+        access_energy = 64.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = []
+    ),
+    MemLevel(
+        name = "GlobalBuffer",
+        dataflow_constraints = ['E', 'D', 'L'], #WS,
+        size = 65536, # number of entries
+        access_energy = 1.85, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['w', 'in']
+    ),
+    FanoutLevel(
+        name = "PEs",
+        mesh = 16,
+        dims = ['E', 'D'],
+        factors_contraints = {'D': 2, 'E': 8}
+    ),
+    MemLevel(
+        name = "PEInputBuffer",
+        dataflow_constraints = WS,
+        size = 65536, # number of entries
+        access_energy = 30.26, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['w', 'out']
+    ),
+    FanoutLevel(
+        name = "DistributionBuffers",
+        mesh = 4,
+        dims = ['D'],
+        factors_contraints = {'D': 4}
+    ),
+    MemLevel(
+        name = "PEWeightBuffer",
+        dataflow_constraints = ['L', 'D', 'E'],
+        size = 32768, # number of entries
+        access_energy = 15.16, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 16, 'L': 1},
+        bypasses = ['in', 'out']
+    ),
+    MemLevel(
+        name = "PEAccuBuffer",
+        dataflow_constraints = ['E', 'D', 'L'],
+        size = 128, # number of entries
+        access_energy = 3.93, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 16, 'L': 1},
+        bypasses = ['in', 'w']
+    ),
+    FanoutLevel(
+        name = "RegMac",
+        mesh = 4,
+        dims = ['E'],
+        factors_contraints = {'E': 4}
+    ),
+    MemLevel(
+        name = "PEWeightRegs",
+        dataflow_constraints = WS,
+        size = 1, # number of entries
+        access_energy = 0.70, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 8},
+        bypasses = ['in', 'out']
+    ),
+    ComputeLevel(
+        name = "Compute",
+        dataflow = WS[2],
+        size = 1,
+        compute_energy = 0.32, # per compute (pJ)
+        cycles = 1,
+        factors_contraints = {'L': 1}
+    )]
+
+# SOLUTION GIVEN BY ZigZag WITH LOMA:
+# Comp: MAESTRO-BLAS 4
+arch_simba_zigzag_loma_mb4 = [
+    MemLevel(
+        name = "DRAM",
+        dataflow_constraints = ['D', 'L', 'E'],
+        size = 2**64-1, # number of entries
+        access_energy = 64.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = []
+    ),
+    MemLevel(
+        name = "GlobalBuffer",
+        dataflow_constraints = ['E', 'D', 'L'], #WS,
+        size = 65536, # number of entries
+        access_energy = 1.85, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 32},
+        bypasses = ['w', 'in']
+    ),
+    FanoutLevel(
+        name = "PEs",
+        mesh = 16,
+        dims = ['E', 'D'],
+        factors_contraints = {'D': 2, 'E': 8}
+    ),
+    MemLevel(
+        name = "PEInputBuffer",
+        dataflow_constraints = WS,
+        size = 65536, # number of entries
+        access_energy = 30.26, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 16},
+        bypasses = ['w', 'out']
+    ),
+    FanoutLevel(
+        name = "DistributionBuffers",
+        mesh = 4,
+        dims = ['D'],
+        factors_contraints = {'D': 4}
+    ),
+    MemLevel(
+        name = "PEWeightBuffer",
+        dataflow_constraints = ['L', 'D', 'E'],
+        size = 32768, # number of entries
+        access_energy = 15.16, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 4, 'L': 1},
+        bypasses = ['in', 'out']
+    ),
+    MemLevel(
+        name = "PEAccuBuffer",
+        dataflow_constraints = ['E', 'D', 'L'],
+        size = 128, # number of entries
+        access_energy = 3.93, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 8, 'L': 1},
+        bypasses = ['in', 'w']
+    ),
+    FanoutLevel(
+        name = "RegMac",
+        mesh = 4,
+        dims = ['E'],
+        factors_contraints = {'E': 4}
+    ),
+    MemLevel(
+        name = "PEWeightRegs",
+        dataflow_constraints = WS,
+        size = 1, # number of entries
+        access_energy = 0.70, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 16},
+        bypasses = ['in', 'out']
+    ),
+    ComputeLevel(
+        name = "Compute",
+        dataflow = WS[2],
+        size = 1,
+        compute_energy = 0.32, # per compute (pJ)
+        cycles = 1,
+        factors_contraints = {'L': 1}
+    )]
+
+# SOLUTION GIVEN BY ZigZag WITH LOMA:
+# Comp: MAESTRO-BLAS 5
+arch_simba_zigzag_loma_mb5 = [
+    MemLevel(
+        name = "DRAM",
+        dataflow_constraints = ['D', 'L', 'E'],
+        size = 2**64-1, # number of entries
+        access_energy = 64.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 16, 'E': 1, 'L': 1},
+        bypasses = []
+    ),
+    MemLevel(
+        name = "GlobalBuffer",
+        dataflow_constraints = ['E', 'D', 'L'], #WS,
+        size = 65536, # number of entries
+        access_energy = 1.85, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['w', 'in']
+    ),
+    FanoutLevel(
+        name = "PEs",
+        mesh = 16,
+        dims = ['E', 'D'],
+        factors_contraints = {'D': 4, 'E': 4}
+    ),
+    MemLevel(
+        name = "PEInputBuffer",
+        dataflow_constraints = WS,
+        size = 65536, # number of entries
+        access_energy = 30.26, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 2},
+        bypasses = ['w', 'out']
+    ),
+    FanoutLevel(
+        name = "DistributionBuffers",
+        mesh = 4,
+        dims = ['D'],
+        factors_contraints = {'D': 4}
+    ),
+    MemLevel(
+        name = "PEWeightBuffer",
+        dataflow_constraints = ['L', 'D', 'E'],
+        size = 32768, # number of entries
+        access_energy = 15.16, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 32, 'E': 1, 'L': 1},
+        bypasses = ['in', 'out']
+    ),
+    MemLevel(
+        name = "PEAccuBuffer",
+        dataflow_constraints = ['E', 'D', 'L'],
+        size = 128, # number of entries
+        access_energy = 3.93, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 64, 'L': 1},
+        bypasses = ['in', 'w']
+    ),
+    FanoutLevel(
+        name = "RegMac",
+        mesh = 4,
+        dims = ['E'],
+        factors_contraints = {'E': 4}
+    ),
+    MemLevel(
+        name = "PEWeightRegs",
+        dataflow_constraints = WS,
+        size = 1, # number of entries
+        access_energy = 0.70, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 4},
+        bypasses = ['in', 'out']
+    ),
+    ComputeLevel(
+        name = "Compute",
+        dataflow = WS[2],
+        size = 1,
+        compute_energy = 0.32, # per compute (pJ)
+        cycles = 1,
+        factors_contraints = {'L': 1}
+    )]
+
+# SOLUTION GIVEN BY ZigZag WITH LOMA:
+# Comp: MAESTRO-BLAS 6
+arch_simba_zigzag_loma_mb6 = [
+    MemLevel(
+        name = "DRAM",
+        dataflow_constraints = ['D', 'L', 'E'],
+        size = 2**64-1, # number of entries
+        access_energy = 64.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = []
+    ),
+    MemLevel(
+        name = "GlobalBuffer",
+        dataflow_constraints = ['E', 'D', 'L'], #WS,
+        size = 6553600, # number of entries
+        access_energy = 1.85, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['w', 'in']
+    ),
+    FanoutLevel(
+        name = "PEs",
+        mesh = 16,
+        dims = ['E', 'D'],
+        factors_contraints = {'D': 4, 'E': 4}
+    ),
+    MemLevel(
+        name = "PEInputBuffer",
+        dataflow_constraints = WS,
+        size = 65536, # number of entries
+        access_energy = 30.26, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['w', 'out']
+    ),
+    FanoutLevel(
+        name = "DistributionBuffers",
+        mesh = 4,
+        dims = ['D'],
+        factors_contraints = {'D': 4}
+    ),
+    MemLevel(
+        name = "PEWeightBuffer",
+        dataflow_constraints = ['D', 'L', 'E'],
+        size = 32768, # number of entries
+        access_energy = 15.16, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 4, 'E': 1, 'L': 256},
+        bypasses = ['in', 'out']
+    ),
+    MemLevel(
+        name = "PEAccuBuffer",
+        dataflow_constraints = ['E', 'D', 'L'],
+        size = 128, # number of entries
+        access_energy = 3.93, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 8, 'E': 16, 'L': 1},
+        bypasses = ['in', 'w']
+    ),
+    FanoutLevel(
+        name = "RegMac",
+        mesh = 4,
+        dims = ['E'],
+        factors_contraints = {'E': 4}
+    ),
+    MemLevel(
+        name = "PEWeightRegs",
+        dataflow_constraints = WS,
+        size = 1, # number of entries
+        access_energy = 0.70, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['in', 'out']
+    ),
+    ComputeLevel(
+        name = "Compute",
+        dataflow = WS[2],
+        size = 1,
+        compute_energy = 0.32, # per compute (pJ)
+        cycles = 1,
+        factors_contraints = {'L': 1}
+    )]
 
 # >>> TPU <<<
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: bert large KQV
-arch_tpu_zigzag_loma_1 = [
+arch_tpu_zigzag_loma_kqv = [
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['L', 'E', 'D'],
@@ -905,7 +1576,7 @@ arch_tpu_zigzag_loma_1 = [
     ),
     MemLevel(
         name = "WeightsDRAM",
-        dataflow_constraints = ['L', 'E', 'D'],
+        dataflow_constraints = ['D', 'E', 'L'],
         size = 8*2**30, # number of entries
         access_energy = 560.00, # per operand/scalar access (pJ)
         bandwidth = 8, # operands per cycle (shared)
@@ -915,19 +1586,99 @@ arch_tpu_zigzag_loma_1 = [
     MemLevel(
         name = "UnifiedBuffer",
         dataflow_constraints = ['L', 'E', 'D'],
-        size = 512*(2**10), # number of entries
-        access_energy = 2.69, # per operand (pJ)
+        size = 24*(2**20), # number of entries
+        access_energy = 19.66, # per operand (pJ)
         bandwidth = 32, # operands per cycle (shared)
-        factors_contraints = {'D': 3, 'E': 2, 'L': 1},
+        factors_contraints = {'D': 1, 'E': 2, 'L': 1},
+        bypasses = ['w', 'out']
+    ),
+    #MemLevel(
+    #    name = "WeightsFIFO",
+    #    dataflow_constraints = ['L', 'E', 'D'],
+    #    size = 4*2**16, # number of entries
+    #    access_energy = 2.05, # per operand/scalar access (pJ)
+    #    bandwidth = 8, # operands per cycle (shared)
+    #    factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+    #    bypasses = ['in', 'out']
+    #),
+    FanoutLevel(
+        name = "SARows",
+        dim = WS[0],
+        mesh = 256,
+        factors_contraints = {'D': 256}
+    ),
+    MemLevel(
+        name = "Accumulator",
+        dataflow_constraints = ['E', 'D', 'L'],
+        size = 4096, # number of entries (PER ONE INSTANCE!!) (remeber to account for operand size)
+        access_energy = 3.03, # per operand (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        multiple_buffering = 2,
+        factors_contraints = {'D': 3, 'E': 1, 'L': 1},
+        bypasses = ['in', 'w']
+    ),
+    FanoutLevel(
+        name = "SACols",
+        dim = WS[1],
+        mesh = 256,
+        factors_contraints = {'E': 256}
+    ),
+    MemLevel(
+        name = "Register",
+        dataflow_constraints = WS,
+        size = 4, # number of entries
+        access_energy = 0.01, # per operand (pJ)
+        bandwidth = 2, # operands per cycle (shared)
+        multiple_buffering = 2,
+        factors_contraints = {'D': 1, 'E': 2, 'L': 256},
+        bypasses = ['in', 'out']
+    ),
+    ComputeLevel(
+        name = "Compute",
+        dataflow = WS[2],
+        size = 1,
+        compute_energy = 0.15, # per compute (pJ)
+        cycles = 1,
+        factors_contraints = {'L': 1}
+    )]
+
+# SOLUTION GIVEN BY ZigZag WITH LOMA:
+# Comp: bert large KTQ
+arch_tpu_zigzag_loma_ktq = [
+    MemLevel(
+        name = "DRAM",
+        dataflow_constraints = ['L', 'E', 'D'],
+        size = 8*2**30, # number of entries
+        access_energy = 560.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['w']
+    ),
+    MemLevel(
+        name = "WeightsDRAM",
+        dataflow_constraints = ['D', 'E', 'L'],
+        size = 8*2**30, # number of entries
+        access_energy = 560.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['in', 'out']
+    ),
+    MemLevel(
+        name = "UnifiedBuffer",
+        dataflow_constraints = ['L', 'E', 'D'],
+        size = 24*(2**20), # number of entries
+        access_energy = 19.66, # per operand (pJ)
+        bandwidth = 32, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
         bypasses = ['w', 'out']
     ),
     MemLevel(
         name = "WeightsFIFO",
-        dataflow_constraints = ['L', 'E', 'D'],
+        dataflow_constraints = ['D', 'E', 'L'],
         size = 4*2**16, # number of entries
         access_energy = 2.05, # per operand/scalar access (pJ)
         bandwidth = 8, # operands per cycle (shared)
-        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        factors_contraints = {'D': 8, 'E': 1, 'L': 16},
         bypasses = ['in', 'out']
     ),
     FanoutLevel(
@@ -943,23 +1694,23 @@ arch_tpu_zigzag_loma_1 = [
         access_energy = 3.03, # per operand (pJ)
         bandwidth = 8, # operands per cycle (shared)
         multiple_buffering = 2,
-        factors_contraints = {'D': 1, 'E': 2, 'L': 256},
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
         bypasses = ['in', 'w']
     ),
     FanoutLevel(
         name = "SACols",
         dim = WS[1],
         mesh = 256,
-        factors_contraints = {'E': 256}
+        factors_contraints = {'E': 64}
     ),
     MemLevel(
         name = "Register",
         dataflow_constraints = WS,
-        size = 2, # number of entries
+        size = 4, # number of entries
         access_energy = 0.01, # per operand (pJ)
         bandwidth = 2, # operands per cycle (shared)
         multiple_buffering = 2,
-        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        factors_contraints = {'D': 2, 'E': 1, 'L': 256},
         bypasses = ['in', 'out']
     ),
     ComputeLevel(
@@ -973,7 +1724,7 @@ arch_tpu_zigzag_loma_1 = [
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: bert large VScores
-arch_tpu_zigzag_loma_2 = [
+arch_tpu_zigzag_loma_vscores = [
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['L', 'E', 'D'],
@@ -998,16 +1749,16 @@ arch_tpu_zigzag_loma_2 = [
         size = 4*2**16, # number of entries
         access_energy = 2.05, # per operand/scalar access (pJ)
         bandwidth = 8, # operands per cycle (shared)
-        factors_contraints = {'D': 1, 'E': 4, 'L': 16},
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
         bypasses = ['in', 'out']
     ),
     MemLevel(
         name = "UnifiedBuffer",
         dataflow_constraints = ['L', 'E', 'D'],
-        size = 512*(2**10), # number of entries
-        access_energy = 2.69, # per operand (pJ)
+        size = 24*(2**20), # number of entries
+        access_energy = 19.66, # per operand (pJ)
         bandwidth = 32, # operands per cycle (shared)
-        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        factors_contraints = {'D': 1, 'E': 8, 'L': 16},
         bypasses = ['w', 'out']
     ),
     FanoutLevel(
@@ -1015,6 +1766,326 @@ arch_tpu_zigzag_loma_2 = [
         dim = WS[0],
         mesh = 256,
         factors_contraints = {'D': 64}
+    ),
+    MemLevel(
+        name = "Accumulator",
+        dataflow_constraints = ['E', 'D', 'L'],
+        size = 4096, # number of entries (PER ONE INSTANCE!!) (remeber to account for operand size)
+        access_energy = 3.03, # per operand (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        multiple_buffering = 2,
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['in', 'w']
+    ),
+    FanoutLevel(
+        name = "SACols",
+        dim = WS[1],
+        mesh = 256,
+        factors_contraints = {'E': 256}
+    ),
+    MemLevel(
+        name = "Register",
+        dataflow_constraints = WS,
+        size = 4, # number of entries
+        access_energy = 0.01, # per operand (pJ)
+        bandwidth = 2, # operands per cycle (shared)
+        multiple_buffering = 2,
+        factors_contraints = {'D': 1, 'E': 2, 'L': 256},
+        bypasses = ['in', 'out']
+    ),
+    ComputeLevel(
+        name = "Compute",
+        dataflow = WS[2],
+        size = 1,
+        compute_energy = 0.15, # per compute (pJ)
+        cycles = 1,
+        factors_contraints = {'L': 1}
+    )]
+
+# SOLUTION GIVEN BY ZigZag WITH LOMA:
+# Comp: bert large FF1
+arch_tpu_zigzag_loma_ff1 = [
+    MemLevel(
+        name = "DRAM",
+        dataflow_constraints = ['L', 'E', 'D'],
+        size = 8*2**30, # number of entries
+        access_energy = 560.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 16},
+        bypasses = ['w']
+    ),
+    MemLevel(
+        name = "WeightsDRAM",
+        dataflow_constraints = ['L', 'E', 'D'],
+        size = 8*2**30, # number of entries
+        access_energy = 560.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 4, 'E': 1, 'L': 1},
+        bypasses = ['in', 'out']
+    ),
+    #MemLevel(
+    #    name = "WeightsFIFO",
+    #    dataflow_constraints = ['L', 'E', 'D'],
+    #    size = 4*2**16, # number of entries
+    #    access_energy = 2.05, # per operand/scalar access (pJ)
+    #    bandwidth = 8, # operands per cycle (shared)
+    #    factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+    #    bypasses = ['in', 'out']
+    #),
+    MemLevel(
+        name = "UnifiedBuffer",
+        dataflow_constraints = ['L', 'E', 'D'],
+        size = 24*(2**20), # number of entries
+        access_energy = 19.66, # per operand (pJ)
+        bandwidth = 32, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 2, 'L': 1},
+        bypasses = ['w', 'out']
+    ),
+    FanoutLevel(
+        name = "SARows",
+        dim = WS[0],
+        mesh = 256,
+        factors_contraints = {'D': 256}
+    ),
+    MemLevel(
+        name = "Accumulator",
+        dataflow_constraints = ['E', 'D', 'L'],
+        size = 4096, # number of entries (PER ONE INSTANCE!!) (remeber to account for operand size)
+        access_energy = 3.03, # per operand (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        multiple_buffering = 2,
+        factors_contraints = {'D': 4, 'E': 1, 'L': 1},
+        bypasses = ['in', 'w']
+    ),
+    FanoutLevel(
+        name = "SACols",
+        dim = WS[1],
+        mesh = 256,
+        factors_contraints = {'E': 256}
+    ),
+    MemLevel(
+        name = "Register",
+        dataflow_constraints = WS,
+        size = 4, # number of entries
+        access_energy = 0.01, # per operand (pJ)
+        bandwidth = 2, # operands per cycle (shared)
+        multiple_buffering = 2,
+        factors_contraints = {'D': 1, 'E': 2, 'L': 256},
+        bypasses = ['in', 'out']
+    ),
+    ComputeLevel(
+        name = "Compute",
+        dataflow = WS[2],
+        size = 1,
+        compute_energy = 0.15, # per compute (pJ)
+        cycles = 1,
+        factors_contraints = {'L': 1}
+    )]
+
+# SOLUTION GIVEN BY ZigZag WITH LOMA:
+# Comp: MAESTRO-BLAS 1
+arch_tpu_zigzag_loma_mb1 = [
+    MemLevel(
+        name = "DRAM",
+        dataflow_constraints = ['L', 'E', 'D'],
+        size = 8*2**30, # number of entries
+        access_energy = 560.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['w']
+    ),
+    MemLevel(
+        name = "WeightsDRAM",
+        dataflow_constraints = ['E', 'L', 'D'],
+        size = 8*2**30, # number of entries
+        access_energy = 560.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 4, 'L': 32},
+        bypasses = ['in', 'out']
+    ),
+    #MemLevel(
+    #    name = "WeightsFIFO",
+    #    dataflow_constraints = ['L', 'E', 'D'],
+    #    size = 4*2**16, # number of entries
+    #    access_energy = 2.05, # per operand/scalar access (pJ)
+    #    bandwidth = 8, # operands per cycle (shared)
+    #    factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+    #    bypasses = ['in', 'out']
+    #),
+    MemLevel(
+        name = "UnifiedBuffer",
+        dataflow_constraints = ['L', 'E', 'D'],
+        size = 24*(2**20), # number of entries
+        access_energy = 19.66, # per operand (pJ)
+        bandwidth = 32, # operands per cycle (shared)
+        factors_contraints = {'D': 8, 'E': 1, 'L': 1},
+        bypasses = ['w', 'out']
+    ),
+    FanoutLevel(
+        name = "SARows",
+        dim = WS[0],
+        mesh = 256,
+        factors_contraints = {'D': 256}
+    ),
+    MemLevel(
+        name = "Accumulator",
+        dataflow_constraints = ['D', 'E', 'L'],
+        size = 4096, # number of entries (PER ONE INSTANCE!!) (remeber to account for operand size)
+        access_energy = 3.03, # per operand (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        multiple_buffering = 2,
+        factors_contraints = {'D': 4, 'E': 8, 'L': 1},
+        bypasses = ['in', 'w']
+    ),
+    FanoutLevel(
+        name = "SACols",
+        dim = WS[1],
+        mesh = 256,
+        factors_contraints = {'E': 256}
+    ),
+    MemLevel(
+        name = "Register",
+        dataflow_constraints = WS,
+        size = 4, # number of entries
+        access_energy = 0.01, # per operand (pJ)
+        bandwidth = 2, # operands per cycle (shared)
+        multiple_buffering = 2,
+        factors_contraints = {'D': 1, 'E': 1, 'L': 256},
+        bypasses = ['in', 'out']
+    ),
+    ComputeLevel(
+        name = "Compute",
+        dataflow = WS[2],
+        size = 1,
+        compute_energy = 0.15, # per compute (pJ)
+        cycles = 1,
+        factors_contraints = {'L': 1}
+    )]
+
+# SOLUTION GIVEN BY ZigZag WITH LOMA:
+# Comp: MAESTRO-BLAS 2
+arch_tpu_zigzag_loma_mb2 = [
+    MemLevel(
+        name = "DRAM",
+        dataflow_constraints = ['L', 'E', 'D'],
+        size = 8*2**30, # number of entries
+        access_energy = 560.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['w']
+    ),
+    MemLevel(
+        name = "WeightsDRAM",
+        dataflow_constraints = ['L', 'E', 'D'],
+        size = 8*2**30, # number of entries
+        access_energy = 560.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 2, 'E': 8, 'L': 1},
+        bypasses = ['in', 'out']
+    ),
+    #MemLevel(
+    #    name = "WeightsFIFO",
+    #    dataflow_constraints = ['L', 'E', 'D'],
+    #    size = 4*2**16, # number of entries
+    #    access_energy = 2.05, # per operand/scalar access (pJ)
+    #    bandwidth = 8, # operands per cycle (shared)
+    #    factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+    #    bypasses = ['in', 'out']
+    #),
+    MemLevel(
+        name = "UnifiedBuffer",
+        dataflow_constraints = ['L', 'E', 'D'],
+        size = 24*(2**20), # number of entries
+        access_energy = 19.66, # per operand (pJ)
+        bandwidth = 32, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 4, 'L': 1},
+        bypasses = ['w', 'out']
+    ),
+    FanoutLevel(
+        name = "SARows",
+        dim = WS[0],
+        mesh = 256,
+        factors_contraints = {'D': 256}
+    ),
+    MemLevel(
+        name = "Accumulator",
+        dataflow_constraints = ['E', 'D', 'L'],
+        size = 4096, # number of entries (PER ONE INSTANCE!!) (remeber to account for operand size)
+        access_energy = 3.03, # per operand (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        multiple_buffering = 2,
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1024},
+        bypasses = ['in', 'w']
+    ),
+    FanoutLevel(
+        name = "SACols",
+        dim = WS[1],
+        mesh = 256,
+        factors_contraints = {'E': 256}
+    ),
+    MemLevel(
+        name = "Register",
+        dataflow_constraints = WS,
+        size = 4, # number of entries
+        access_energy = 0.01, # per operand (pJ)
+        bandwidth = 2, # operands per cycle (shared)
+        multiple_buffering = 2,
+        factors_contraints = {'D': 2, 'E': 1, 'L': 1},
+        bypasses = ['in', 'out']
+    ),
+    ComputeLevel(
+        name = "Compute",
+        dataflow = WS[2],
+        size = 1,
+        compute_energy = 0.15, # per compute (pJ)
+        cycles = 1,
+        factors_contraints = {'L': 1}
+    )]
+
+# SOLUTION GIVEN BY ZigZag WITH LOMA:
+# Comp: MAESTRO-BLAS 3
+arch_tpu_zigzag_loma_mb3 = [
+    MemLevel(
+        name = "DRAM",
+        dataflow_constraints = ['L', 'E', 'D'],
+        size = 8*2**30, # number of entries
+        access_energy = 560.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['w']
+    ),
+    MemLevel(
+        name = "WeightsDRAM",
+        dataflow_constraints = ['L', 'E', 'D'],
+        size = 8*2**30, # number of entries
+        access_energy = 560.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['in', 'out']
+    ),
+    MemLevel(
+        name = "WeightsFIFO",
+        dataflow_constraints = ['L', 'E', 'D'],
+        size = 4*2**16, # number of entries
+        access_energy = 2.05, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['in', 'out']
+    ),
+    MemLevel(
+        name = "UnifiedBuffer",
+        dataflow_constraints = ['L', 'E', 'D'],
+        size = 24*(2**20), # number of entries
+        access_energy = 19.66, # per operand (pJ)
+        bandwidth = 32, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 8, 'L': 1},
+        bypasses = ['w', 'out']
+    ),
+    FanoutLevel(
+        name = "SARows",
+        dim = WS[0],
+        mesh = 256,
+        factors_contraints = {'D': 8}
     ),
     MemLevel(
         name = "Accumulator",
@@ -1035,11 +2106,251 @@ arch_tpu_zigzag_loma_2 = [
     MemLevel(
         name = "Register",
         dataflow_constraints = WS,
-        size = 2, # number of entries
+        size = 4, # number of entries
         access_energy = 0.01, # per operand (pJ)
         bandwidth = 2, # operands per cycle (shared)
         multiple_buffering = 2,
+        factors_contraints = {'D': 1, 'E': 1, 'L': 8},
+        bypasses = ['in', 'out']
+    ),
+    ComputeLevel(
+        name = "Compute",
+        dataflow = WS[2],
+        size = 1,
+        compute_energy = 0.15, # per compute (pJ)
+        cycles = 1,
+        factors_contraints = {'L': 1}
+    )]
+
+# SOLUTION GIVEN BY ZigZag WITH LOMA:
+# Comp: MAESTRO-BLAS 4
+arch_tpu_zigzag_loma_mb4 = [
+    MemLevel(
+        name = "DRAM",
+        dataflow_constraints = ['L', 'E', 'D'],
+        size = 8*2**30, # number of entries
+        access_energy = 560.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['w']
+    ),
+    MemLevel(
+        name = "WeightsDRAM",
+        dataflow_constraints = ['L', 'E', 'D'],
+        size = 8*2**30, # number of entries
+        access_energy = 560.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['in', 'out']
+    ),
+    MemLevel(
+        name = "WeightsFIFO",
+        dataflow_constraints = ['L', 'E', 'D'],
+        size = 4*2**16, # number of entries
+        access_energy = 2.05, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['in', 'out']
+    ),
+    MemLevel(
+        name = "UnifiedBuffer",
+        dataflow_constraints = ['L', 'E', 'D'],
+        size = 24*(2**20), # number of entries
+        access_energy = 19.66, # per operand (pJ)
+        bandwidth = 32, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 16},
+        bypasses = ['w', 'out']
+    ),
+    FanoutLevel(
+        name = "SARows",
+        dim = WS[0],
+        mesh = 256,
+        factors_contraints = {'D': 8}
+    ),
+    MemLevel(
+        name = "Accumulator",
+        dataflow_constraints = ['E', 'D', 'L'],
+        size = 4096, # number of entries (PER ONE INSTANCE!!) (remeber to account for operand size)
+        access_energy = 3.03, # per operand (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        multiple_buffering = 2,
+        factors_contraints = {'D': 1, 'E': 2, 'L': 1},
+        bypasses = ['in', 'w']
+    ),
+    FanoutLevel(
+        name = "SACols",
+        dim = WS[1],
+        mesh = 256,
+        factors_contraints = {'E': 256}
+    ),
+    MemLevel(
+        name = "Register",
+        dataflow_constraints = WS,
+        size = 4, # number of entries
+        access_energy = 0.01, # per operand (pJ)
+        bandwidth = 2, # operands per cycle (shared)
+        multiple_buffering = 2,
+        factors_contraints = {'D': 1, 'E': 2, 'L': 512},
+        bypasses = ['in', 'out']
+    ),
+    ComputeLevel(
+        name = "Compute",
+        dataflow = WS[2],
+        size = 1,
+        compute_energy = 0.15, # per compute (pJ)
+        cycles = 1,
+        factors_contraints = {'L': 1}
+    )]
+
+# SOLUTION GIVEN BY ZigZag WITH LOMA:
+# Comp: MAESTRO-BLAS 5
+arch_tpu_zigzag_loma_mb5 = [
+    MemLevel(
+        name = "DRAM",
+        dataflow_constraints = ['L', 'E', 'D'],
+        size = 8*2**30, # number of entries
+        access_energy = 560.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['w']
+    ),
+    MemLevel(
+        name = "WeightsDRAM",
+        dataflow_constraints = ['L', 'E', 'D'],
+        size = 8*2**30, # number of entries
+        access_energy = 560.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['in', 'out']
+    ),
+    #MemLevel(
+    #    name = "WeightsFIFO",
+    #    dataflow_constraints = ['L', 'E', 'D'],
+    #    size = 4*2**16, # number of entries
+    #    access_energy = 2.05, # per operand/scalar access (pJ)
+    #    bandwidth = 8, # operands per cycle (shared)
+    #    factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+    #    bypasses = ['in', 'out']
+    #),
+    MemLevel(
+        name = "UnifiedBuffer",
+        dataflow_constraints = ['L', 'E', 'D'],
+        size = 24*(2**20), # number of entries
+        access_energy = 19.66, # per operand (pJ)
+        bandwidth = 32, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 4, 'L': 1},
+        bypasses = ['w', 'out']
+    ),
+    FanoutLevel(
+        name = "SARows",
+        dim = WS[0],
+        mesh = 256,
+        factors_contraints = {'D': 256}
+    ),
+    MemLevel(
+        name = "Accumulator",
+        dataflow_constraints = ['E', 'D', 'L'],
+        size = 4096, # number of entries (PER ONE INSTANCE!!) (remeber to account for operand size)
+        access_energy = 3.03, # per operand (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        multiple_buffering = 2,
+        factors_contraints = {'D': 32, 'E': 1, 'L': 1},
+        bypasses = ['in', 'w']
+    ),
+    FanoutLevel(
+        name = "SACols",
+        dim = WS[1],
+        mesh = 256,
+        factors_contraints = {'E': 256}
+    ),
+    MemLevel(
+        name = "Register",
+        dataflow_constraints = WS,
+        size = 4, # number of entries
+        access_energy = 0.01, # per operand (pJ)
+        bandwidth = 2, # operands per cycle (shared)
+        multiple_buffering = 2,
+        factors_contraints = {'D': 1, 'E': 1, 'L': 8},
+        bypasses = ['in', 'out']
+    ),
+    ComputeLevel(
+        name = "Compute",
+        dataflow = WS[2],
+        size = 1,
+        compute_energy = 0.15, # per compute (pJ)
+        cycles = 1,
+        factors_contraints = {'L': 1}
+    )]
+
+# SOLUTION GIVEN BY ZigZag WITH LOMA:
+# Comp: MAESTRO-BLAS 6
+arch_tpu_zigzag_loma_mb6 = [
+    MemLevel(
+        name = "DRAM",
+        dataflow_constraints = ['L', 'E', 'D'],
+        size = 8*2**30, # number of entries
+        access_energy = 560.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['w']
+    ),
+    MemLevel(
+        name = "WeightsDRAM",
+        dataflow_constraints = ['L', 'E', 'D'],
+        size = 8*2**30, # number of entries
+        access_energy = 560.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['in', 'out']
+    ),
+    MemLevel(
+        name = "WeightsFIFO",
+        dataflow_constraints = ['L', 'E', 'D'],
+        size = 4*2**16, # number of entries
+        access_energy = 2.05, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['in', 'out']
+    ),
+    MemLevel(
+        name = "UnifiedBuffer",
+        dataflow_constraints = ['L', 'E', 'D'],
+        size = 24*(2**20), # number of entries
+        access_energy = 19.66, # per operand (pJ)
+        bandwidth = 32, # operands per cycle (shared)
+        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        bypasses = ['w', 'out']
+    ),
+    FanoutLevel(
+        name = "SARows",
+        dim = WS[0],
+        mesh = 256,
+        factors_contraints = {'D': 256}
+    ),
+    MemLevel(
+        name = "Accumulator",
+        dataflow_constraints = ['E', 'D', 'L'],
+        size = 4096, # number of entries (PER ONE INSTANCE!!) (remeber to account for operand size)
+        access_energy = 3.03, # per operand (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        multiple_buffering = 2,
         factors_contraints = {'D': 1, 'E': 1, 'L': 256},
+        bypasses = ['in', 'w']
+    ),
+    FanoutLevel(
+        name = "SACols",
+        dim = WS[1],
+        mesh = 256,
+        factors_contraints = {'E': 256}
+    ),
+    MemLevel(
+        name = "Register",
+        dataflow_constraints = WS,
+        size = 4, # number of entries
+        access_energy = 0.01, # per operand (pJ)
+        bandwidth = 2, # operands per cycle (shared)
+        multiple_buffering = 2,
+        factors_contraints = {'D': 2, 'E': 1, 'L': 1},
         bypasses = ['in', 'out']
     ),
     ComputeLevel(
