@@ -15,9 +15,9 @@ from levels import *
 from prints import *
 from utils import *
 
-from comparisons.ZigZag.zigzag_archs import *
-from comparisons.CoSA.cosa_archs import *
-from comparisons.MAESTRO.maestro_archs import *
+#from comparisons.ZigZag.zigzag_archs import *
+#from comparisons.CoSA.cosa_archs import *
+#from comparisons.MAESTRO.maestro_archs import *
 
 
 # updates the MOPs and Latency data of each level w.r.t. the current mapping
@@ -212,10 +212,10 @@ def fanoutMaximization(arch, verbose = False):
             if isinstance(level, FanoutLevel):
                 dim = level.dataflow[0]
                 if level.factors.fullProduct() < level.mesh:
-                    space = level.mesh // level.factors.dimProduct(dim)
+                    space = level.mesh // level.factors.fullProduct()
                     factors, _ = largest_product_less_than(arch[0].factors.toList(dim), space)
                     for f in factors:
-                        assert moveFactor(arch, 0, i, dim, f, 1), f"Fanout maximization failed to fill up the leftover space on level {level.name}, dim {dim}..."
+                        assert moveFactor(arch, 0, i, dim, f, 1), f"Fanout maximization failed to fill up the leftover space on level {level.name}, dim {dim} with factor {f} (mesh: {level.mesh}, space: {space})..."
     
     else:
         for i in range(1, len(arch) - 1):
