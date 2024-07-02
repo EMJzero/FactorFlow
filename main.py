@@ -256,7 +256,7 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
         enforceFactorsConstraints(arch, Settings.PADDED_MAPPINGS, Settings.VERBOSE_PADDED_MAPPINGS)
     assert not findConstraintsViolation(arch), "Factor constraints or dataflow violation in the given architecture."
     constraints_check = [level.checkConstraints() for level in arch]
-    assert all(constraints_check), f"Constraints violation on level \"{arch[constraints_check.index(False)].name}\", ill-posed constraints (usually due to a dimension missmatch or exceeded size constraints)."
+    assert all(constraints_check), f"Ill-posed constraints:\n{arch[constraints_check.index(False)].logConstraintsViolation()}"
     if not already_initialized:
         setupBypasses(arch)
         updateInstances(arch)
