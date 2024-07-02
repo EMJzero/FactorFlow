@@ -65,12 +65,25 @@ class Level:
         return (('D' not in self.factors_contraints or self.factors_contraints['D'] == self.factors.dimProduct('D')) and
                 ('E' not in self.factors_contraints or self.factors_contraints['E'] == self.factors.dimProduct('E')) and
                 ('L' not in self.factors_contraints or self.factors_contraints['L'] == self.factors.dimProduct('L')))
+        
+    """
+    Returns a string describing the current violation of constraints,
+    if any.
+    """
+    def logConstraintsViolation(self):
+        if not self.checkConstraints():
+            return (f"CONSTRAINTS VIOLATION: level {self.name}, "
+        + (f"constrained D: {self.factors_contraints['D']} VS obtained D: {self.factors.dimProduct('D')}, " if ('D' in self.factors_contraints and self.factors_contraints['D'] != self.factors.dimProduct('D')) else "")
+        + (f"constrained E: {self.factors_contraints['E']} VS obtained E: {self.factors.dimProduct('E')}, " if ('E' in self.factors_contraints and self.factors_contraints['E'] != self.factors.dimProduct('E')) else "")
+        + (f"constrained L: {self.factors_contraints['L']} VS obtained L: {self.factors.dimProduct('L')}, " if ('L' in self.factors_contraints and self.factors_contraints['L'] != self.factors.dimProduct('L')) else ""))[:-2]
+        return ""
 
     def __getitem__(self, key):
         return getattr(self, key)
 
     def __setitem__(self, key, value):
         setattr(self, key, value)
+
 
 """
 A Memory Level within the architecture, with the possibility to store
@@ -430,6 +443,18 @@ class MemLevel(Level):
     def checkConstraints(self):
         return self.factors.mem_footprint(self.tile_sizes, not self.bypasses or 'in' not in self.bypasses, not self.bypasses or 'w' not in self.bypasses, not self.bypasses or 'out' not in self.bypasses) <= self.size/self.multiple_buffering and super().checkConstraints()
 
+    """
+    Returns a string describing the current violation of constraints, if any.
+    """
+    def logConstraintsViolation(self):
+        if super().checkConstraints():
+            return super().logConstraintsViolation()
+        elif not self.checkConstraints():
+            mem_footprint = self.factors.mem_footprint(self.tile_sizes, not self.bypasses or 'in' not in self.bypasses, not self.bypasses or 'w' not in self.bypasses, not self.bypasses or 'out' not in self.bypasses)
+            return f"CONSTRAINTS VIOLATION: level {self.name}, memory used: {mem_footprint} VS memory available: {self.size/self.multiple_buffering:.0f}"
+        return ""
+
+
 """
 A Spatial Fanout Level within the architecture, the core of a spatial architecture,
 all subsequent levels will be replicated "mesh" times, each replica executing one
@@ -513,7 +538,17 @@ class FanoutLevel(Level):
     def checkConstraints(self):
         return self.factors.fullProduct() <= self.mesh and super().checkConstraints()
 
-        
+    """
+    Returns a string describing the current violation of constraints, if any.
+    """
+    def logConstraintsViolation(self):
+        if not super().checkConstraints():
+            return super().logConstraintsViolation()
+        elif not self.checkConstraints():
+            return f"CONSTRAINTS VIOLATION: level {self.name}, spatial iterations used: {self.factors.fullProduct()} VS available instances (mesh): {self.mesh}"
+        return ""
+
+
 """
 A Compute Level within the architecture, it is a placeholder for any processing
 element (PE) capable of multiply and accumulate (MAC).
@@ -596,3 +631,13 @@ class ComputeLevel(Level):
     """
     def checkConstraints(self):
         return self.factors.fullProduct() <= self.size and super().checkConstraints()
+    
+    """
+    Returns a string describing the current violation of constraints, if any.
+    """
+    def logConstraintsViolation(self):
+        if not super().checkConstraints():
+            return super().logConstraintsViolation()
+        elif not self.checkConstraints():
+            return f"CONSTRAINTS VIOLATION: level {self.name}, concurrent MACs used: {self.factors.fullProduct()} VS concurrent MACs available: {self.size}"
+        return ""
