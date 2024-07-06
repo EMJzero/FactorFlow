@@ -171,7 +171,7 @@ arch_eyeriss = [
         name = "SARows",
         mesh = 12,
         # PATHOLOGICAL CASE: dims = WS[:2],
-        dims = WS[0],
+        dims = WS[:1],
         factors_contraints = {} #{'D': 12}
     ),
     MemLevel(

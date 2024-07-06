@@ -447,7 +447,7 @@ class MemLevel(Level):
     Returns a string describing the current violation of constraints, if any.
     """
     def logConstraintsViolation(self):
-        if super().checkConstraints():
+        if not super().checkConstraints():
             return super().logConstraintsViolation()
         elif not self.checkConstraints():
             mem_footprint = self.factors.mem_footprint(self.tile_sizes, not self.bypasses or 'in' not in self.bypasses, not self.bypasses or 'w' not in self.bypasses, not self.bypasses or 'out' not in self.bypasses)
