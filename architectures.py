@@ -40,7 +40,7 @@ arch_gemmini = [
     MemLevel(
         name = "Accumulator",
         dataflow_constraints = [], #WS,
-        size = (256//4)*(2**10)//16, # number of entries (PER ONE INSTANCE!!) (remeber to account for operand size)
+        size = (256//4)*(2**10)//16, # number of entries (PER ONE INSTANCE!!) (remember to account for operand size)
         access_energy = 4.01, # per operand (pJ)
         bandwidth = 8, # operands per cycle (shared)
         factors_contraints = {}, # the systolic array does a 16x16 matmul in this case
@@ -356,7 +356,7 @@ arch_tpu = [
     MemLevel(
         name = "Accumulator",
         dataflow_constraints = [],
-        size = 4096, # number of entries (PER ONE INSTANCE!!) (remeber to account for operand size)
+        size = 4096, # number of entries (PER ONE INSTANCE!!) (remember to account for operand size)
         access_energy = 3.03, # per operand (pJ)
         bandwidth = 8, # operands per cycle (shared)
         multiple_buffering = 2,
