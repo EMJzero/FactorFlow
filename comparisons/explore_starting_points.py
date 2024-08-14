@@ -1,8 +1,12 @@
 # GOAL: Empirically prove the soundness of starting from all factors on the first level by randomly trying many starting points.
 
 from itertools import combinations, product, groupby
+from prettytable import PrettyTable
 from functools import reduce
+import signal
 import random
+import time
+import code
 import math
 import copy
 
@@ -19,6 +23,23 @@ from factors import *
 from levels import *
 from prints import *
 from utils import *
+
+in_interactive_mode = False
+
+def signal_handler(sig, frame):
+    global in_interactive_mode
+    if in_interactive_mode:
+        print('EXITING...')
+        sys.exit(0)
+    else:
+        print('\nHANDLING TERMINATION...\n')
+        time.sleep(0.2)
+        print('\nTERMINATION RECEIVED - SWITCHING TO INTERACTIVE MODE\n[type "exit()" or press "ctrl+c" again to terminate the program]\n')
+        in_interactive_mode = True
+        code.interact(local=globals())
+        in_interactive_mode = False
+
+signal.signal(signal.SIGINT, signal_handler)
 
 def args_match_and_remove(flag, with_value = False):
     try:
@@ -38,6 +59,7 @@ def parse_options():
         "max_tries": args_match_and_remove("-mt", True) or args_match_and_remove("--max_tries", True),
         "random_moves": args_match_and_remove("-rm", True) or args_match_and_remove("--random_moves", True),
         "store_init_conds": args_match_and_remove("-sic") or args_match_and_remove("--store_init_conds"),
+        "all_comps": args_match_and_remove("-ac") or args_match_and_remove("--all_comps")
     }
     return options
 
@@ -119,13 +141,20 @@ def randomFactorsInitializationsFast(arch, comp, random_moves = 10):
     
     already_seen = [hashFromFactors(arch)]
     
+    fails = 0
     while True:
         random_arch = copy.deepcopy(arch)
         randomMoves(random_arch, random_moves)
         hash = hashFromFactors(random_arch)
         if hash not in already_seen:
             already_seen.append(hash)
+            fails = 0
             yield random_arch
+        else:
+            fails += 1
+            if fails >= DUPLICATES_TO_STOP:
+                print(f"WARNING: early termination triggered, could not generate {MAX_TRIES} different starting points...")
+                return
 
 # Truly random, but slower
 def randomFactorsInitializationsSlow(arch, comp, random_moves = 10):
@@ -149,18 +178,42 @@ def randomFactorsInitializationsSlow(arch, comp, random_moves = 10):
     
     already_seen = [hashFromFactors(arch)]
     
+    fails = 0
     while True:
         random_arch = copy.deepcopy(arch)
         randomMoves(random_arch, random_moves)
         hash = hashFromFactors(random_arch)
         if hash not in already_seen:
             already_seen.append(hash)
+            fails = 0
             yield random_arch
+        else:
+            fails += 1
+            if fails >= DUPLICATES_TO_STOP:
+                print(f"WARNING: early termination triggered, could not generate {MAX_TRIES} different starting points...")
+                return
+
+def fitConstraintsToComp(arch, arch_name):
+    skip = False
+    for dim in ['D', 'E', 'L']:
+        total_constraint = 1
+        for level in arch:
+            if dim in level.factors_contraints and comp[dim] // total_constraint < level.factors_contraints[dim]:
+                if comp[dim] // total_constraint <= 0:
+                    print(f"WARNING: skipping comp: {comp_name} and arch: {arch_name} because the constraint on level: {level.name} and dimension: {dim} ({level.factors_contraints[dim]}) cannot be satisfied!")
+                    skip = True
+                    break
+                level.factors_contraints[dim] = comp[dim] // total_constraint
+            total_constraint *= level.factors_contraints[dim] if dim in level.factors_contraints else 1
+        if skip:
+            break
+    return skip
 
 if __name__ == "__main__":
     # CONFIGURATION:
 
     MAX_TRIES = 10000
+    DUPLICATES_TO_STOP = MAX_TRIES*10
     RANDOM_MOVES = 20
     STORE_INITIAL_CONDITIONS = False
 
@@ -174,9 +227,11 @@ if __name__ == "__main__":
         print("-mt, --max_tries <tries>\tSets to <tries> the number of starting point tried. Default is 10000.")
         print("-rm, --random_moves <moves>\tSets to <moves> the number of moves attempted for each prime factor in the mapping. Default is 20.")
         print("-sic, --store_init_conds\tIf given, the initial random starting points are also stored and displayed at the end.")
+        print("-ac, --all_comps\t\tTries all computations for the specified arch, and summarizes results in a table.")
         sys.exit(1)
 
     MAX_TRIES = int(options["max_tries"]) if options["max_tries"] else MAX_TRIES
+    DUPLICATES_TO_STOP = MAX_TRIES*10
     RANDOM_MOVES = int(options["random_moves"]) if options["random_moves"] else RANDOM_MOVES
     STORE_INITIAL_CONDITIONS = STORE_INITIAL_CONDITIONS or options["store_init_conds"]
 
@@ -191,7 +246,11 @@ if __name__ == "__main__":
 
     # SPECIFICATION:
     
-    comp = comp_BERT_large['KQV']
+    if options["all_comps"]:
+        comps = {"BERT large " + k : v for k, v in comp_BERT_large.items()}
+        comps.update({"MAESTRO-BLAS " + k[-1] : v for k, v in comp_maestro_blas.items()})
+    else:
+        comps = {'BERT large KQV': comp_BERT_large['KQV']}
     bias_read = False
 
     # << Gemmini >>
@@ -236,55 +295,72 @@ if __name__ == "__main__":
         #if not isinstance(arch[level_idx], ComputeLevel):
         arch[level_idx].factors_contraints = base_arch[level_idx].factors_contraints
     Settings.forcedSettingsUpdate(arch, False)
+    
+    if options["all_comps"]:
+        table = PrettyTable(["Comp", "Arch", "All on Level 0 - EDP", "Random - Min EDP", "Random - Max EDP", "Random - Avg. EDP"])
+    for comp_name, comp in comps.items():
+        print(f"Working on comp: {comp_name} and arch: {arch_name}...")
+        tried = 0
+        warts = []
+        edps = []
+        initial_conditions = []
 
-    tried = 0
-    warts = []
-    edps = []
-    initial_conditions = []
-    
-    #print("Generating random starting points...")
-    random_archs = randomFactorsInitializationsFast(copy.deepcopy(arch), comp, RANDOM_MOVES)
-    #_ = next(random_archs)
-    print(f"Starting optimization of {MAX_TRIES} different starting points:")
-    for current_arch in random_archs:
-        try:
-            assert not findConstraintsViolation(current_arch, False)
-            if STORE_INITIAL_CONDITIONS: initial_conditions.append(factorsString(current_arch))
-            current_arch, wart = factorFlow(current_arch, comp, bias_read, already_initialized = True)
-            edp = EDP(current_arch, bias_read, True)
-        except AssertionError:
+        #print("Generating random starting points...")
+        arch_copy = copy.deepcopy(arch)
+        if fitConstraintsToComp(arch_copy, arch_name):
             continue
-        warts.append(wart)
-        edps.append(edp)
-        
-        if math.floor((tried/MAX_TRIES)*10) > math.floor(((tried - 1)/MAX_TRIES)*10):
-            print(f"Progress: {tried}/{MAX_TRIES} tried...")
-        if tried >= MAX_TRIES:
-            break
-        else:
-            tried += 1
+        random_archs = randomFactorsInitializationsFast(arch_copy, comp, RANDOM_MOVES)
+        #_ = next(random_archs)
+        print(f"Starting optimization of {MAX_TRIES} different starting points:")
+        for current_arch in random_archs:
+            try:
+                assert not findConstraintsViolation(current_arch, False)
+                if STORE_INITIAL_CONDITIONS: initial_conditions.append(factorsString(current_arch))
+                current_arch, wart = factorFlow(current_arch, comp, bias_read, already_initialized = True)
+                edp = EDP(current_arch, bias_read, True)
+            except AssertionError:
+                continue
+            warts.append(wart)
+            edps.append(edp)
             
-    print(f"FF INIT: {factorsString(arch)}")
-    arch, factorflow_wart = factorFlow(arch, comp, bias_read)
-    print(f"FF FINAL: {factorsString(arch)}")
-    factorflow_edp = EDP(arch, bias_read, True)
-    
-    print("\nResults for Wart (higher is better):")
-    print(f"All factors on first level - Wart: {factorflow_wart:.3e}")
-    print(f"Random starting points:\n\t- avg. Wart: {sum(warts)/len(warts):.3e}\n\t- min Wart: {min(warts):.3e}\n\t- max Wart: {max(warts):.3e}")
-    short_warts = [f"{w:.3e}" for w in warts]
-    if STORE_INITIAL_CONDITIONS:
-        for initial_condition, wart in zip(initial_conditions, short_warts):
-            print(f"Initial condition: {initial_condition}, Wart: {wart}")
-    #else:
-    #    print(f"\nComplete random starting point Warts: {short_warts}")
-    
-    print("\nResults for EDP (lower is better):")
-    print(f"All factors on first level - EDP: {factorflow_edp:.3e}")
-    print(f"Random starting points:\n\t- avg. EDP: {sum(edps)/len(edps):.3e}\n\t- min EDP: {min(edps):.3e}\n\t- max EDP: {max(edps):.3e}")
-    short_edps = [f"{e:.3e}" for e in edps]
-    if STORE_INITIAL_CONDITIONS:
-        for initial_condition, edp in zip(initial_conditions, short_edps):
-            print(f"Initial condition: {initial_condition}, EDP: {edp}")
-    #else:
-    #    print(f"\nComplete random starting point Warts: {short_warts}")
+            if math.floor((tried/MAX_TRIES)*10) > math.floor(((tried - 1)/MAX_TRIES)*10):
+                print(f"Progress: {tried}/{MAX_TRIES} tried...")
+            if tried >= MAX_TRIES:
+                break
+            else:
+                tried += 1
+        
+        if not options["all_comps"]:
+            print(f"FF INIT: {factorsString(arch)}")
+            arch, factorflow_wart = factorFlow(arch, comp, bias_read)
+            print(f"FF FINAL: {factorsString(arch)}")
+            factorflow_edp = EDP(arch, bias_read, True)
+            
+            print("\nResults for Wart (higher is better):")
+            print(f"All factors on first level - Wart: {factorflow_wart:.3e}")
+            print(f"Random starting points:\n\t- avg. Wart: {sum(warts)/len(warts):.3e}\n\t- min Wart: {min(warts):.3e}\n\t- max Wart: {max(warts):.3e}")
+            short_warts = [f"{w:.3e}" for w in warts]
+            if STORE_INITIAL_CONDITIONS:
+                for initial_condition, wart in zip(initial_conditions, short_warts):
+                    print(f"Initial condition: {initial_condition}, Wart: {wart}")
+            #else:
+            #    print(f"\nComplete random starting point Warts: {short_warts}")
+            
+            print("\nResults for EDP (lower is better):")
+            print(f"All factors on first level - EDP: {factorflow_edp:.3e}")
+            print(f"Random starting points:\n\t- avg. EDP: {sum(edps)/len(edps):.3e}\n\t- min EDP: {min(edps):.3e}\n\t- max EDP: {max(edps):.3e}")
+            short_edps = [f"{e:.3e}" for e in edps]
+            if STORE_INITIAL_CONDITIONS:
+                for initial_condition, edp in zip(initial_conditions, short_edps):
+                    print(f"Initial condition: {initial_condition}, EDP: {edp}")
+            #else:
+            #    print(f"\nComplete random starting point Warts: {short_warts}")
+        else:
+            arch_ff = copy.deepcopy(arch)
+            if fitConstraintsToComp(arch_ff, arch_name):
+                continue
+            arch_ff, factorflow_wart = factorFlow(arch_ff, comp, bias_read)
+            factorflow_edp = EDP(arch_ff, bias_read, True)
+            table.add_row([comp_name, arch_name.title(), f"{factorflow_edp:.3e}", f"{min(edps):.3e}", f"{max(edps):.3e}", f"{sum(edps)/len(edps):.3e}"])
+    if options["all_comps"]:
+        print(table)
