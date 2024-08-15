@@ -75,6 +75,7 @@ arch_gemmini = [
 
 
 # >>> TRUE GEMMINI <<<
+# TODO: UPDATE ME OR REMOVE ME!
 
 arch_true_gemmini = [
     MemLevel(
@@ -390,3 +391,73 @@ arch_tpu = [
         cycles = 1,
         factors_contraints = {'L': 1}
     )]
+
+
+# >>>  NVDLA  <<<
+# >  small ver. <
+
+arch_nvdla = [
+    
+]
+
+"""
+Certainly! The exact configuration of the NVDLA (Nvidia Deep Learning Accelerator) used in the
+experiments is as follows:
+
+- **PE Array**: 64x8
+- **NoC (Network-on-Chip)**: Bus + Tree
+- **Dataflow**: Weight-stationary
+
+This configuration is part of the specifications listed for the target spatial accelerator architectures
+in the document. The weight-stationary dataflow implies that the weight matrix
+(input matrix B in GEMM operation) remains stationary, and the input matrix A is streamed through the
+PEs (Processing Elements)[^1^][1]. The NoC design facilitates the communication between the PEs and the
+global shared scratchpad memory[^2^][2].
+
+--------------------------------------------------------------------------------
+
+The NVIDIA® Deep Learning Accelerator (NVDLA) is a hardware accelerator designed for deep learning
+inference operations[^1^][1]. It is highly configurable and modular, allowing it to be tailored for
+various applications. Here's a summary of the memory hierarchy for a "small" NVDLA accelerator based
+on the requirements you provided:
+
+- **PE Array Configuration**: The PE (Processing Element) array is configured as 64x8, which indicates
+  the parallelism in the input feature channel dimension (Atomic-C) and output feature channel dimension
+  (Atomic-K)[^2^][2]. This impacts the total number of MAC (Multiply-Accumulate) operations, convolution
+  buffer read bandwidth, and accumulator instance number[^3^][3][^4^][4].
+
+- **Memory Hierarchy Levels**:
+  - **Convolution Buffer (CBUF)**: This is the primary memory level where both weight data and feature
+    data for the convolution function are stored[^5^][5]. It is configurable to accommodate different
+    ratios between feature and weight data[^6^][6]. The size of the CBUF depends on the CNN size, and it
+    is preferable if the full size of either weight data or feature data of one hardware layer can be
+    stored in the CBUF[^7^][7].
+  - **Dedicated SRAM**: The NVDLA can connect to on-chip SRAM or other high-bandwidth low-latency
+    buses through the SRAMIF interface[^8^][8]. This is used for lower latency and higher throughput.
+
+- **Operand Size**:
+  - The operand size at each level can vary based on the precision required by the application.
+    NVDLA supports multiple data types, including INT8, INT16, and FP16[^9^][9]. For a "small" implementation,
+    INT8 (8 bits) is likely sufficient.
+
+- **Operand Storage**:
+  - **Inputs**: Stored in the Convolution Buffer and fetched from the system memory or dedicated SRAM.
+  - **Weights**: Also stored in the Convolution Buffer, with support for sparse weight compression to
+    save memory bandwidth[^10^][10].
+  - **Outputs**: Stored temporarily in the accumulator buffers and then written back to the system memory.
+
+- **Operand Flow**:
+  - Operands flow from one layer to the other through the command-execute-interrupt cycle.
+    The management processor sends down the configuration of one hardware layer, along with an "activate"
+    command. Once a hardware engine finishes its task, it issues an interrupt to report completion, and the
+    process begins again for the next layer[^11^][11].
+
+- **MAC Compute Units Location**:
+  - The MAC compute units are part of the Convolution core pipeline stages[^12^][12]. They are involved
+    in the direct convolution mode and are responsible for performing the multiply-accumulate operations.
+
+Please note that the specific technology and exact sizes (depth, width) of the memory hierarchy levels are
+not detailed in the document and would typically be defined in the NVDLA hardware design specification based
+on the application's performance, area, and power requirements. The flow of operands and the location of MAC
+compute units are conceptual and based on the logical organization of the NVDLA.
+"""

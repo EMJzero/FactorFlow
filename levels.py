@@ -93,6 +93,8 @@ Constructor arguments:
 - name: the level's name
 - size: the capacity (in number-of-operands, disregarding bits per operand)
 - access_energy: energy required by each access (in pJ)
+                 [w.r.t. Timeloop this is the vector access energy / elements per vector]
+- leakage_energy: energy leaked each clock cycle by the component (in pJ)
 - bandwidth: the bandwidth for reads and writes, it will be divided in 1/2 for
              read and 1/2 for write (in operands/clock-cycle)
 - dataflow: specifies the dimensions over which to iterate, defaults to all dimensions
@@ -118,7 +120,7 @@ Constructor arguments:
   - Note: either both or none of read_bandwidth and write_bandwidth must be specified
 """
 class MemLevel(Level):
-    def __init__(self, name, size, access_energy = None, bandwidth = None, dataflow = None, factors = None, tile_sizes = None, factors_contraints = None, dataflow_constraints = None, bypasses = None, multiple_buffering = 1,  read_access_energy = None, write_access_energy = None, read_bandwidth = None, write_bandwidth = None):
+    def __init__(self, name, size, access_energy = None, leakage_energy = 0, bandwidth = None, dataflow = None, factors = None, tile_sizes = None, factors_contraints = None, dataflow_constraints = None, bypasses = None, multiple_buffering = 1,  read_access_energy = None, write_access_energy = None, read_bandwidth = None, write_bandwidth = None):
         self.name = name
         # NOTE: this way of constructing the dataflow from the constraints is redundant, but useful if one wants to skip the
         # exploration of permutations since with this method the dataflow will be immediately consistent with constraints.
@@ -128,7 +130,8 @@ class MemLevel(Level):
         assert (access_energy and not read_access_energy and not write_access_energy) or (read_access_energy and write_access_energy), f"Level: {name}: either access_energy ({access_energy}) or read_access_energy ({read_access_energy}) and write_access_energy ({write_access_energy}) must be specified, if either of read_access_energy or write_access_energy is specified, the other must be specified as well."
         self.read_access_energy = read_access_energy if read_access_energy else access_energy
         self.write_access_energy = write_access_energy if write_access_energy else access_energy
-        assert self.read_access_energy >= 0 and self.write_access_energy >= 0, f"Level: {name}: a negative access energy ({self.read_access_energy} R, {self.read_access_energy} W) does not mean anything (unless you are into sci-fi stuff)."
+        self.leakage_energy = leakage_energy
+        assert self.read_access_energy >= 0 and self.write_access_energy >= 0 and self.leakage_energy >= 0, f"Level: {name}: a negative access energy ({self.read_access_energy} R, {self.read_access_energy} W), ({self.leakage_energy}) L, does not mean anything (unless you are into sci-fi stuff)."
         # NOTE: 1/2 split of bandwidth for consistency with Timeloop - not a true must...
         assert (bandwidth and not read_bandwidth and not write_bandwidth) or (read_bandwidth and write_bandwidth), f"Level: {name}: either bandwidth ({bandwidth}) or read_bandwidth ({read_bandwidth}) and write_bandwidth ({write_bandwidth}) must be specified, if either of read_bandwidth or write_bandwidth is specified, the other must be specified as well."
         self.read_bandwidth = read_bandwidth if read_bandwidth else bandwidth/2
@@ -437,6 +440,12 @@ class MemLevel(Level):
         return self.read_access_energy * reads + self.write_access_energy * writes
 
     """
+    Returns the total leaked energy during the provided clock cycles.
+    """
+    def Leakage(self, cycles):
+        return cycles*self.leakage_energy
+
+    """
     Returns True iif factors present on this level satisfy all of
     its constraints, including fitting in the available memory.
     """
@@ -482,6 +491,13 @@ Constructor arguments:
 - factors_contraints: constraints on the factors that must be placed on this level.
                       Valid dictionary keys are 'D', 'E', and 'L'.
 """
+# IMPORTANT:
+# Currently fanout levels reuse all operands mapped on them, period. However this should be up to hardware support.
+# Therefore add here a value N which determines how many operands can be spatially reused.
+# Practically, if N = 1 and you have 2 loops with some iterations, for the inner loop operate as if spatial_multicast_support
+# and spatial_reduction_support were True (if they were False to begin with, let them be False (&&)), for the second set
+# them both to false.
+# Obviously, in case N < |dims| you need to change the "iterate permutations" step to actually permute spatial loops!!!
 class FanoutLevel(Level):
     def __init__(self, name, mesh, dim = None, dims = None, pe_to_pe = False, spatial_multicast_support = True, spatial_reduction_support = True, factors = None, tile_sizes = None, factors_contraints = None):
         self.name = name

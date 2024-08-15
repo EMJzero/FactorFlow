@@ -147,6 +147,7 @@ def updateStats(arch, bias_read):
         level = arch[i]
         if isinstance(level, MemLevel):
             max_latency = max(max_latency, level.getSettedLatency())
+            WMOPs += level.Leakage(level.getSettedLatency())
             temporal_iterations *= level.factors.fullProduct()
         elif isinstance(level, FanoutLevel):
             max_latency = max(max_latency, level.latency()*temporal_iterations)
