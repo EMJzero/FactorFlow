@@ -351,6 +351,9 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
     return arch, best_wart
 
 def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, threads_count = 1, return_list = None, verbose = False):
+    #Here changing settings is fine, we are within a process
+    Settings.forcedSettingsUpdate(arch, thread_idx <= 0)
+    
     if verbose and thread_idx <= 0: print("-------- optimizeDataflows --------")
     targets = list(filter(lambda l : isinstance(l, MemLevel) or isinstance(l, ComputeLevel) or (Settings.ONLY_MAXIMIZE_ONE_FANOUT_DIM and isinstance(l, FanoutLevel)), arch))
     # TODO: pre-exclude some permutations according to the work on derivatives
@@ -491,7 +494,8 @@ arch = arch_eyeriss
 ## MAIN:
 
 if __name__ == "__main__":
-    Settings.forcedSettingsUpdate(arch)
+    #Here changing settings does not propagate to processes, which reimport and reset settings.py
+    #Settings.forcedSettingsUpdate(arch)
     
     start_time = time.time()
 
