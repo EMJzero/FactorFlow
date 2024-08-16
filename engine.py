@@ -1,6 +1,8 @@
 from functools import reduce
+import multiprocessing
 import math
 import copy
+import time
 
 from architectures import *
 from solutions_db import *
@@ -374,6 +376,9 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
     return arch, best_wart
 
 def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, threads_count = 1, return_list = None, verbose = False):
+    #Here changing settings is fine, we are within a process
+    Settings.forcedSettingsUpdate(arch, False)
+    
     if verbose and thread_idx <= 0: print("-------- optimizeDataflows --------")
     targets = list(filter(lambda l : isinstance(l, MemLevel) or isinstance(l, ComputeLevel) or (Settings.ONLY_MAXIMIZE_ONE_FANOUT_DIM and isinstance(l, FanoutLevel)), arch))
     # TODO: pre-exclude some permutations according to the work on derivatives
@@ -502,3 +507,46 @@ def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, threads_count = 1,
     
     if thread_idx == -1: return best_arch, best_wart, best_perm
     else: return_list[thread_idx] = (best_arch, best_wart, best_perm)
+
+
+def run_engine(arch, comp, bias_read, verbose = False):
+    start_time = time.time()
+
+    if Settings.MULTITHREADED:
+        manager = multiprocessing.Manager()
+        return_list = manager.list([None]*Settings.THREADS_COUNT)
+        processes = []
+        for i in range(Settings.THREADS_COUNT):
+            p = multiprocessing.Process(target=optimizeDataflows, args=(copy.deepcopy(arch), copy.deepcopy(comp), bias_read, i, Settings.THREADS_COUNT, return_list, Settings.VERBOSE))
+            processes.append(p)
+            p.start()
+        for p in processes:
+            p.join()
+        assert None not in return_list, f"Some threads failed to return or found no valid mapping, see above logs..."
+        arch, wart, _ = max(return_list, key=lambda res : res[1])
+    else:
+        #arch, _ = factorFlow(arch, comp, bias_read, verbose = VERBOSE)
+        arch, wart, _ = optimizeDataflows(arch, comp, bias_read, verbose = Settings.VERBOSE)
+    
+    end_time = time.time() - start_time
+
+    edp = EDP(arch, bias_read, True)
+    energy = Energy(arch, True)
+    latency = Latency(arch)
+
+    if verbose:
+        print(f"\nFinished in: {end_time:.3f}s")
+
+        print(f"\nBest mapping found with:\n\tWart: {wart:.3e}\n\tEDP: {edp:.3e} (J*cycle)\n\tEnergy: {energy:.3e} (uJ)\n\tLatency: {latency:.3e} (cc)")
+        printFactors(arch)
+
+        print("\nFinal MOPs per memory level:")
+        printMOPsNew(arch)
+        print("\nFinal Latency per level:")
+        printLatencyNew(arch)
+    
+        if Settings.PADDED_MAPPINGS:
+            print("")
+            printPadding(arch, comp)
+
+    return edp, energy, latency, end_time
