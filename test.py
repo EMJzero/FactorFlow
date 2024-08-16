@@ -1,8 +1,8 @@
 from solutions_db import *
 from factors import *
+from engine import *
 from utils import *
 from prints import prettyPrint
-from main import updateStats
 
 """
 Runs a test by recoputing an architecture's statistics given a mapping in

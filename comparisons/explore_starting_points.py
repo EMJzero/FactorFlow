@@ -13,13 +13,13 @@ import copy
 import sys
 sys.path.append("..")
 
-from main import factorFlow, EDP
 from architectures import *
 from computations import *
 from solutions_db import *
 from computations import *
 from settings import *
 from factors import *
+from engine import *
 from levels import *
 from prints import *
 from utils import *
@@ -193,22 +193,6 @@ def randomFactorsInitializationsSlow(arch, comp, random_moves = 10):
                 print(f"WARNING: early termination triggered, could not generate {MAX_TRIES} different starting points...")
                 return
 
-def fitConstraintsToComp(arch, arch_name):
-    skip = False
-    for dim in ['D', 'E', 'L']:
-        total_constraint = 1
-        for level in arch:
-            if dim in level.factors_contraints and comp[dim] // total_constraint < level.factors_contraints[dim]:
-                if comp[dim] // total_constraint <= 0:
-                    print(f"WARNING: skipping comp: {comp_name} and arch: {arch_name} because the constraint on level: {level.name} and dimension: {dim} ({level.factors_contraints[dim]}) cannot be satisfied!")
-                    skip = True
-                    break
-                level.factors_contraints[dim] = comp[dim] // total_constraint
-            total_constraint *= level.factors_contraints[dim] if dim in level.factors_contraints else 1
-        if skip:
-            break
-    return skip
-
 if __name__ == "__main__":
     # CONFIGURATION:
 
@@ -307,7 +291,7 @@ if __name__ == "__main__":
 
         #print("Generating random starting points...")
         arch_copy = copy.deepcopy(arch)
-        if fitConstraintsToComp(arch_copy, arch_name):
+        if fitConstraintsToComp(arch_copy, comp, arch_name, comp_name):
             continue
         random_archs = randomFactorsInitializationsFast(arch_copy, comp, RANDOM_MOVES)
         #_ = next(random_archs)

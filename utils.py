@@ -187,6 +187,26 @@ def hashFromFactors(arch):
                 hsh += f"{factor}{amount}"
     return hash(hsh)
 
+def fitConstraintsToComp(arch, comp, arch_name = None, comp_name = None):
+    failed = False
+    for dim in ['D', 'E', 'L']:
+        total_constraint = 1
+        for level in arch:
+            if dim in level.factors_contraints and comp[dim] // total_constraint < level.factors_contraints[dim]:
+                if comp[dim] // total_constraint <= 0:
+                    if arch_name and comp_name:
+                        print(f"ERROR: failed to fit comp: {comp_name} to arch: {arch_name} because the constraint on level: {level.name} and dimension: {dim} ({level.factors_contraints[dim]}) cannot be satisfied!")
+                    else:
+                        assert False, f"Failed to fit comp to arch because the constraint on level: {level.name} and dimension: {dim} ({level.factors_contraints[dim]}) cannot be satisfied!"
+                    failed = True
+                    break
+                print(f"WARNING: updating constraint ({dim}: {level.factors_contraints[dim]}) on level \"{level.name}\" to ({dim}: {comp[dim] // total_constraint}) to fit the computation.")
+                level.factors_contraints[dim] = comp[dim] // total_constraint
+            total_constraint *= level.factors_contraints[dim] if dim in level.factors_contraints else 1
+        if failed:
+            break
+    return failed
+
 
 # >>> Miscellaneus functions working with iterables/arrays (snake_cased ones)
 
