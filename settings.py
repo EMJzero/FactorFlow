@@ -65,6 +65,7 @@ class Settings():
     
     @classmethod
     def forcedSettingsUpdate(self, arch, verbose = True):
+        #return
         for level in arch:
             if isinstance(level, FanoutLevel) and len(level.dims) >= 2:
                 self.FREEZE_SA = False

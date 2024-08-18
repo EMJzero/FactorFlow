@@ -327,7 +327,7 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
             #    new_src -= 1
 
             for dst_level_idx in range(len(arch)):
-                if dst_level_idx != src_level_idx and dim not in arch[dst_level_idx].factors_contraints and dim in arch[dst_level_idx].dataflow:
+                if dst_level_idx != src_level_idx and dim not in arch[dst_level_idx].factors_contraints and dim in arch[dst_level_idx].dataflow and (not Settings.FREEZE_SA or not isinstance(arch[dst_level_idx], FanoutLevel)):
                     #print(src_level_idx, dst_level_idx, dim, factor)
                     if target_dst_level_idx and dst_level_idx != target_dst_level_idx:
                         continue
@@ -424,6 +424,7 @@ def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, threads_count = 1,
         #print(f"Permutations for thread {thread_idx}: {permutations}")
     
     total_perms = reduce(lambda tot, perms : tot * len(perms), permutations, 1)
+    #print(f"Total permutations: {total_perms}")
 
     if verbose and thread_idx <= 0: print(f"Starting MSE:\n")
     if verbose:
@@ -533,6 +534,7 @@ def run_engine(arch, comp, bias_read, verbose = False):
     edp = EDP(arch, bias_read, True)
     energy = Energy(arch, True)
     latency = Latency(arch)
+    utilization = fanoutsUtilization(arch)
 
     if verbose:
         print(f"\nFinished in: {end_time:.3f}s")
@@ -549,4 +551,4 @@ def run_engine(arch, comp, bias_read, verbose = False):
             print("")
             printPadding(arch, comp)
 
-    return edp, energy, latency, end_time
+    return edp, energy, latency, utilization, end_time
