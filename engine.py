@@ -179,13 +179,11 @@ def Latency(arch):
 
 # Energy [pJ or uJ]
 def Energy(arch, pJ_to_uJ = False):
-    tot_reads, tot_writes, WMOPs = 0, 0, 0
+    WMOPs = 0
     for level in arch:
         if isinstance(level, MemLevel):
             reads = level.in_reads + level.w_reads + level.out_reads
             writes = level.in_writes + level.w_writes + level.out_writes
-            tot_reads += reads
-            tot_writes += writes
             WMOPs += level.WMOPs(reads, writes)
         elif isinstance(level, FanoutLevel):
             continue
@@ -193,6 +191,21 @@ def Energy(arch, pJ_to_uJ = False):
             WMOPs += level.computeCost(level.temporal_iterations*level.instances)
             break
     return WMOPs*(10**-6 if pJ_to_uJ else 1)
+
+# Memory Operations
+def MOPs(arch):
+    tot_reads, tot_writes = 0, 0
+    for level in arch:
+        if isinstance(level, MemLevel):
+            reads = level.in_reads + level.w_reads + level.out_reads
+            writes = level.in_writes + level.w_writes + level.out_writes
+            tot_reads += reads
+            tot_writes += writes
+        elif isinstance(level, FanoutLevel):
+            continue
+        elif isinstance(level, ComputeLevel):
+            break
+    return tot_reads, tot_writes
 
 def fanoutMaximization(arch, comp, bias_read, verbose = False):
     # TECHNIQUE: Find the prime factors of the mesh, and pick the largest common ones with the dimension
@@ -532,6 +545,7 @@ def run_engine(arch, comp, bias_read, verbose = False):
     end_time = time.time() - start_time
 
     edp = EDP(arch, bias_read, True)
+    mops = MOPs(arch)
     energy = Energy(arch, True)
     latency = Latency(arch)
     utilization = fanoutsUtilization(arch)
@@ -551,4 +565,4 @@ def run_engine(arch, comp, bias_read, verbose = False):
             print("")
             printPadding(arch, comp)
 
-    return edp, energy, latency, utilization, end_time
+    return edp, mops, energy, latency, utilization, end_time, arch

@@ -177,6 +177,9 @@ def fanoutsUtilization(arch):
             utilization *= level.factors.fullProduct()/level.mesh
     return utilization
 
+"""
+Hash unique for each factors allocation and dataflows pair.
+"""
 def hashFromFactors(arch):
     hsh = ""
     for level_idx in range(len(arch)):
@@ -187,6 +190,14 @@ def hashFromFactors(arch):
                 hsh += f"{factor}{amount}"
     return hash(hsh)
 
+"""
+Reduces constraints to the largest possible ones that can be satisfied
+by the present computations.
+
+If arch and comp names are provided, an error is printed and the return
+value must be checked for failure. Otherwise, an assertion requires
+constraints comply.
+"""
 def fitConstraintsToComp(arch, comp, arch_name = None, comp_name = None):
     failed = False
     for dim in ['D', 'E', 'L']:
