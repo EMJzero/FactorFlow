@@ -45,8 +45,9 @@ def updateStats(arch, bias_read):
                 level.setAboveMOPs(last_out_reads, last_out_writes)
                 out_writes += last_out_reads # reads above are written here
                 last_out_reads = out_reads
-                out_reads += last_out_writes # writes above where read here
-                last_out_writes = out_writes
+                if not Settings.FREE_DRAINS:
+                    out_reads += last_out_writes # writes above where read here
+                    last_out_writes = out_writes
             else:
                 level.setAboveMOPs(0, 0)
             level.setMOPs(in_reads = in_reads, w_reads = w_reads, out_reads = out_reads, in_writes = in_writes, w_writes = w_writes, out_writes = out_writes)
@@ -136,16 +137,20 @@ def updateStats(arch, bias_read):
             previous_fanout_pe_to_pe_warmup = level.mesh - 1
 
     temporal_iterations = 1
-    spatial_iterations = 1
+    active_instances = 1
     for i in range(len(arch)):
         level = arch[i]
         if isinstance(level, MemLevel):
             max_latency = max(max_latency, level.getSettedLatency())
-            WMOPs += level.Leakage(level.getSettedLatency())
+            #print(f"Leakage level {level.name}: {level.Leakage(level.getSettedLatency())*active_instances}")
+            WMOPs += level.Leakage(level.getSettedLatency())*active_instances
             temporal_iterations *= level.factors.fullProduct()
         elif isinstance(level, FanoutLevel):
             max_latency = max(max_latency, level.latency()*temporal_iterations)
-            spatial_iterations *= level.factors.fullProduct()
+            if level.power_gating_support:
+                active_instances *= level.factors.fullProduct()
+            else:
+                active_instances *= level.mesh
         elif isinstance(level, ComputeLevel):
             max_latency = max(max_latency, level.latency()*temporal_iterations)
             break

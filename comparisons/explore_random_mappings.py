@@ -60,7 +60,8 @@ def parse_options():
         "random_moves": args_match_and_remove("-rm", True) or args_match_and_remove("--random_moves", True),
         "store_mappings": args_match_and_remove("-sm") or args_match_and_remove("--store_mappings"),
         "all_comps": args_match_and_remove("-ac") or args_match_and_remove("--all_comps"),
-        "print_arrays": args_match_and_remove("-pa") or args_match_and_remove("--print_arrays")
+        "print_arrays": args_match_and_remove("-pa") or args_match_and_remove("--print_arrays"),
+        "print_interval": args_match_and_remove("-pi", True) or args_match_and_remove("--print_interval", True)
     }
     return options
 
@@ -152,6 +153,7 @@ if __name__ == "__main__":
     DUPLICATES_TO_STOP = MAX_TRIES*10
     RANDOM_MOVES = 20
     STORE_INITIAL_CONDITIONS = False
+    PRINT_INTERVAL = 5
 
     # PARSE CLI ARGS:
 
@@ -164,13 +166,16 @@ if __name__ == "__main__":
         print("-rm, --random_moves <moves>\tSets to <moves> the number of moves attempted for each prime factor in the mapping. Default is 20. ->DEPRECATED<-")
         print("-sm, --store_mappings\tIf given, the generated mappings are also stored and displayed at the end.")
         print("-ac, --all_comps\t\tTries all computations for the specified arch, and summarizes results in a table.")
-        print("-pa, --print_arrays\tPrints all the stored EDP and Wart values. Only works without '-ac'.")
+        print("-pa, --print_arrays\t\tPrints all the stored EDP and Wart values. Only works without '-ac'.")
+        print("-pi. --print_interval <secs>\tSets to <secs> the seconds between progress updates are printed. Default is 5 s.")
         sys.exit(1)
 
     MAX_TRIES = int(options["max_tries"]) if options["max_tries"] else MAX_TRIES
     DUPLICATES_TO_STOP = MAX_TRIES*10
     RANDOM_MOVES = int(options["random_moves"]) if options["random_moves"] else RANDOM_MOVES
     STORE_INITIAL_CONDITIONS = STORE_INITIAL_CONDITIONS or options["store_mappings"]
+    PRINT_INTERVAL = PRINT_INTERVAL or options["store_mappings"]
+    PRINT_INTERVAL = int(options["print_interval"]) if options["print_interval"] else PRINT_INTERVAL
 
     supported_archs = ["gemmini", "eyeriss", "simba", "tpu"]
     if len(sys.argv) < 2 or sys.argv[1] not in supported_archs:
@@ -209,6 +214,8 @@ if __name__ == "__main__":
     #Here changing settings is fine, there are no processes
     Settings.forcedSettingsUpdate(arch, False)
     
+    last_print_time = time.monotonic()
+    
     if options["all_comps"]:
         table = PrettyTable(["Comp", "Arch", "FF - EDP", "Random - Min EDP", "Random - Max EDP", "Random - Avg. EDP"])
     for comp_name, comp in comps.items():
@@ -224,7 +231,7 @@ if __name__ == "__main__":
             continue
         random_archs = randomFactorsInitializationsFast(arch_copy, comp)
         #_ = next(random_archs)
-        print(f"Starting optimization of {MAX_TRIES} random mappings:")
+        print(f"Starting generation of {MAX_TRIES} random mappings:")
         for current_arch in random_archs:
             try:
                 assert not findConstraintsViolation(current_arch, False)
@@ -236,8 +243,9 @@ if __name__ == "__main__":
             warts.append(wart)
             edps.append(edp)
             
-            if math.floor((tried/MAX_TRIES)*10) > math.floor(((tried - 1)/MAX_TRIES)*10):
+            if math.floor((tried/MAX_TRIES)*10) > math.floor(((tried - 1)/MAX_TRIES)*10) or time.monotonic() - last_print_time > PRINT_INTERVAL:
                 print(f"Progress: {tried}/{MAX_TRIES} tried...")
+                last_print_time = time.monotonic()
             if tried >= MAX_TRIES:
                 break
             else:

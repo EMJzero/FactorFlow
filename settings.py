@@ -47,6 +47,10 @@ class Settings():
     # If True, the Wart will be multiplied by the utilization of the fanouts in the spatial architecture,
     # punishing mappings which underutilize fanouts.
     UTILIZATION_IN_WART = True
+    # If True, drain reads will be assumed at zero energy cost for all levels, this is equivalent to
+    # assuming that the last write bypasses the target level, going upward, and directly writes in the
+    # above level, thus negating the need for a read to drain.
+    FREE_DRAINS = False
     # If True, GEMM dimensions might get padded to reach the least larger-than-current size which can
     # be allocated to the entirety of a fanout's instances.
     # This is performed as part of the fanout maximization.
@@ -84,3 +88,11 @@ class Settings():
         if not self.VERBOSE:
             if verbose: print(f"INFO: VERBOSE output disabled, wait patiently...")
         if verbose: print("")
+        
+    @classmethod
+    def toString(self):
+        res = "Settings("
+        for k, v in vars(self).items():
+            if not k.startswith("__"):
+                res += f"{k}={v},"
+        return res[:-1] + ")"

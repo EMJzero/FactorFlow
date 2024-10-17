@@ -124,7 +124,7 @@ if __name__ == "__main__":
         #Here changing settings does not propagate to processes, which reimport and reset settings.py
         #Settings.forcedSettingsUpdate(arch)
         fitConstraintsToComp(arch, comp)
-        run_engine(arch, comp, bias_read, verbose = True)
+        edp, mops, energy, latency, utilization, _, arch = run_engine(arch, comp, bias_read, verbose = True)
         from test import generateTestMOPs, generateTestLatency
         print("\nGenerated tests:")
         generateTestMOPs(arch)

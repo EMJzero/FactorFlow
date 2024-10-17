@@ -92,8 +92,18 @@ data and provide it as tiles to the levels below it.
 Constructor arguments:
 - name: the level's name
 - size: the capacity (in number-of-operands, disregarding bits per operand)
-- access_energy: energy required by each access (in pJ)
-                 [w.r.t. Timeloop this is the vector access energy / elements per vector]
+- value_access_energy: energy required by each access of one value (in pJ)
+                       [w.r.t. Timeloop this is the vector access energy / elements per
+                       vector, also called energy-per-scalar-access]
+  - Note: if specified, it has priority over wordline_access_energy. At least one of
+          value_access_energy and wordline_access_energy must be specified.
+- wordline_access_energy: energy required by each wordline access (in pJ)
+  - Note: at least one of value_access_energy and wordline_access_energy must be specified.
+          Specifying wordline_access_energy requires word_bits and value_bits to be both
+          specified as well.
+- word_bits: size in bits of the memory's wordlines.
+- value_bits: size in bits of the values stored on the memory. This is the same for all
+          operands, castings are implicitly assumed to take place whenever needed.
 - leakage_energy: energy leaked each clock cycle by the component (in pJ)
 - bandwidth: the bandwidth for reads and writes, it will be divided in 1/2 for
              read and 1/2 for write (in operands/clock-cycle)
@@ -112,24 +122,34 @@ Constructor arguments:
 - bypasses: list of operands which should bypass this level (i.o.w. not be stored here),
             valid strings are 'in', 'w', and 'out'.
 - multiple_buffering: factor of multiple buffering employed by this level, must be >1
-- read_access_energy: energy required for reads accesses, if specified overrides "access_energy"
-- write_access_energy: energy required for write accesses, if specified overrides "access_energy"
-  - Note: either both or none of read_access_energy and write_access_energy must be specified
+- read_value_access_energy: energy required for reads accesses, if specified overrides value_access_energy
+- write_value_access_energy: energy required for write accesses, if specified overrides value_access_energy
+  - Note: either both or none of read_value_access_energy and write_value_access_energy must be specified.
+- read_wordline_access_energy: energy required for reads accesses, if specified overrides wordline_access_energy
+- write_wordline_access_energy: energy required for write accesses, if specified overrides wordline_access_energy
+  - Note: either both or none of read_wordline_access_energy and write_wordline_access_energy must be specified.
 - read_bandwidth: bandwidth allocated for reads, if specified overrides "bandwidth"
 - write_bandwidth: bandwidth allocated for writes, if specified overrides "bandwidth"
   - Note: either both or none of read_bandwidth and write_bandwidth must be specified
 """
 class MemLevel(Level):
-    def __init__(self, name, size, access_energy = None, leakage_energy = 0, bandwidth = None, dataflow = None, factors = None, tile_sizes = None, factors_contraints = None, dataflow_constraints = None, bypasses = None, multiple_buffering = 1,  read_access_energy = None, write_access_energy = None, read_bandwidth = None, write_bandwidth = None):
+    def __init__(self, name, size, value_access_energy = None, wordline_access_energy = None, word_bits = None, value_bits = None, leakage_energy = 0, bandwidth = None, dataflow = None, factors = None, tile_sizes = None, factors_contraints = None, dataflow_constraints = None, bypasses = None, multiple_buffering = 1,  read_value_access_energy = None, write_value_access_energy = None, read_wordline_access_energy = None, write_wordline_access_energy = None, read_bandwidth = None, write_bandwidth = None):
         self.name = name
         # NOTE: this way of constructing the dataflow from the constraints is redundant, but useful if one wants to skip the
         # exploration of permutations since with this method the dataflow will be immediately consistent with constraints.
         self.dataflow = dataflow if dataflow else (dataflow_constraints + [dim for dim in ['D', 'E', 'L'] if dim not in dataflow_constraints] if dataflow_constraints else ['D', 'E', 'L']) # dimensions over which to iterate
         assert size >= 0, f"Level: {name}: a negative size ({size}) does not mean anything."
         self.size = size
-        assert (access_energy and not read_access_energy and not write_access_energy) or (read_access_energy and write_access_energy), f"Level: {name}: either access_energy ({access_energy}) or read_access_energy ({read_access_energy}) and write_access_energy ({write_access_energy}) must be specified, if either of read_access_energy or write_access_energy is specified, the other must be specified as well."
-        self.read_access_energy = read_access_energy if read_access_energy else access_energy
-        self.write_access_energy = write_access_energy if write_access_energy else access_energy
+        # read_access_energy and write_access_energy are intended always for one value, remember to bring accessed values to a multiple of values_per_wordline for the correct total energy
+        assert (value_access_energy or (read_value_access_energy and write_value_access_energy)) or (word_bits and value_bits and (wordline_access_energy or (read_wordline_access_energy and write_wordline_access_energy))), f"Level: {name}: either value_access_energy ({value_access_energy}) or read_value_access_energy ({read_value_access_energy}) and write_value_access_energy ({write_value_access_energy}) must be specified, alternatively, you can specify word_bits ({word_bits}) and value_bits ({value_bits}) and either wordline_access_energy ({wordline_access_energy}) or read_wordline_access_energy ({read_wordline_access_energy}) and write_wordline_access_energy ({write_wordline_access_energy}). In any case, when if either of read_*_access_energy or write_*_access_energy is specified, the other must be present as well."
+        if (value_access_energy or (read_value_access_energy and write_value_access_energy)):
+            self.values_per_wordline = 1
+            self.read_access_energy = read_value_access_energy if read_value_access_energy else value_access_energy
+            self.write_access_energy = write_value_access_energy if write_value_access_energy else value_access_energy
+        else:
+            self.values_per_wordline = word_bits // value_bits
+            self.read_access_energy = (read_wordline_access_energy if read_wordline_access_energy else wordline_access_energy) / self.values_per_wordline
+            self.write_access_energy = (write_wordline_access_energy if write_wordline_access_energy else wordline_access_energy) / self.values_per_wordline
         self.leakage_energy = leakage_energy
         assert self.read_access_energy >= 0 and self.write_access_energy >= 0 and self.leakage_energy >= 0, f"Level: {name}: a negative access energy ({self.read_access_energy} R, {self.read_access_energy} W), ({self.leakage_energy}) L, does not mean anything (unless you are into sci-fi stuff)."
         # NOTE: 1/2 split of bandwidth for consistency with Timeloop - not a true must...
@@ -137,8 +157,6 @@ class MemLevel(Level):
         self.read_bandwidth = read_bandwidth if read_bandwidth else bandwidth/2
         self.write_bandwidth = write_bandwidth if write_bandwidth else bandwidth/2
         assert self.read_bandwidth >= 0 and self.write_bandwidth >= 0, f"Level: {name}: a negative bandwidth ({self.read_bandwidth} R, {self.write_bandwidth} W) does not mean anything."
-        # This models how much an update costs w.r.t. a read. The true cost of an update is "update_cost" times cost of a read.
-        self.update_cost = 1
         self.factors = factors if factors else Factors()
         self.tile_sizes = tile_sizes if tile_sizes else Shape(1, 1, 1)
         self.factors_contraints = factors_contraints if factors_contraints else {}
@@ -301,27 +319,34 @@ class MemLevel(Level):
     Lastly, factors encountered on the E dimension are returned too, to
     allow the caller to remove one such iteration to account for the
     presence or absence of the bias (bias_read flag).
+    
+    Arguments:
+    - in_bp, w_bp, out_bp: whether the respective operands are bypassed or not,
+                           defaults to the instance's setting if not provided
+    - ignore_bypasses: if True, MOPs are returned only relative to this level's
+                       accesses from strictly adjacent levels, bypassed operands
+                       will thus show 0 MOPs.
     """
-    def MOPs(self, in_bp = None, w_bp = None, out_bp= None, update_cost = None, ignore_bypasses = False):
+    def MOPs(self, in_bp = None, w_bp = None, out_bp= None, ignore_bypasses = False):
         in_bp = in_bp if in_bp != None else self.in_bp
         w_bp = w_bp if w_bp != None else self.w_bp
         out_bp = out_bp if out_bp != None else self.out_bp
-        update_cost = update_cost if update_cost else self.update_cost
         dataflow = self.actualDataflow()
+        # size of the tiles moved between this level and the one below
         in_tile_elems = self.tile_sizes.E*self.tile_sizes.L
         w_tile_elems = self.tile_sizes.D*self.tile_sizes.E
         out_tile_elems = self.tile_sizes.D*self.tile_sizes.L
         factors_D = self.factors.dimProduct('D')
         factors_E = self.factors.dimProduct('E')
         factors_L = self.factors.dimProduct('L')
-        # these are the base, then updated across dataflows
+        # these are the complete tiles on this level, then updated across dataflows
         w_reads = factors_D*factors_E*w_tile_elems*w_bp
         in_reads = factors_E*factors_L*in_tile_elems*in_bp
         out_reads = factors_D*factors_L*out_tile_elems*out_bp
-        out_writes = update_cost*out_reads
+        out_writes = out_reads
         # this collects the factors along E, returned to handle the presence/absence of the bias
         out_reads_factors = out_bp
-        # then updated w.r.t. each dataflow
+        # update w.r.t. the dataflow (orthogonal operands and stationarity)
         if self.next_is_compute:
             w_reads = w_reads*factors_L
             in_reads = in_reads*factors_D
@@ -348,7 +373,7 @@ class MemLevel(Level):
             for operand, layers in self.next_layers_with_bypass.items():
                 if layers != None:
                     in_between, layer = layers[:-1], layers[-1]
-                    in_reads_bp, w_reads_bp, out_reads_bp, out_writes_bp, out_reads_bp_factors = layer.MOPs(operand == 'in', operand == 'w', operand == 'out', self.update_cost, True)
+                    in_reads_bp, w_reads_bp, out_reads_bp, out_writes_bp, out_reads_bp_factors = layer.MOPs(operand == 'in', operand == 'w', operand == 'out', True)
                     # bulid the inner-most dataflow, by piling one against the other all non-1 loops, then look at which is the innermost dimension, that is the one that matters!
                     # TL;DR: consider the dataflow only w.r.t. the innermost loop, ignoring those with 1 iteration!
                     dataflow_bp = layer.actualDataflow()
@@ -358,35 +383,39 @@ class MemLevel(Level):
                         stationarity_to_address = False
                     for in_btwn in in_between[::-1]:
                         if isinstance(in_btwn, MemLevel):
+                            in_btwn_factors_D = in_btwn.factors.dimProduct('D')
+                            in_btwn_factors_E = in_btwn.factors.dimProduct('E')
+                            in_btwn_factors_L = in_btwn.factors.dimProduct('L')
+                            in_btwn_factors_full = in_btwn.factors.fullProduct()
                             if stationarity_to_address:
                                 # all inner loops were 1s, deal with the dataflow now!
-                                w_reads_bp = in_btwn.factors.dimProduct('D')*in_btwn.factors.dimProduct('E')*w_reads_bp
-                                in_reads_bp = in_btwn.factors.dimProduct('E')*in_btwn.factors.dimProduct('L')*in_reads_bp
-                                out_reads_bp = in_btwn.factors.dimProduct('D')*in_btwn.factors.dimProduct('L')*out_reads_bp
-                                out_writes_bp = in_btwn.factors.dimProduct('D')*in_btwn.factors.dimProduct('L')*out_writes_bp
+                                w_reads_bp = in_btwn_factors_D*in_btwn_factors_E*w_reads_bp
+                                in_reads_bp = in_btwn_factors_E*in_btwn_factors_L*in_reads_bp
+                                out_reads_bp = in_btwn_factors_D*in_btwn_factors_L*out_reads_bp
+                                out_writes_bp = in_btwn_factors_D*in_btwn_factors_L*out_writes_bp
                                 dataflow_bp = in_btwn.actualDataflow()
                                 if dataflow_bp != None:
                                     stationarity_to_address = False
                                 if dataflow_bp == Dataflow.WS:
-                                    in_reads_bp = in_reads_bp*in_btwn.factors.dimProduct('D')
-                                    out_reads_bp = out_reads_bp*in_btwn.factors.dimProduct('E')
-                                    out_reads_bp_factors *= in_btwn.factors.dimProduct('E')
-                                    out_writes_bp = out_writes_bp*in_btwn.factors.dimProduct('E')
+                                    in_reads_bp = in_reads_bp*in_btwn_factors_D
+                                    out_reads_bp = out_reads_bp*in_btwn_factors_E
+                                    out_reads_bp_factors *= in_btwn_factors_E
+                                    out_writes_bp = out_writes_bp*in_btwn_factors_E
                                 elif dataflow_bp == Dataflow.OS:
-                                    in_reads_bp = in_reads_bp*in_btwn.factors.dimProduct('D')
-                                    w_reads_bp = w_reads_bp*in_btwn.factors.dimProduct('L')
+                                    in_reads_bp = in_reads_bp*in_btwn_factors_D
+                                    w_reads_bp = w_reads_bp*in_btwn_factors_L
                                 elif dataflow_bp == Dataflow.IS:
-                                    out_reads_bp = out_reads_bp*in_btwn.factors.dimProduct('E')
-                                    out_reads_bp_factors *= in_btwn.factors.dimProduct('E')
-                                    w_reads_bp = w_reads_bp*in_btwn.factors.dimProduct('L')
-                                    out_writes_bp = out_writes_bp*in_btwn.factors.dimProduct('E')
+                                    out_reads_bp = out_reads_bp*in_btwn_factors_E
+                                    out_reads_bp_factors *= in_btwn_factors_E
+                                    w_reads_bp = w_reads_bp*in_btwn_factors_L
+                                    out_writes_bp = out_writes_bp*in_btwn_factors_E
                             else:
                                 # dataflow handled among inner loops
-                                w_reads_bp = in_btwn.factors.fullProduct()*w_reads_bp
-                                in_reads_bp = in_btwn.factors.fullProduct()*in_reads_bp
-                                out_reads_bp = in_btwn.factors.fullProduct()*out_reads_bp
-                                out_writes_bp = in_btwn.factors.fullProduct()*out_writes_bp
-                                out_reads_bp_factors *= in_btwn.factors.dimProduct('E')
+                                w_reads_bp = in_btwn_factors_full*w_reads_bp
+                                in_reads_bp = in_btwn_factors_full*in_reads_bp
+                                out_reads_bp = in_btwn_factors_full*out_reads_bp
+                                out_writes_bp = in_btwn_factors_full*out_writes_bp
+                                out_reads_bp_factors *= in_btwn_factors_E
                         else:
                             in_reads_bp, w_reads_bp, out_reads_bp, out_writes_bp = in_btwn.mulByDim(in_reads_bp, w_reads_bp, out_reads_bp, out_writes_bp)
                             # do not update out_reads_bp_factors here, because in it go only iterations of which the first one is skipped,
@@ -483,6 +512,8 @@ Constructor arguments:
             This adds a warmup overhead to latency, but does not affect the total MOPs.
 - spatial_multicast_support: True (default) if this level supports spatial multicast
 - spatial_reduction_support: True (default) if this level supports spatial reduction
+- power_gating_support: True if instances immediately following this level can be
+                        power-gated when not in use, saving leakage power.
 - factors: specifies the initial factors for this level, should not be normally
            specified aside for initializing MSE from a specific configuration
 - tile_sizes: specifies the initial tile sizes for this level, should not be normally
@@ -499,7 +530,7 @@ Constructor arguments:
 # them both to false.
 # Obviously, in case N < |dims| you need to change the "iterate permutations" step to actually permute spatial loops!!!
 class FanoutLevel(Level):
-    def __init__(self, name, mesh, dim = None, dims = None, pe_to_pe = False, spatial_multicast_support = True, spatial_reduction_support = True, factors = None, tile_sizes = None, factors_contraints = None):
+    def __init__(self, name, mesh, dim = None, dims = None, pe_to_pe = False, spatial_multicast_support = True, spatial_reduction_support = True, power_gating_support = False, factors = None, tile_sizes = None, factors_contraints = None):
         self.name = name
         assert (dim and not dims) or (dims and not dim), f"Level: {name}: exactly one of dim ({dim}) or dims ({dims}) must be specified."
         self.dims = [dim] if dim else dims
@@ -510,6 +541,7 @@ class FanoutLevel(Level):
         self.pe_to_pe = pe_to_pe # True in all cases where the operand independent (ex: if dim = D, the operand is the input) of "dim" is forwarded pe->pe rather than multicasted
         self.spatial_multicast_support = spatial_multicast_support
         self.spatial_reduction_support = spatial_reduction_support
+        self.power_gating_support = power_gating_support
         self.factors = factors if factors else Factors()
         self.tile_sizes = tile_sizes if tile_sizes else Shape(1, 1, 1)
         self.factors_contraints = factors_contraints if factors_contraints else {}
