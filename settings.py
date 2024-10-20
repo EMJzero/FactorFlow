@@ -67,6 +67,12 @@ class Settings():
     # logical CPUs available on the system.
     THREADS_COUNT = 8
     
+    # Path to the folder above Accelergy, for a normal installation in Ubuntu that is usually like:
+    # "/home/<username>/.local/lib/python3.X/site-packages/"
+    # FactorFlow has been tested with commit 'd1d199e571e621ce11168efe1af2583dec0c2c49' of Accelergy.
+    # NOTE: this is NOT required if you have installed Accelergy as a python package and can import it.
+    ACCELERGY_PATH = "\\\\wsl.localhost/Ubuntu-22.04/home/zero/.local/lib/python3.10/site-packages"
+    
     @classmethod
     def forcedSettingsUpdate(self, arch, verbose = True):
         #return
