@@ -13,9 +13,9 @@ import copy
 import sys
 sys.path.append("..")
 
-from architectures import *
+from architectures.architectures import *
 from computations import *
-from solutions_db import *
+from architectures.solutions_db import *
 from computations import *
 from settings import *
 from factors import *

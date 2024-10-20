@@ -151,7 +151,7 @@ class MemLevel(Level):
             self.read_access_energy = (read_wordline_access_energy if read_wordline_access_energy else wordline_access_energy) / self.values_per_wordline
             self.write_access_energy = (write_wordline_access_energy if write_wordline_access_energy else wordline_access_energy) / self.values_per_wordline
         self.leakage_energy = leakage_energy
-        assert self.read_access_energy >= 0 and self.write_access_energy >= 0 and self.leakage_energy >= 0, f"Level: {name}: a negative access energy ({self.read_access_energy} R, {self.read_access_energy} W), ({self.leakage_energy}) L, does not mean anything (unless you are into sci-fi stuff)."
+        assert self.read_access_energy >= 0 and self.write_access_energy >= 0 and self.leakage_energy >= 0, f"Level: {name}: a negative access energy ({self.read_access_energy} read, {self.read_access_energy} write), ({self.leakage_energy} leak), does not mean anything (unless you are into sci-fi stuff)."
         # NOTE: 1/2 split of bandwidth for consistency with Timeloop - not a true must...
         assert (bandwidth and not read_bandwidth and not write_bandwidth) or (read_bandwidth and write_bandwidth), f"Level: {name}: either bandwidth ({bandwidth}) or read_bandwidth ({read_bandwidth}) and write_bandwidth ({write_bandwidth}) must be specified, if either of read_bandwidth or write_bandwidth is specified, the other must be specified as well."
         self.read_bandwidth = read_bandwidth if read_bandwidth else bandwidth/2
@@ -619,6 +619,7 @@ Constructor arguments:
                   you run concurrently), accounting for all computation-related
                   costs at the PE level.
 - cycles: the number of clock cycles of latency required to execute "size" MACs
+- leakage_energy: energy leaked each clock cycle by the component (in pJ)
 - dataflow: specifies the dimensions over which to iterate, defaults to all dimensions
 - factors: specifies the initial factors for this level, should not be normally
            specified aside for initializing MSE from a specific configuration
@@ -633,7 +634,7 @@ Constructor arguments:
                         Valid strings are 'D', 'E', and 'L'.
 """
 class ComputeLevel(Level):
-    def __init__(self, name, size, compute_energy, cycles, dataflow = None, factors = None, tile_sizes = None, factors_contraints = None, dataflow_constraints = None):
+    def __init__(self, name, size, compute_energy, cycles, leakage_energy = 0, dataflow = None, factors = None, tile_sizes = None, factors_contraints = None, dataflow_constraints = None):
         self.name = name
         # NOTE: this way of constructing the dataflow from the constraints is redundant, but useful if one wants to skip the
         # exploration of permutations since with this method the dataflow will be immediately consistent with constraints.
@@ -642,6 +643,8 @@ class ComputeLevel(Level):
         self.size = size # for a systolic array, this is the length of the operand buffers
         assert compute_energy >= 0, f"Level: {name}: a negative compute energy ({compute_energy}) does not mean anything (unless you watched too much Gundam and discovered Minovsky particles...)."
         self.compute_energy = compute_energy
+        assert leakage_energy >= 0, f"Level: {name}: a negative leakage energy ({leakage_energy}) does not mean anything (unless you watched too much Gundam 00 and discovered GN particles...)."
+        self.leakage_energy = leakage_energy
         assert cycles >= 0 # a negative number of clock-cycles per MAC does not mean anything
         self.cycles = cycles # clock cycles used per element in the inner dimension (latency of one MAC)
         self.factors = factors if factors else Factors()
@@ -672,6 +675,12 @@ class ComputeLevel(Level):
     """
     def computeCost(self, iterations = 1):
         return self.compute_energy*self.factors.fullProduct()*iterations
+
+    """
+    Returns the total leaked energy during the provided clock cycles.
+    """
+    def Leakage(self, cycles):
+        return cycles*self.leakage_energy
 
     """
     Returns True iif factors present on this level satisfy all of its constraints,

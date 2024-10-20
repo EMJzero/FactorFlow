@@ -1,3 +1,4 @@
+from architectures.architectures import *
 from engine import *
 from utils import *
 

@@ -5,8 +5,7 @@ import copy
 import time
 import sys
 
-from architectures import *
-from solutions_db import *
+from architectures.architectures import *
 from computations import *
 from settings import *
 from factors import *
