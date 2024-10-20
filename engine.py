@@ -4,8 +4,6 @@ import math
 import copy
 import time
 
-from architectures import *
-from solutions_db import *
 from computations import *
 from settings import *
 from factors import *
@@ -153,6 +151,7 @@ def updateStats(arch, bias_read):
                 active_instances *= level.mesh
         elif isinstance(level, ComputeLevel):
             max_latency = max(max_latency, level.latency()*temporal_iterations)
+            WMOPs += level.Leakage(level.latency())*active_instances
             break
 
     return WMOPs, max_latency

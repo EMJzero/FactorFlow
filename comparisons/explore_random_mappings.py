@@ -13,9 +13,9 @@ import copy
 import sys
 sys.path.append("..")
 
-from architectures import *
+from architectures.architectures import *
 from computations import *
-from solutions_db import *
+from architectures.solutions_db import *
 from computations import *
 from settings import *
 from factors import *
@@ -105,7 +105,7 @@ def randomFactorsInitializationsFast(arch, comp):
         else:
             fails += 1
             if fails >= DUPLICATES_TO_STOP:
-                print(f"WARNING: early termination triggered, could not generate {MAX_TRIES} different starting points...")
+                print(f"WARNING: early termination triggered, could not generate {MAX_TRIES} different mappings...")
                 return
 
 # Truly random, but slower
@@ -143,7 +143,7 @@ def randomFactorsInitializationsSlow(arch, comp, random_moves = 10):
         else:
             fails += 1
             if fails >= DUPLICATES_TO_STOP:
-                print(f"WARNING: early termination triggered, could not generate {MAX_TRIES} different starting points...")
+                print(f"WARNING: early termination triggered, could not generate {MAX_TRIES} different mappings...")
                 return
 
 if __name__ == "__main__":

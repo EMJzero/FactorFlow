@@ -1,4 +1,4 @@
-from solutions_db import *
+from architectures.solutions_db import *
 from factors import *
 from engine import *
 from utils import *
