@@ -1131,9 +1131,9 @@ tests = [
     {
         "name": "gemmini_timeloop",
         "comp": Shape(
-            D = 1024*3,
-            E = 1024,
-            L = 4096
+            M = 1024*3,
+            K = 1024,
+            N = 4096
         ),
         "bias_read": True,
         "arch": arch_gemmini_timeloop,
@@ -1142,9 +1142,9 @@ tests = [
     }, {
         "name": "gemmini_factorflow_1",
         "comp": Shape(
-            D = 1024*3,
-            E = 1024,
-            L = 4096
+            M = 1024*3,
+            K = 1024,
+            N = 4096
         ),
         "bias_read": True,
         "arch": arch_gemmini_factorflow_1,
@@ -1153,9 +1153,9 @@ tests = [
     }, {
         "name": "gemmini_factorflow_2",
         "comp": Shape(
-            D = 1024*3,
-            E = 1024,
-            L = 4096
+            M = 1024*3,
+            K = 1024,
+            N = 4096
         ),
         "bias_read": False,
         "arch": arch_gemmini_factorflow_2,
@@ -1164,9 +1164,9 @@ tests = [
     }, {
         "name": "eyeriss_timeloop",
         "comp": Shape(
-            D = 1024*3,
-            E = 1024,
-            L = 4096
+            M = 1024*3,
+            K = 1024,
+            N = 4096
         ),
         "bias_read": False,
         "arch": arch_eyeriss_timeloop,
@@ -1175,9 +1175,9 @@ tests = [
     }, {
         "name": "eyeriss_factorflow_1",
         "comp": Shape(
-            D = 1024*3,
-            E = 1024,
-            L = 4096
+            M = 1024*3,
+            K = 1024,
+            N = 4096
         ),
         "bias_read": False,
         "arch": arch_eyeriss_factorflow_1,
@@ -1186,9 +1186,9 @@ tests = [
     }, {
         "name": "eyeriss_timeloop_ex_1",
         "comp": Shape(
-            D = 8,
-            E = 1024,
-            L = 8192
+            M = 8,
+            K = 1024,
+            N = 8192
         ),
         "bias_read": False,
         "arch": arch_eyeriss_timeloop_ex_1,
@@ -1197,9 +1197,9 @@ tests = [
     }, {
         "name": "eyeriss_timeloop_ex_2",
         "comp": Shape(
-            D = 1024*3,
-            E = 1024,
-            L = 4096
+            M = 1024*3,
+            K = 1024,
+            N = 4096
         ),
         "bias_read": False,
         "arch": arch_eyeriss_timeloop_ex_2,
@@ -1208,9 +1208,9 @@ tests = [
     }, {
         "name": "simba_timeloop",
         "comp": Shape(
-            D = 1024*3,
-            E = 1024,
-            L = 4096
+            M = 1024*3,
+            K = 1024,
+            N = 4096
         ),
         "bias_read": False,
         "arch": arch_simba_timeloop,
@@ -1219,9 +1219,9 @@ tests = [
     }, {
         "name": "simba_factorflow_1",
         "comp": Shape(
-            D = 1024*3,
-            E = 1024,
-            L = 4096
+            M = 1024*3,
+            K = 1024,
+            N = 4096
         ),
         "bias_read": False,
         "arch": arch_simba_factorflow_1,
@@ -1230,9 +1230,9 @@ tests = [
     }, {
         "name": "tpu_factorflow_1",
         "comp": Shape(
-            D = 64,
-            E = 4096,
-            L = 4096
+            M = 64,
+            K = 4096,
+            N = 4096
         ),
         "bias_read": False,
         "arch": arch_tpu_factorflow_1,
@@ -1241,9 +1241,9 @@ tests = [
     }, {
         "name": "tpu_timeloop_ex",
         "comp": Shape(
-            D = 512,
-            E = 256,
-            L = 256
+            M = 512,
+            K = 256,
+            N = 256
         ),
         "bias_read": False,
         "arch": arch_tpu_timeloop_ex,
