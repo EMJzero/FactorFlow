@@ -9,20 +9,31 @@ import time
 import code
 import math
 import copy
-
 import sys
-sys.path.append("..")
 
-from architectures.architectures import *
-from computations import *
-from architectures.solutions_db import *
-from computations import *
-from settings import *
-from factors import *
-from engine import *
-from levels import *
-from prints import *
-from utils import *
+try:
+    from ..architectures.architectures import *
+    from ..computations import *
+    from ..architectures.solutions_db import *
+    from ..computations import *
+    from ..settings import *
+    from ..factors import *
+    from ..engine import *
+    from ..levels import *
+    from ..prints import *
+    from ..utils import *
+except:
+    sys.path.append("..")
+    from architectures.architectures import *
+    from computations import *
+    from architectures.solutions_db import *
+    from computations import *
+    from settings import *
+    from factors import *
+    from engine import *
+    from levels import *
+    from prints import *
+    from utils import *
 
 in_interactive_mode = False
 

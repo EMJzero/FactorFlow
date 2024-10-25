@@ -1,9 +1,11 @@
 from prettytable import PrettyTable
+import importlib.util
 import signal
 import code
 import copy
 import time
 import sys
+import os
 
 from architectures.architectures import *
 from computations import *
@@ -60,6 +62,26 @@ def parse_options():
     }
     return options
 
+def help_options():
+    print("Supported options:")
+    print("-h, --help\t\tDisplay this help menu.")
+    print("-b --bias\t\tIf set, the bias is considered present in the GEMM, otherwise it is assumed absent.")
+    print("-p --processes\t\tSets the number of concurrent processes to use.")
+    print("-ta --tryall\t\tOverrides normal execution, runs FF for all known architectures and GEMMs.")
+    print("-gt --gen-tests\t\tOverrides normal execution, runs FF and generates tests to enforce the obtained results.")
+
+def help_arch(supported_archs):
+    print("The first argument should be a valid architecture name or a path to file specifying the architecture.\nValid architecture names are the following:")
+    for arch_name in supported_archs.keys():
+        print(f"- {arch_name}")
+    print("Alternatively, provide a \"path/to/a/file.py\" where a variable \"arch\" is defined. An example of such a file is provided under \"architectures/example_arch.py\".")
+
+def help_comp(supported_comps):
+    print("The second argument should be a valid computation name or a triplet of integers specifying the three dimension of a GEMM.\nValid computation names are the following:")
+    for name, comp in supported_comps.items():
+        print(f"- {name} -> ", f"D: {comp.D}, E: {comp.E}, L: {comp.L}")
+    print("Alternatively, arguments two to four can be positive integers representing the three dimensions of a GEMM, in order: D, E, and L.")
+
 
 # DEFAULT SPECIFICATION:
 
@@ -74,22 +96,46 @@ arch = arch_eyeriss
 if __name__ == "__main__":
     options = parse_options()
     
+    supported_archs = {"gemmini": arch_gemmini, "eyeriss": arch_eyeriss, "simba": arch_simba, "tpu": arch_tpu}
+    supported_comps = comp_BERT_large | comp_maestro_blas
+    
     if options["help"]:
-        print("Supported options:")
-        print("-h, --help\t\tDisplay this help menu.")
-        print("-b --bias\t\tIf set, the bias is considered present in the GEMM, otherwise it is assumed absent.")
-        print("-p --processes\t\tSets the number of concurrent processes to use.")
-        print("-ta --tryall\t\tOverrides normal execution, runs FF for all known architectures and GEMMs.")
-        print("-gt --gen-tests\t\tOverrides normal execution, runs FF and generates tests to enforce the obtained results.")
+        print("------------ HELP ------------")
+        help_options()
+        print("-------- architecture --------")
+        help_arch(supported_archs)
+        print("-------- computation  --------")
+        help_comp(supported_comps)
+        print("------------------------------")
         sys.exit(1)
         
-    #supported_archs = ["gemmini", "eyeriss", "simba", "tpu"]
-    #if len(sys.argv) < 2 or sys.argv[1] not in supported_archs:
-    #    print("The first argument must be a valid architecture name. Please choose one of the following:")
-    #    for arch in supported_archs:
-    #        print(f"- {arch}")
-    #    sys.exit(1)
-    #arch_name = sys.argv[1]
+    if not (len(sys.argv) >= 2 and (sys.argv[1] in supported_archs or os.path.exists(sys.argv[1]))):
+        help_arch(supported_archs)
+        #sys.exit(1)
+        print("WARNING: no architecture provided, defaulting to \"eyeriss\"...\n")
+    if len(sys.argv) >= 2:
+        if sys.argv[1] in supported_archs:
+            arch = supported_archs[sys.argv[1]]
+            print("Architecture:", sys.argv[1])
+        else:
+            arch_file = importlib.util.spec_from_file_location("user_arch", sys.argv[1])
+            arch_module = importlib.util.module_from_spec(arch_file)
+            sys.modules["user_arch"] = arch_module
+            arch_file.loader.exec_module(arch_module)
+            arch = getattr(arch_module, "arch")
+            print("Architecture:", sys.argv[1], "-> arch")
+        sys.argv.pop(1)
+    
+    if not ((len(sys.argv) >= 2 and sys.argv[1] in supported_comps) or (len(sys.argv) >= 4 and all([d.isdigit() and d[0] != '-' for d in sys.argv[1:4]]))):
+        help_comp(supported_comps)
+        print("WARNING: no computation provided, defaulting to \"KQV\"...\n")
+        #sys.exit(1)
+    if len(sys.argv) == 2:
+        comp = supported_comps[sys.argv[1]]
+        print("Computation:", sys.argv[1])
+    elif len(sys.argv) > 2:
+        comp = Shape(int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3]))
+        print("Computation:", comp)
     
     bias_read = options["bias"]
     
@@ -107,9 +153,9 @@ if __name__ == "__main__":
         comp_BERT_large.pop("FF2")
         table = PrettyTable(["Arch", "Comp", "EDP[J*cycle]", "MOPs", "Latency[cc]", "Energy[uJ]", "Utilization[/]", "Runtime"] + extra_constant_columns_names)
         for arch_name, current_arch in zip(["Gemmini", "Eyeriss", "Simba", "TPUv1"], [arch_gemmini, arch_eyeriss, arch_simba, arch_tpu]):
-            #for comp_name, current_comp in zip(list(comp_BERT_large.keys()) + list(comp_maestro_blas.keys()), list(comp_BERT_large.values()) + list(comp_maestro_blas.values())):
+            for comp_name, current_comp in zip(list(comp_BERT_large.keys()) + list(comp_maestro_blas.keys()), list(comp_BERT_large.values()) + list(comp_maestro_blas.values())):
             #for comp_name, current_comp in zip(list(comp_BERT_large.keys())[:1] + list(comp_maestro_blas.keys())[:1], list(comp_BERT_large.values())[:1] + list(comp_maestro_blas.values())[:1]):
-            for comp_name, current_comp in zip(list(comp_BERT_large.keys())[:4], list(comp_BERT_large.values())[:4]):
+            #for comp_name, current_comp in zip(list(comp_BERT_large.keys())[:4], list(comp_BERT_large.values())[:4]):
             #for comp_name, current_comp in zip(list(comp_maestro_blas.keys())[:2], list(comp_maestro_blas.values())[:2]):
                 current_arch_copy = copy.deepcopy(current_arch)
                 print(f"Now running FactorFlow on arch: {arch_name} and comp: {comp_name}...")

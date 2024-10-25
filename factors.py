@@ -38,6 +38,9 @@ class Shape():
 
     def __setitem__(self, key, value):
         setattr(self, key, value)
+        
+    def __str__(self):
+        return f"{{D: {self.D}, E: {self.E}, L: {self.L}}}"
 
 """
 Factors constituting the number of iterations unfolding over all

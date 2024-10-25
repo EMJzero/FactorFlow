@@ -9,9 +9,11 @@ import logging
 import sys
 import os
 
-if __name__ == "__main__":
+try:
+    from ..settings import *
+except:
     sys.path.append("..")
-from settings import *
+    from settings import *
 
 print("------ loading Accelergy ------")
 
