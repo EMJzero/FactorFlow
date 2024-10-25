@@ -138,6 +138,7 @@ class MemLevel(Level):
         # NOTE: this way of constructing the dataflow from the constraints is redundant, but useful if one wants to skip the
         # exploration of permutations since with this method the dataflow will be immediately consistent with constraints.
         self.dataflow = dataflow if dataflow else (dataflow_constraints + [dim for dim in ['D', 'E', 'L'] if dim not in dataflow_constraints] if dataflow_constraints else ['D', 'E', 'L']) # dimensions over which to iterate
+        assert all([dim in ['D', 'E', 'L'] for dim in self.dataflow]), f"Level: {name}: accepted dimension names in the dataflow are solely D, E and L, provided ones were {self.dataflow}."
         assert size >= 0, f"Level: {name}: a negative size ({size}) does not mean anything."
         self.size = size
         # read_access_energy and write_access_energy are intended always for one value, remember to bring accessed values to a multiple of values_per_wordline for the correct total energy
@@ -530,11 +531,12 @@ Constructor arguments:
 # them both to false.
 # Obviously, in case N < |dims| you need to change the "iterate permutations" step to actually permute spatial loops!!!
 class FanoutLevel(Level):
-    def __init__(self, name, mesh, dim = None, dims = None, pe_to_pe = False, spatial_multicast_support = True, spatial_reduction_support = True, power_gating_support = False, factors = None, tile_sizes = None, factors_contraints = None):
+    def __init__(self, name, mesh, dim : str = None, dims : list[str] = None, pe_to_pe = False, spatial_multicast_support = True, spatial_reduction_support = True, power_gating_support = False, factors = None, tile_sizes = None, factors_contraints = None):
         self.name = name
         assert (dim and not dims) or (dims and not dim), f"Level: {name}: exactly one of dim ({dim}) or dims ({dims}) must be specified."
         self.dims = [dim] if dim else dims
         self.dataflow = self.dims
+        assert all([dim in ['D', 'E', 'L'] for dim in self.dataflow]), f"Level: {name}: accepted names for dimensions are solely D, E and L, provided ones were {self.dataflow}."
         assert mesh > 0, f"Level: {name}: a spatial fanout must have a mesh ({mesh}) of at least 1."
         self.mesh = mesh
         assert not pe_to_pe or (spatial_multicast_support and spatial_reduction_support), f"Level: {name}: pe-to-pe forwarding is a form of spatial multicast or reduction, which must then both be supported to use it."
@@ -639,6 +641,7 @@ class ComputeLevel(Level):
         # NOTE: this way of constructing the dataflow from the constraints is redundant, but useful if one wants to skip the
         # exploration of permutations since with this method the dataflow will be immediately consistent with constraints.
         self.dataflow = dataflow if dataflow else (dataflow_constraints + [dim for dim in ['D', 'E', 'L'] if dim not in dataflow_constraints] if dataflow_constraints else ['D', 'E', 'L']) # dimensions over which to iterate
+        assert all([dim in ['D', 'E', 'L'] for dim in self.dataflow]), f"Level: {name}: accepted dimension names in the dataflow are solely D, E and L, provided ones were {self.dataflow}."
         assert size > 0, f"Level: {name}: a zero or negative size ({size}) does not make sense."
         self.size = size # for a systolic array, this is the length of the operand buffers
         assert compute_energy >= 0, f"Level: {name}: a negative compute energy ({compute_energy}) does not mean anything (unless you watched too much Gundam and discovered Minovsky particles...)."
