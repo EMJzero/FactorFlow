@@ -79,8 +79,8 @@ def help_arch(supported_archs):
 def help_comp(supported_comps):
     print("The second argument should be a valid computation name or a triplet of integers specifying the three dimension of a GEMM.\nValid computation names are the following:")
     for name, comp in supported_comps.items():
-        print(f"- {name} -> ", f"D: {comp.D}, E: {comp.E}, L: {comp.L}")
-    print("Alternatively, arguments two to four can be positive integers representing the three dimensions of a GEMM, in order: D, E, and L.")
+        print(f"- {name} -> ", f"M: {comp.M}, K: {comp.K}, N: {comp.N}")
+    print("Alternatively, arguments two to four can be positive integers representing the three dimensions of a GEMM, in order: M, K, and N.")
 
 
 # DEFAULT SPECIFICATION:

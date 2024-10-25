@@ -9,7 +9,7 @@ from levels import *
 def findConstraintsViolation(arch, verbose = True):
     violation = False
     for level in arch:
-        for dim in ['D', 'E', 'L']:
+        for dim in ['M', 'K', 'N']:
             if dim not in level.dataflow and len(level.factors[dim]) != 0:
                 if verbose: print(f"Factor-dataflow missmatch for constraint ({dim}: {level.factors.dimProduct(dim)}) enforced on level \"{level.name}\"")
                 violation = True
@@ -85,7 +85,7 @@ def moveFactor(arch, src_level_idx, dst_level_idx, dimension, factor, amount = 1
 
 def initFactors(arch, comp):
     # initialize with all factors on first level, all tile sizes of 1!
-    arch[0].factors = Factors(D = primeFactors(comp.D), E = primeFactors(comp.E), L = primeFactors(comp.L))
+    arch[0].factors = Factors(M = primeFactors(comp.M), K = primeFactors(comp.K), N = primeFactors(comp.N))
     # TODO: to support a random starting point, add here a set of moveFactor
     # invocations, and add a method to "reset" the architecture (tile sizes and all)
 
@@ -93,16 +93,16 @@ def enforceFactorsConstraints(arch, allow_padding = False, verbose_padding = Tru
     # assuming that initially all factors are on the first level
     for i in range(1, len(arch)):
         level = arch[i]
-        assert 'D' not in level.factors_contraints or 'D' in level.dataflow, f"Level {level.name}: cannot enforce constraint on dimension 'D' not in dataflow {level.dataflow}."
-        assert 'E' not in level.factors_contraints or 'E' in level.dataflow, f"Level {level.name}: cannot enforce constraint on dimension 'E' not in dataflow {level.dataflow}."
-        assert 'L' not in level.factors_contraints or 'L' in level.dataflow, f"Level {level.name}: cannot enforce constraint on dimension 'L' not in dataflow {level.dataflow}."
+        assert 'M' not in level.factors_contraints or 'M' in level.dataflow, f"Level {level.name}: cannot enforce constraint on dimension 'M' not in dataflow {level.dataflow}."
+        assert 'K' not in level.factors_contraints or 'K' in level.dataflow, f"Level {level.name}: cannot enforce constraint on dimension 'K' not in dataflow {level.dataflow}."
+        assert 'N' not in level.factors_contraints or 'N' in level.dataflow, f"Level {level.name}: cannot enforce constraint on dimension 'N' not in dataflow {level.dataflow}."
         constr_factors = Factors(
-            D = primeFactors(level.factors_contraints['D']) if 'D' in level.factors_contraints else {},
-            E = primeFactors(level.factors_contraints['E']) if 'E' in level.factors_contraints else {},
-            L = primeFactors(level.factors_contraints['L']) if 'L' in level.factors_contraints else {}
+            M = primeFactors(level.factors_contraints['M']) if 'M' in level.factors_contraints else {},
+            K = primeFactors(level.factors_contraints['K']) if 'K' in level.factors_contraints else {},
+            N = primeFactors(level.factors_contraints['N']) if 'N' in level.factors_contraints else {}
             )
         if arch[0].factors.isSubset(constr_factors) or allow_padding:
-            for dim in ['D', 'E', 'L']:
+            for dim in ['M', 'K', 'N']:
                 dim_size = arch[0].factors.dimProduct(dim)
                 constraint = constr_factors.dimProduct(dim)
                 if dim_size%constraint == 0:
@@ -167,7 +167,7 @@ def updateInstances(arch):
 def resetTilesAndFactors(arch):
     for level in arch:
         level.factors.clear()
-        for dim in ['D', 'E', 'L']:
+        for dim in ['M', 'K', 'N']:
             level.tile_sizes[dim] = 1
 
 def fanoutsUtilization(arch):
@@ -200,7 +200,7 @@ constraints comply.
 """
 def fitConstraintsToComp(arch, comp, arch_name = None, comp_name = None):
     failed = False
-    for dim in ['D', 'E', 'L']:
+    for dim in ['M', 'K', 'N']:
         total_constraint = 1
         for level in arch:
             if dim in level.factors_contraints and comp[dim] // total_constraint < level.factors_contraints[dim]:

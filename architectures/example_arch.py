@@ -21,7 +21,7 @@ arch = [
     ),
     FanoutLevel(
         name = "PEs",
-        dim = 'D',
+        dim = 'M',
         mesh = 32,
         pe_to_pe = False, 
         factors_contraints = {}
@@ -32,23 +32,23 @@ arch = [
         size = 256, # number of entries (PER ONE INSTANCE!!) (remeber to account for operand size)
         value_access_energy = 4.01, # per operand (pJ)
         bandwidth = 8, # operands per cycle (shared)
-        factors_contraints = {'D': 1, 'E': 1, 'L': 16}, # the systolic array does a 16x16 matmul in this case
+        factors_contraints = {'M': 1, 'K': 1, 'N': 16}, # the systolic array does a 16x16 matmul in this case
         bypasses = ['in', 'w']
     ),
     MemLevel(
         name = "Registers",
-        dataflow_constraints = ['D', 'E', 'L'],
+        dataflow_constraints = ['M', 'K', 'N'],
         size = 4, # number of entries
         value_access_energy = 0.01, # per operand (pJ)
         bandwidth = 2, # operands per cycle (shared)
-        factors_contraints = {'D': 1, 'E': 1, 'L': 1},
+        factors_contraints = {'M': 1, 'K': 1, 'N': 1},
         bypasses = ['in', 'out']
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = ['L'],
+        dataflow = ['N'],
         size = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
-        factors_contraints = {'L': 1}
+        factors_contraints = {'N': 1}
     )]

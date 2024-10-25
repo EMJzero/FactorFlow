@@ -54,19 +54,19 @@ def updateStats(arch, bias_read):
             writes = in_writes + w_writes + out_writes
             WMOPs += level.WMOPs(reads, writes)
             temporal_iterations *= level.factors.fullProduct()
-            acc_out_reads_factors *= level.factors.dimProduct('E')
+            acc_out_reads_factors *= level.factors.dimProduct('K')
         elif isinstance(level, FanoutLevel):
             spatial_iterations *= level.factors.fullProduct()
             # spatial multicast of an operand occurs if the fanout is along a dimension not relative
             # to such operand hence, the operand is read once, but written once per instance
             for dim in level.dataflow:
                 iterations = level.factors.dimProduct(dim)
-                if dim == 'D':
+                if dim == 'M':
                     if not level.spatial_multicast_support: # we don't have spatial multicast capabilities, increment retroactively the reads on the above level
                         if i > 0:
                             arch[i-1].in_reads *= iterations
                     last_in_reads *= iterations
-                if dim == 'E':
+                if dim == 'K':
                     if not level.spatial_multicast_support: # we don't have spatial multicast capabilities, increment retroactively the reads on the above level
                         if i > 0: # no need to account for bias_read here, as the first read is skipped by all instances of the fanout
                             arch[i-1].out_reads = (arch[i-1].out_reads - arch[i-1].last_out_writes)*iterations + arch[i-1].last_out_writes
@@ -76,7 +76,7 @@ def updateStats(arch, bias_read):
                             arch[i-1].out_writes = (arch[i-1].out_writes - arch[i-1].last_out_reads)*iterations + arch[i-1].last_out_reads
                         pass
                     last_out_writes *= iterations
-                if dim == 'L':
+                if dim == 'N':
                     if not level.spatial_multicast_support: # we don't have spatial multicast capabilities, increment retroactively the reads on the above level
                         if i > 0:
                             arch[i-1].w_reads *= iterations
@@ -219,7 +219,7 @@ def fanoutMaximization(arch, comp, bias_read, verbose = False):
     if verbose: print("\nStarting fanout maximization:\n")
     if Settings.ONLY_MAXIMIZE_ONE_FANOUT_DIM:
         if Settings.PADDED_MAPPINGS:
-            for dim in ['D', 'E', 'L']:
+            for dim in ['M', 'K', 'N']:
                 total_mesh = math.prod([level.mesh for level in arch if isinstance(level, FanoutLevel) and level.dataflow[0] == dim])
                 mesh_factors = [f for level in arch if isinstance(level, FanoutLevel) and level.dataflow[0] == dim for f in primeFactorsList(level.mesh)]
                 dim_size = arch[0].factors.dimProduct(dim)
@@ -452,7 +452,7 @@ def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, threads_count = 1,
     current_perms = [0 for _ in targets]
     # optimization: If the difference between the next permutation and the current one involves solely dimensions which had in the previous best mapping a factor of 1, skip the permutation
     # TODO: could be improved further by looking at the whole history of swapped dimensions
-    factors_at_one = [{'D': False, 'E': False, 'L': False} for _ in targets]
+    factors_at_one = [{'M': False, 'K': False, 'N': False} for _ in targets]
     best_perm, best_arch, best_wart = current_perms.copy(), None, 0
     tried_perms = 0
     #skipped_perms_total = 0
@@ -479,7 +479,6 @@ def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, threads_count = 1,
         for mem_idx in range(len(current_targets)):
             current_targets[mem_idx].dataflow = permutations[mem_idx][current_perms[mem_idx]]
         current_arch, wart = factorFlow(current_arch, comp, bias_read)
-        #if permutations[0][current_perms[0]] == ['L', 'D', 'E'] and permutations[1][current_perms[1]] == ['D', 'E', 'L']: print(f"GOTCHA!! wart {wart}")
         if wart > best_wart:
             best_perm = current_perms.copy()
             best_arch = current_arch
@@ -502,7 +501,6 @@ def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, threads_count = 1,
                 for j in range(i + 1, len(targets)):
                     current_targets[j].dataflow = permutations[j][best_perm[j]]
                 current_arch, wart = factorFlow(current_arch, comp, bias_read, True)
-                #if permutations[0][current_perms[0]] == ['L', 'D', 'E'] and permutations[1][current_perms[1]] == ['D', 'E', 'L']: print(f"GOTCHA SKIIIIIP!! wart {wart}")
                 if wart > best_wart:
                     best_perm = current_perms.copy()
                     best_arch = current_arch

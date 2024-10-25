@@ -90,7 +90,7 @@ def randomFactorsInitializationsFast(arch, comp):
     setupBypasses(arch)
     updateInstances(arch)
     
-    factors = reduce(lambda l, a : l + a, [[(dim, f) for f in arch[0].factors.toList(dim)] for dim in ['D', 'E', 'L']], [])
+    factors = reduce(lambda l, a : l + a, [[(dim, f) for f in arch[0].factors.toList(dim)] for dim in ['M', 'K', 'N']], [])
     
     def randomMoves(arch):
         random.shuffle(factors)
@@ -128,7 +128,7 @@ def randomFactorsInitializationsSlow(arch, comp, random_moves = 10):
     
     def randomMoves(arch, n):
         mems = list(filter(lambda l : isinstance(l, MemLevel), arch))
-        dims = ['D', 'E', 'L']
+        dims = ['M', 'K', 'N']
         random.shuffle(dims)
         for dim in dims:
             factors = mems[0].factors.toList(dim)

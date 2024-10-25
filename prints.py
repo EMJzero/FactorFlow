@@ -147,23 +147,10 @@ def printMOPs(arch, per_instance = False):
                 out_reads += last_out_writes #writes above where read here
                 last_out_writes = out_writes
             dataflow = level.actualDataflow()
-            # outer datataflows do not cause affect iterations at inner levels
+            # outer datataflows do not affect iterations at inner levels
             temporal_iterations_inputs *= level.factors.fullProduct()
             temporal_iterations_weights *= level.factors.fullProduct()
             temporal_iterations_outputs *= level.factors.fullProduct()
-            # outer dataflows affect inner iterations (WRONG)
-            #if dataflow == "WS":
-            #    temporal_iterations_weights *= level.factors.dimProduct('D')*level.factors.dimProduct('E')
-            #    temporal_iterations_inputs *= level.factors.fullProduct()
-            #    temporal_iterations_outputs *= level.factors.fullProduct()
-            #elif dataflow == "OS":
-            #    temporal_iterations_weights *= level.factors.fullProduct()
-            #    temporal_iterations_inputs *= level.factors.fullProduct()
-            #    temporal_iterations_outputs *= level.factors.dimProduct('D')*level.factors.dimProduct('L')
-            #elif dataflow == "IS":
-            #    temporal_iterations_weights *= level.factors.fullProduct()
-            #    temporal_iterations_inputs *= level.factors.dimProduct('E')*level.factors.dimProduct('L')
-            #    temporal_iterations_outputs *= level.factors.fullProduct()
             reads = in_reads + w_reads + out_reads
             writes = in_writes + w_writes + out_writes
             print(f"{level.name}:{chr(9) * (2 - (len(level.name) + 1)//8)}{in_reads:.0f} In_R, {w_reads:.0f} W_R, {out_reads:.0f} Our_R, {reads:.0f} Tot_R,\n\t\t{in_writes:.0f} In_W, {w_writes:.0f} W_W, {out_writes:.0f} Out_W, {writes:.0f} Tot_W")
@@ -298,12 +285,12 @@ Print to stdout the total amount of padding required by the different dimensions
 of the computation. This is non-zero iif the PADDED_MAPPINGS is True.
 """
 def printPadding(arch, comp):
-    total_iterations = {'D': 1, 'E': 1, 'L': 1}
+    total_iterations = {'M': 1, 'K': 1, 'N': 1}
     for level in arch:
-        for dim in ['D', 'E', 'L']:
+        for dim in ['M', 'K', 'N']:
             total_iterations[dim] *= level.factors.dimProduct(dim)
     print("Padding required:")
-    for dim in ['D', 'E', 'L']:
+    for dim in ['M', 'K', 'N']:
         print(f"\t{dim}: {total_iterations[dim] - comp[dim]:.0f} ({comp[dim]} -> {total_iterations[dim]})")
 
 """

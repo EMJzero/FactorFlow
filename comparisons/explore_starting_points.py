@@ -118,12 +118,10 @@ def randomFactorsInitializations(arch, comp):
     updateInstances(arch)
     
     mems = list(filter(lambda l : isinstance(l, MemLevel), arch))
-    random_disjoint_primes_lists = disjoint_partitions(primeFactorsList(arch[0].factors.dimProduct('D')), primeFactorsList(arch[0].factors.dimProduct('D')), primeFactorsList(arch[0].factors.dimProduct('D')), len(mems))
-    #print(primeFactorsList(arch[0].factors.dimProduct('D')), primeFactorsList(arch[0].factors.dimProduct('D')), primeFactorsList(arch[0].factors.dimProduct('D')), len(mems))
-    #print(list(random_disjoint_primes_lists))
+    random_disjoint_primes_lists = disjoint_partitions(primeFactorsList(arch[0].factors.dimProduct('M')), primeFactorsList(arch[0].factors.dimProduct('M')), primeFactorsList(arch[0].factors.dimProduct('M')), len(mems))
     
     for disjoint_primes_list in random_disjoint_primes_lists:
-        dim_to_idx = {'D': 0, 'E': 1, 'L': 2}
+        dim_to_idx = {'M': 0, 'K': 1, 'N': 2}
         for dim in dim_to_idx.keys():
             for level_idx in range(len(mems)):
                 factors = Factors()
@@ -141,7 +139,7 @@ def randomFactorsInitializationsFast(arch, comp, random_moves = 10):
     updateInstances(arch)
     
     mems = list(filter(lambda l : isinstance(l, MemLevel), arch))
-    factors = reduce(lambda l, a : l + a, [[(dim, f) for f in mems[0].factors.toList(dim)] for dim in ['D', 'E', 'L']], [])
+    factors = reduce(lambda l, a : l + a, [[(dim, f) for f in mems[0].factors.toList(dim)] for dim in ['M', 'K', 'N']], [])
     
     def randomMoves(arch, n):
         random.shuffle(factors)
@@ -177,7 +175,7 @@ def randomFactorsInitializationsSlow(arch, comp, random_moves = 10):
     
     def randomMoves(arch, n):
         mems = list(filter(lambda l : isinstance(l, MemLevel), arch))
-        dims = ['D', 'E', 'L']
+        dims = ['M', 'K', 'N']
         random.shuffle(dims)
         for dim in dims:
             factors = mems[0].factors.toList(dim)
@@ -261,15 +259,15 @@ if __name__ == "__main__":
     elif arch_name == "eyeriss":
         base_arch = arch_eyeriss
         arch = arch_eyeriss_factorflow_1
-        arch[2].dims = ['D', 'E']
-        arch[2].dataflow = ['D', 'E']
+        arch[2].dims = ['M', 'K']
+        arch[2].dataflow = ['M', 'K']
     
     # << Simba >>
     elif arch_name == "simba":
         base_arch = arch_simba
         arch = arch_simba_factorflow_1
-        arch[2].dims = ['D', 'E']
-        arch[2].dataflow_constraints = ['D', 'E']
+        arch[2].dims = ['M', 'K']
+        arch[2].dataflow_constraints = ['M', 'K']
     
     # << TPU >>
     elif arch_name == "tpu":
@@ -277,18 +275,18 @@ if __name__ == "__main__":
         arch = arch_tpu_factorflow_1
         Settings.STEPS_TO_EXPLORE = 2
         print(f"INFO: tpu selected, forcefully updating setting STEPS_TO_EXPLORE to {Settings.STEPS_TO_EXPLORE}.")
-        #arch[0].dataflow_constraints = ['L', 'D', 'E']
-        #arch[1].dataflow_constraints = ['D', 'E', 'L']
-        #arch[2].dataflow_constraints = ['L', 'E', 'D']
-        #arch[3].dataflow_constraints = ['L', 'E', 'D']
-        #arch[5].dataflow_constraints = ['L', 'D', 'E']
-        #arch[7].dataflow_constraints = ['D', 'E', 'L']
-        #arch[0].dataflow = ['L', 'D', 'E']
-        #arch[1].dataflow = ['D', 'E', 'L']
-        #arch[2].dataflow = ['L', 'E', 'D']
-        #arch[3].dataflow = ['L', 'E', 'D']
-        #arch[5].dataflow = ['L', 'D', 'E']
-        #arch[7].dataflow = ['D', 'E', 'L']
+        #arch[0].dataflow_constraints = ['N', 'M', 'K']
+        #arch[1].dataflow_constraints = ['M', 'K', 'N']
+        #arch[2].dataflow_constraints = ['N', 'K', 'M']
+        #arch[3].dataflow_constraints = ['N', 'K', 'M']
+        #arch[5].dataflow_constraints = ['N', 'M', 'K']
+        #arch[7].dataflow_constraints = ['M', 'K', 'N']
+        #arch[0].dataflow = ['N', 'M', 'K']
+        #arch[1].dataflow = ['M', 'K', 'N']
+        #arch[2].dataflow = ['N', 'K', 'M']
+        #arch[3].dataflow = ['N', 'K', 'M']
+        #arch[5].dataflow = ['N', 'M', 'K']
+        #arch[7].dataflow = ['M', 'K', 'N']
     
     for level_idx in range(len(arch)):
         #if not isinstance(arch[level_idx], ComputeLevel):

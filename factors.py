@@ -5,9 +5,9 @@ from enum import Enum
 Possible dataflows for GEMMs.
 They can be recognized according to the inner-most loop,
 ignoring those with a single iteration:
-- innermost L -> WS
-- innermost E -> OS
-- innermost D -> IS
+- innermost N -> WS
+- innermost K -> OS
+- innermost M -> IS
 """
 class Dataflow(Enum):
     WS = 0
@@ -17,21 +17,21 @@ class Dataflow(Enum):
 """
 Shape of the Matrix Multiplication in the form Out = W*In.
 Dimensions are:
-- D = W and Out's height
-- E = Inner dimension, W's width and In's height
-- L = In and Out's width
+- M = W and Out's height
+- K = Inner dimension, W's width and In's height
+- N = In and Out's width
 """
 class Shape():
-    def __init__(self, D, E, L):
-        self.D = D # Weight/Out rows
-        self.E = E # Inner dimension, Weight cols/In rows
-        self.L = L # In/Out cols
+    def __init__(self, M, K, N):
+        self.M = M # Weight/Out rows
+        self.K = K # Inner dimension, Weight cols/In rows
+        self.N = N # In/Out cols
 
     def mem_footprint(self):
-        return self.D*self.E + self.E*self.L + self.D*self.L
+        return self.M*self.K + self.K*self.N + self.M*self.N
 
     def FLOPs(self):
-        return 2*self.D*self.E*self.L
+        return 2*self.M*self.K*self.N
 
     def __getitem__(self, key):
         return getattr(self, key)
@@ -40,7 +40,7 @@ class Shape():
         setattr(self, key, value)
         
     def __str__(self):
-        return f"{{D: {self.D}, E: {self.E}, L: {self.L}}}"
+        return f"{{M: {self.M}, K: {self.K}, N: {self.N}}}"
 
 """
 Factors constituting the number of iterations unfolding over all
@@ -51,14 +51,14 @@ to every prime factor (key) the number of times it occurs (value)
 over that dimension.
 """
 class Factors():
-    def __init__(self, D = None, E = None, L = None):
-        self.D = D if D else {}
-        self.E = E if E else {}
-        self.L = L if L else {}
+    def __init__(self, M = None, K = None, N = None):
+        self.M = M if M else {}
+        self.K = K if K else {}
+        self.N = N if N else {}
         self._dim_products = {
-            'D': reduce(lambda tot, f_a : tot*(f_a[0]**f_a[1]), self.D.items(), 1),
-            'E': reduce(lambda tot, f_a : tot*(f_a[0]**f_a[1]), self.E.items(), 1),
-            'L': reduce(lambda tot, f_a : tot*(f_a[0]**f_a[1]), self.L.items(), 1)
+            'M': reduce(lambda tot, f_a : tot*(f_a[0]**f_a[1]), self.M.items(), 1),
+            'K': reduce(lambda tot, f_a : tot*(f_a[0]**f_a[1]), self.K.items(), 1),
+            'N': reduce(lambda tot, f_a : tot*(f_a[0]**f_a[1]), self.N.items(), 1)
             }
 
     """
@@ -96,7 +96,7 @@ class Factors():
 
     """Total number of iterations across all three dimensions."""
     def fullProduct(self):
-        return self._dim_products['D']*self._dim_products['E']*self._dim_products['L']
+        return self._dim_products['M']*self._dim_products['K']*self._dim_products['N']
 
     """
     Recomputes the correct values for the dimProducts as of the current
@@ -120,14 +120,14 @@ class Factors():
     of one along any of the three dimensions.
     """
     def isSubset(self, subset):
-        for k, v in subset.D.items():
-            if k not in self.D or v > self.D[k]:
+        for k, v in subset.M.items():
+            if k not in self.M or v > self.M[k]:
                 return False
-        for k, v in subset.E.items():
-            if k not in self.E or v > self.E[k]:
+        for k, v in subset.K.items():
+            if k not in self.K or v > self.K[k]:
                 return False
-        for k, v in subset.L.items():
-            if k not in self.L or v > self.L[k]:
+        for k, v in subset.N.items():
+            if k not in self.N or v > self.N[k]:
                 return False
         return True
 
@@ -139,9 +139,9 @@ class Factors():
     iterations unfolding over it)
     """
     def mem_footprint(self, tile_sizes, in_bp = 1, w_bp = 1, out_bp = 1):
-        return (self.dimProduct('D')*self.dimProduct('E')*w_bp*tile_sizes.D*tile_sizes.E +
-                self.dimProduct('E')*self.dimProduct('L')*in_bp*tile_sizes.E*tile_sizes.L +
-                self.dimProduct('D')*self.dimProduct('L')*out_bp*tile_sizes.D*tile_sizes.L)
+        return (self.dimProduct('M')*self.dimProduct('K')*w_bp*tile_sizes.M*tile_sizes.K +
+                self.dimProduct('K')*self.dimProduct('N')*in_bp*tile_sizes.K*tile_sizes.N +
+                self.dimProduct('M')*self.dimProduct('N')*out_bp*tile_sizes.M*tile_sizes.N)
 
     """
     Returns the factors present on the specified dimension as a list rather
@@ -154,10 +154,10 @@ class Factors():
     Reset this "Factors" instance to no factors along any dimension.
     """
     def clear(self):
-        self.D.clear()
-        self.E.clear()
-        self.L.clear()
-        self._dim_products = {'D': 1, 'E': 1, 'L': 1}
+        self.M.clear()
+        self.K.clear()
+        self.N.clear()
+        self._dim_products = {'M': 1, 'K': 1, 'N': 1}
 
     def __getitem__(self, key):
         return getattr(self, key)
