@@ -16,6 +16,7 @@ from levels import *
 from prints import *
 from utils import *
 
+#from solutions_db import *
 #from comparisons.ZigZag.zigzag_archs import *
 #from comparisons.CoSA.cosa_archs import *
 #from comparisons.MAESTRO.maestro_archs import *
@@ -138,6 +139,7 @@ if __name__ == "__main__":
         print("Computation:", comp)
     
     bias_read = options["bias"]
+    print("Bias present:", bias_read)
     
     if options["processes"]:
         Settings.THREADS_COUNT = options["processes"]

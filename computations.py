@@ -1,5 +1,10 @@
 from factors import Shape
 
+"""
+Generates computation instances for each GEMM of a BERT Transformer
+with arbitrary parameters/dimensions. See:
+"BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding"
+"""
 def comp_BERT(embedding, seq_length, heads, ff_dim):
     assert embedding % heads == 0, f"Embedding dim ({embedding}) must be divisible by the number of heads ({heads})."
     return {
@@ -56,6 +61,10 @@ comp_requiring_padding = Shape(
     N = 12071
     )
 
+"""
+GEMMs coming from scientific applications, taken from previous literature:
+"Evaluating Spatial Accelerator Architectures with Tiled Matrix-Matrix Multiplication"
+"""
 comp_maestro_blas = {
     'MB1': Shape(
         M = 8192,

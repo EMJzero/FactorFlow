@@ -12,7 +12,10 @@ from prints import *
 from utils import *
 
 
-# updates the MOPs and Latency data of each level w.r.t. the current mapping
+"""
+Entry point for the analytical model.
+Updates the MOPs and Latency data of each level w.r.t. the current mapping.
+"""
 def updateStats(arch, bias_read):
     # MOPs:
     WMOPs = 0
@@ -83,6 +86,7 @@ def updateStats(arch, bias_read):
                     last_w_reads *= iterations
         elif isinstance(level, ComputeLevel):
             # TODO: remove cost of first output accumulate if bias_read is False!
+            # => not needed because the cost of the add is << than the multiply!
             level.temporal_iterations = temporal_iterations
             WMOPs += level.computeCost(temporal_iterations*spatial_iterations)
             # compute is meant to be the innermost level
@@ -134,6 +138,7 @@ def updateStats(arch, bias_read):
             # pe-to-pe forwarding implies that the SA operates as a PIPELINE, which has overall latency equal to that of an operation but a warmup dependent on the mesh size
             previous_fanout_pe_to_pe_warmup = level.mesh - 1
 
+    # Active instances, leakage, and final latency:
     temporal_iterations = 1
     active_instances = 1
     for i in range(len(arch)):
@@ -156,19 +161,30 @@ def updateStats(arch, bias_read):
 
     return WMOPs, max_latency
 
-# Weighted Arithmetic Intensity
+"""
+Weighted Arithmetic Intensity (WART)
+
+It is equivalent to FLOPs/EDPoU, where EDPoU = (Energy * Latency) / Utilization
+=> Maximizing the WART minimizes the EDPoU.
+"""
 def Wart(arch, comp, bias_read):
     FLOPs = comp.FLOPs()
     WMOPs, max_latency = updateStats(arch, bias_read)
     utilization = fanoutsUtilization(arch) if Settings.UTILIZATION_IN_WART else 1
     return (FLOPs/(WMOPs*max_latency))*utilization
 
-# Energy-Delay Product
+"""
+Energy-Delay Product [pJ*cc]
+
+If pJ_to_J is True, the returned value is in [J*cc].
+"""
 def EDP(arch, bias_read, pJ_to_J = False):
     WMOPs, max_latency = updateStats(arch, bias_read)
     return WMOPs*max_latency*(10**-12 if pJ_to_J else 1)
 
-# Latency [cc]
+"""
+Latency [cc]
+"""
 def Latency(arch):
     max_latency = 0
     for level in arch:
@@ -181,7 +197,11 @@ def Latency(arch):
             break
     return max_latency
 
-# Energy [pJ or uJ]
+"""
+Energy [pJ]
+
+If pJ_to_uJ is True, the returned value is in [uJ].
+"""
 def Energy(arch, pJ_to_uJ = False):
     WMOPs = 0
     for level in arch:
@@ -196,7 +216,9 @@ def Energy(arch, pJ_to_uJ = False):
             break
     return WMOPs*(10**-6 if pJ_to_uJ else 1)
 
-# Memory Operations
+"""
+Total read and write Memory Operations (MOPs)
+"""
 def MOPs(arch):
     tot_reads, tot_writes = 0, 0
     for level in arch:
@@ -211,6 +233,10 @@ def MOPs(arch):
             break
     return tot_reads, tot_writes
 
+"""
+Mapper Step 2: allocate to fanout levels the maximum number of iterations
+               which can fit on their instances.
+"""
 def fanoutMaximization(arch, comp, bias_read, verbose = False):
     # TECHNIQUE: Find the prime factors of the mesh, and pick the largest common ones with the dimension
     # mapped along that mesh, continue picking from the largest ones in common until you run out!
@@ -279,6 +305,16 @@ def fanoutMaximization(arch, comp, bias_read, verbose = False):
     if verbose: print(f"After fanout maximization (Wart: {Wart(arch, comp, bias_read):.3e}):")
     if verbose: printFactors(arch)
 
+
+"""
+Generates/Enumerates all moves producing adjacent mappings to the provided one.
+Returned moves may violate constraints, use utils.moveFactor to apply them.
+
+Arguments:
+- iterate_amounts: if True, adjacency is extended to the idea of moving
+                   any arity of a factor between loops on the same dimension.
+- skip_fanouts: if True, fanout levels are not considered for adjacency.
+"""
 def factorsIterator(arch, iterate_amounts = False, skip_fanouts = False):
     for level_idx in range(len(arch)):
         if skip_fanouts and (isinstance(arch[level_idx], FanoutLevel)):
@@ -291,6 +327,14 @@ def factorsIterator(arch, iterate_amounts = False, skip_fanouts = False):
                 else:
                     yield level_idx, dim, factor, 1
 
+"""
+Mapper Step 3: greedy descent factors allocation, navigating the map-space
+               via adjacent mappings, until a locally optimal one is found.
+
+Adjacency: two mappings are adjacent if one can be constructed from the other
+           by moving exactly one prime factor between two loops/levels on the
+           same dimension.
+"""
 def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = False):
     if verbose: print("-------- factorFlow --------")
     if not already_initialized:
@@ -310,6 +354,7 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
     if verbose: print(f"Initial condition (Wart: {Wart(arch, comp, bias_read):.3e}):")
     if verbose: printFactors(arch)
 
+    # never re-visit the same mapping
     already_seen = [hashFromFactors(arch)]
 
     # maximize fanout dimensions
@@ -392,21 +437,33 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
     if verbose: printFactors(arch)
     return arch, best_wart
 
+"""
+Mapper Step 1: exhaustively iterate loop permutations/dataflows.
+
+Adaptive (memory) programming: a permutation is in equi-dataflow with an already
+         tried one if they have the same order of loops with more than one iteration.
+         That is an equi-dataflow match, and we restart step 3 from the mapping known
+         for the past permutation, with the current permutation, rather than starting
+         with all prime factors on the first level.
+         
+The function is meant as the entry point for multiple processes or threads:
+- thread_idx: set to -1 if multiple tasks are not used, otherwise set to the current
+              task's index.
+- threads_count: total number of employed tasks.
+- return_list: shared list among tasks for the return values.
+"""
 def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, threads_count = 1, return_list = None, verbose = False):
     #Here changing settings is fine, we are within a process
     Settings.forcedSettingsUpdate(arch, False)
     
     if verbose and thread_idx <= 0: print("-------- optimizeDataflows --------")
     targets = list(filter(lambda l : isinstance(l, MemLevel) or isinstance(l, ComputeLevel) or (Settings.ONLY_MAXIMIZE_ONE_FANOUT_DIM and isinstance(l, FanoutLevel)), arch))
-    # TODO: pre-exclude some permutations according to the work on derivatives
-    # HOW-TO:
-    # - prevent from permuting any dimension with iterations/factors constrainted at 1
-    # - come up with something from derivatives...
-    # - TOP TIER: exploit the fact that you are going in order! If the difference between the
-    #   next configuration and the current one involves a dimension which had in the previous
-    #   best mapping a factor of 1, SKIP THE CONFIGURATION
+    # IDEA: pre-exclude some permutations!
+    # HOW-TO: exploit the fact that you are going in order! If the difference between the
+    # next configuration and the current one involves a dimension which had in the previous
+    # best mapping a factor of 1, SKIP THE CONFIGURATION.
     # NOTE: we cannot truly skip the configuration, but we can re-start the factorFlow exploration
-    # from where it was left!
+    # from where it was left -> adaptive programming!
     permutations = [[perm for perm in interleave(level.dataflow_constraints, [dim for dim in level.dataflow if dim not in level.dataflow_constraints])] if not isinstance(level, FanoutLevel) else rotations(level.dims) for level in targets]
     
     # divide permutations across threads (if multithreading is enabled)
@@ -448,7 +505,7 @@ def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, threads_count = 1,
         if thread_idx == -1: print(f"Dataflow permutations to try: {total_perms}")
         else: print(f"Dataflow permutations to try in thread {thread_idx}: {total_perms}")
     
-    # clockwork counter to try all permutations at all levels
+    # clockwork counter to try all permutations at all levels (in lexicographical order)
     current_perms = [0 for _ in targets]
     # optimization: If the difference between the next permutation and the current one involves solely dimensions which had in the previous best mapping a factor of 1, skip the permutation
     # TODO: could be improved further by looking at the whole history of swapped dimensions
@@ -524,7 +581,9 @@ def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, threads_count = 1,
     if thread_idx == -1: return best_arch, best_wart, best_perm
     else: return_list[thread_idx] = (best_arch, best_wart, best_perm)
 
-
+"""
+Mapper entry point.
+"""
 def run_engine(arch, comp, bias_read, verbose = False):
     start_time = time.time()
 

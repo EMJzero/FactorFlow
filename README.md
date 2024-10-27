@@ -39,9 +39,11 @@ Additional scripts:
 
 - [`explore_starting_points.py`](comparisons/explore_starting_points.py) enables the gathering of data for FactorFlow optimization resutls when starting from a random mapping during local search on a given architecture. Run with `python -m comparisons.explore_starting_points`, use `-h` for usage instructions.
 
+At last, consider updating [`settings.py`](settings.py) to accomodate your needs, every setting is thereby documented.
+
 ## Spatial Architectures Modeling
 
-<img style="float: right; width: 140px; padding-left:15px" src="static/SA.png">
+<img src="static/SA.png" width="140px" padding-left="15px" align="right"/>
 
 Spatial architectures in FactorFlow are modeled as a hierarchy of levels. Level types, implemented in [`levels.py`](levels.py) are:
 - **Memory Level (`MemLevel`)**: represents a storage component holding part of a GEMM's three operands, described by its capacity, access energy, bandwidth, and which operand(s) it stores. We say that a level "bypasses" an operand whenever it does not store it, delegating it to other levels. The outermost level of any SA must be a memory where operands are loaded before the computation, usually representing DRAM or permanent storage.
@@ -51,7 +53,8 @@ Spatial architectures in FactorFlow are modeled as a hierarchy of levels. Level 
 - **Compute Level (`ComputeLevel`)**, represents a functional unit capable of performing MAC operations, defined by the energy and the number of clock cycles required for a MAC. More than one MAC operation can be modeled to run in the specified cycles. This level must occur only once and be the innermost one.
 
 <!--<p align="center"><img style="centered; width: 450px" src="static/dataflows.png"></p>-->
-<img style="float: left; width: 400px; padding-right:15px" src="static/dataflows.png">
+<!--<img style="float: left; width: 400px; padding-right:15px" src="static/dataflows.png">-->
+<img src="static/dataflows.png" width="400px" padding-right="15px" align="left"/>
 
 All levels (memory ones in particular) significantly change their behaviour depending on the **dataflow** they employ. A dataflow specified how data moves in between two levels during each iteration of the computation, in particular determining which operands are loaded (read) from outer memories, which are offloaded (written/updated) to outer memories, and which may remain on inner memories. Dataflows are essential in determining how data reuse is exploited on SAs. <br>
 For each level of the memory hierarchy, we classify its dataflow according to which values are kept stationary and thus accessed more than once, or which sets of partial results are to be ready together for a single reduction:
@@ -66,13 +69,13 @@ For each level of the memory hierarchy, we classify its dataflow according to wh
 
 ### Workload
 
-<img style="float: right; width: 550px; padding-left:15px" src="static/GEMM.png">
+<img src="static/GEMM.png" width="550px" padding-left="15px" align="right"/>
 
 Our workload is a GEMM, which, from a computational perspective, can be seen as three nested loops around a MAC operation. The order of loops is arbitrary and data reuse opportunities arise from all three operands being orthogonal to a different loop and remaining constant throughout it. The $Bias$ can be handled outside said loops by initializing $Out$ with it, and carrying out the sum through the first round of accumulation. Hence, we consider as operands solely the input $In$, the weights $W$, and the output $Out$.
 
 ### Mapping Decisions
 
-<img style="float: right; width: 550px; padding-left:15px" src="static/mapping.png">
+<img src="static/mapping.png" width="500px" padding-left="15px" align="right"/>
 
 Let's introduce the three main decisions involved in a mapping:
 
@@ -96,4 +99,4 @@ In summary, each dataflow reuses the operand orthogonal to the dimension of the 
 
 Throughout FactorFlow, the following compact notation for triplets of nested loops on a level is used:
 
-<p align="center"><img style="centered; width: 450px" src="static/compact_notation.png"></p>
+<img src="static/compact_notation.png" width="450px" align="center"/>
