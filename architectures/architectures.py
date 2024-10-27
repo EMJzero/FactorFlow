@@ -396,13 +396,16 @@ arch_tpu = [
 # >>>  NVDLA  <<<
 # >  small ver. <
 
-arch_nvdla = [
-    
-]
+#arch_nvdla = [
+#]
 
 """
-Certainly! The exact configuration of the NVDLA (Nvidia Deep Learning Accelerator) used in the
-experiments is as follows:
+ChatGPT gathering information on NVDLA:
+
+--------------------------------------------------------------------------------
+
+The exact configuration of the NVDLA (Nvidia Deep Learning Accelerator) used in the experiments is as
+follows:
 
 - **PE Array**: 64x8
 - **NoC (Network-on-Chip)**: Bus + Tree

@@ -29,7 +29,7 @@ class Settings():
     # If True, in case of 2 dimensions on the same fanout only the FIRST dimension gets factors
     # allocation during fanout maximization. If False, both dimensions equally get factors.
     # NOTE: when this is True, optimizeDataflows also iterates over which dimension is maximized,
-    #        in other words also fanout dimensions are permutated to pick the one to maximize.
+    #       in other words also fanout dimensions are permutated to pick the one to maximize.
     # >>> Play with this in case of 2 dimensions on the same fanout!!!
     # >>> Setting this to True costs Nx time, where N is the number of rotations of fanout dimensions.
     # >>> Henceforth, usage is suggested when MULTITHREADED is True.
@@ -73,6 +73,11 @@ class Settings():
     # NOTE: this is NOT required if you have installed Accelergy as a python package and can import it.
     ACCELERGY_PATH = "\\\\wsl.localhost/Ubuntu-22.04/home/zero/.local/lib/python3.10/site-packages"
     
+    """
+    Update settings:
+    - initialize some depeding on runtime information.
+    - set some to best target the provided architecture.
+    """
     @classmethod
     def forcedSettingsUpdate(self, arch, verbose = True):
         #return
