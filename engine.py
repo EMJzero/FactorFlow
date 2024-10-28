@@ -53,8 +53,9 @@ def updateStats(arch, bias_read):
                 level.setAboveMOPs(0, 0)
             level.setMOPs(in_reads = in_reads, w_reads = w_reads, out_reads = out_reads, in_writes = in_writes, w_writes = w_writes, out_writes = out_writes)
             level.temporal_iterations = temporal_iterations
-            reads = in_reads + w_reads + out_reads
-            writes = in_writes + w_writes + out_writes
+            #print(f"Wordline padding extra reads: {sum(level.getWordlinesPad(in_reads, w_reads, out_reads))}, extra writes {sum(level.getWordlinesPad(in_writes, w_writes, out_writes))}")
+            reads = in_reads + w_reads + out_reads + sum(level.getWordlinesPad(in_reads, w_reads, out_reads))
+            writes = in_writes + w_writes + out_writes + sum(level.getWordlinesPad(in_writes, w_writes, +out_writes))
             WMOPs += level.WMOPs(reads, writes)
             temporal_iterations *= level.factors.fullProduct()
             acc_out_reads_factors *= level.factors.dimProduct('K')
