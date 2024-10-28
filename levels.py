@@ -461,13 +461,35 @@ class MemLevel(Level):
         return in_reads, w_reads, out_reads, out_writes, out_reads_factors                                                   #S;G
 
     """
+    Returns the extra values unused on the last wordline for each operand
+    which are read/written nonetheless to work on the others.
+    
+    Relevant HP: reads and writes are always sequential and span a full tile
+                 before looping back to the start if needed, therefore we can
+                 simply use the number of tiles accessed to count how many
+                 times the final wordline's padding is encountered.
+    """
+    def getWordlinesPad(self, in_accesses, w_accesses, out_accesses):
+        if self.values_per_wordline == 1:
+            return 0, 0, 0
+        # these are the complete tiles on this level
+        in_tile_size = self.factors.dimProduct('K')*self.factors.dimProduct('N')*self.tile_sizes.K*self.tile_sizes.N
+        w_tile_size = self.factors.dimProduct('M')*self.factors.dimProduct('K')*self.tile_sizes.M*self.tile_sizes.K
+        out_tile_size = self.factors.dimProduct('M')*self.factors.dimProduct('N')*self.tile_sizes.M*self.tile_sizes.N
+        # extra values wasted at the end of the last wordline
+        in_wordline_pad = in_tile_size%self.values_per_wordline
+        w_wordline_pad = w_tile_size%self.values_per_wordline
+        out_wordline_pad = out_tile_size%self.values_per_wordline
+        return in_wordline_pad*(in_accesses//in_tile_size), w_wordline_pad*(w_accesses//w_tile_size), out_wordline_pad*(out_accesses//out_tile_size)
+
+    """
     Returns the provided MOPs (or newly calculated MOPs for this level)
     scaled by the MOPs's weight/energy at this level.
     """
     def WMOPs(self, reads = None, writes = None):
         if not (reads and writes):
-            reads = reads if reads else self.in_reads + self.w_reads + self.out_reads
-            writes = writes if writes else self.in_writes + self.w_writes + self.out_writes
+            reads = reads if reads else self.in_reads + self.w_reads + self.out_reads + sum(self.getWordlinesPad(self.in_reads, self.w_reads, self.out_reads))
+            writes = writes if writes else self.in_writes + self.w_writes + self.out_writes + sum(self.getWordlinesPad(self.in_writes, self.w_writes, self.out_writes))
         return self.read_access_energy * reads + self.write_access_energy * writes
 
     """
