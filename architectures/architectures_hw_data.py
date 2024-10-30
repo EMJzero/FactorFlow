@@ -1,6 +1,7 @@
 from architectures.accelergy_hw_data import accelergy_estimate_energy
 from architectures.architectures import WS, OS, IS
 from levels import *
+from arch import *
 
 
 # >>> EYERISS <<<
@@ -25,7 +26,7 @@ def arch_eyeriss_hw_data():
         "cycle_seconds": cycle_seconds,
     }
     
-    return [
+    return Arch([
         MemLevel(
             name = "DRAM",
             dataflow_constraints = [], # ['N', 'M', 'K'],
@@ -190,6 +191,6 @@ def arch_eyeriss_hw_data():
             cycles = 1,
             factors_constraints = {'N': 1}
         )
-    ]
+    ], name="Eyeriss (Accelergy data)")
 
 arch_eyeriss_hw_data = arch_eyeriss_hw_data()

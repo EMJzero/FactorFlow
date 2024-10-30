@@ -1,6 +1,7 @@
 from levels import *
+from arch import *
 
-arch = [
+arch = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = [],
@@ -51,4 +52,4 @@ arch = [
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )], name="Example Architecture")
