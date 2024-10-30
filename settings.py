@@ -30,6 +30,7 @@ class Settings():
     # allocation during fanout maximization. If False, both dimensions equally get factors.
     # NOTE: when this is True, optimizeDataflows also iterates over which dimension is maximized,
     #       in other words also fanout dimensions are permutated to pick the one to maximize.
+    #       [Dimensions with a constraint are not iterated over]
     # >>> Play with this in case of 2 dimensions on the same fanout!!!
     # >>> Setting this to True costs Nx time, where N is the number of rotations of fanout dimensions.
     # >>> Henceforth, usage is suggested when MULTITHREADED is True.
