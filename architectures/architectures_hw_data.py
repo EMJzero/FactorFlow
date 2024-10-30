@@ -51,7 +51,7 @@ def arch_eyeriss_hw_data():
             word_bits = 64,
             value_bits = 8,
             bandwidth = 8, # operands per cycle (shared)
-            factors_contraints = {},
+            factors_constraints = {},
             bypasses = []
         ),
         MemLevel(
@@ -79,21 +79,21 @@ def arch_eyeriss_hw_data():
             word_bits = 64,
             value_bits = 8,
             bandwidth = 32, # operands per cycle (shared)
-            factors_contraints = {},
+            factors_constraints = {},
             bypasses = ['w']
         ),
         FanoutLevel(
             name = "SACols",
             mesh = 14,
             dims = WS[:2],
-            factors_contraints = {} #{'M': 8}
+            factors_constraints = {} #{'M': 8}
         ),
         FanoutLevel(
             name = "SARows",
             mesh = 12,
             # PATHOLOGICAL CASE: dims = WS[:2],
             dims = WS[:1],
-            factors_contraints = {} #{'M': 12}
+            factors_constraints = {} #{'M': 12}
         ),
         MemLevel(
             name = "InRegister",
@@ -120,7 +120,7 @@ def arch_eyeriss_hw_data():
             word_bits = 16,
             value_bits = 8,
             bandwidth = 4, # operands per cycle (shared)
-            factors_contraints = {'M': 1, 'K': 1, 'N': 1},
+            factors_constraints = {'M': 1, 'K': 1, 'N': 1},
             bypasses = ['w', 'out']
         ),
         MemLevel(
@@ -132,7 +132,7 @@ def arch_eyeriss_hw_data():
             word_bits = 16,
             value_bits = 8,
             bandwidth = 4, # operands per cycle (shared)
-            factors_contraints = {'M': 1, 'N': 1},
+            factors_constraints = {'M': 1, 'N': 1},
             bypasses = ['in', 'out']
         ),
         MemLevel(
@@ -144,7 +144,7 @@ def arch_eyeriss_hw_data():
             word_bits = 16,
             value_bits = 16,
             bandwidth = 4, # operands per cycle (shared)
-            factors_contraints = {'K': 1, 'N': 1},
+            factors_constraints = {'K': 1, 'N': 1},
             bypasses = ['in', 'w']
         ),
         ComputeLevel(
@@ -188,7 +188,7 @@ def arch_eyeriss_hw_data():
                 "arguments": {}
             }),
             cycles = 1,
-            factors_contraints = {'N': 1}
+            factors_constraints = {'N': 1}
         )
     ]
 

@@ -110,7 +110,7 @@ if __name__ == "__main__":
         print("------------------------------")
         sys.exit(1)
         
-    if not (len(sys.argv) >= 2 and (sys.argv[1] in supported_archs or os.path.exists(sys.argv[1]))):
+    if not (len(sys.argv) >= 2 and (sys.argv[1] in supported_archs or os.path.exists(sys.argv[1]) and sys.argv[1][-3:] == '.py')):
         help_arch(supported_archs)
         #sys.exit(1)
         print("WARNING: no architecture provided, defaulting to \"eyeriss\"...\n")
@@ -118,7 +118,7 @@ if __name__ == "__main__":
         if sys.argv[1] in supported_archs:
             arch = supported_archs[sys.argv[1]]
             print("Architecture:", sys.argv[1])
-        else:
+        elif sys.argv[1][-3:] == '.py':
             arch_file = importlib.util.spec_from_file_location("user_arch", sys.argv[1])
             arch_module = importlib.util.module_from_spec(arch_file)
             sys.modules["user_arch"] = arch_module

@@ -16,7 +16,7 @@ arch_gemmini = [
         size = 2**64-1, # number of entries
         value_access_energy = 64.00, # per operand/scalar access (pJ)
         bandwidth = 8, # operands per cycle (shared)
-        factors_contraints = {},
+        factors_constraints = {},
         bypasses = []
     ),
     MemLevel(
@@ -25,7 +25,7 @@ arch_gemmini = [
         size = 512*(2**10), # number of entries
         value_access_energy = 3.47, # per operand (pJ)
         bandwidth = 32, # operands per cycle (shared)
-        factors_contraints = {},
+        factors_constraints = {},
         bypasses = ['out']
     ),
     FanoutLevel(
@@ -35,7 +35,7 @@ arch_gemmini = [
         # pe_to_pe should be used, since Gemmini uses a systolic array, but Timeloop
         # does not have this feature, so for sake of comparison, it is turned off
         #pe_to_pe = True, 
-        factors_contraints = {'M': 16}
+        factors_constraints = {'M': 16}
     ),
     MemLevel(
         name = "Accumulator",
@@ -43,7 +43,7 @@ arch_gemmini = [
         size = (256//4)*(2**10)//16, # number of entries (PER ONE INSTANCE!!) (remember to account for operand size)
         value_access_energy = 4.01, # per operand (pJ)
         bandwidth = 8, # operands per cycle (shared)
-        factors_contraints = {}, # the systolic array does a 16x16 matmul in this case
+        factors_constraints = {}, # the systolic array does a 16x16 matmul in this case
         bypasses = ['in', 'w']
     ),
     FanoutLevel(
@@ -53,7 +53,7 @@ arch_gemmini = [
         # pe_to_pe should be used, since Gemmini uses a systolic array, but Timeloop
         # does not have this feature, so for sake of comparison, it is turned off
         #pe_to_pe = True, 
-        factors_contraints = {'K': 16}
+        factors_constraints = {'K': 16}
     ),
     MemLevel(
         name = "Register",
@@ -61,7 +61,7 @@ arch_gemmini = [
         size = 1, # number of entries
         value_access_energy = 0.01, # per operand (pJ)
         bandwidth = 2, # operands per cycle (shared)
-        factors_contraints = {'M': 1, 'K': 1, 'N': 16},
+        factors_constraints = {'M': 1, 'K': 1, 'N': 16},
         bypasses = ['in', 'out']
     ),
     ComputeLevel(
@@ -70,7 +70,7 @@ arch_gemmini = [
         size = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
-        factors_contraints = {'N': 1}
+        factors_constraints = {'N': 1}
     )]
 
 
@@ -84,7 +84,7 @@ arch_true_gemmini = [
         size = 2**64-1, # number of entries
         value_access_energy = 64.00, # per operand/scalar access (pJ)
         bandwidth = 8, # operands per cycle (shared)
-        factors_contraints = {},
+        factors_constraints = {},
         bypasses = []
     ),
     MemLevel(
@@ -93,7 +93,7 @@ arch_true_gemmini = [
         size = 512*(2**10), # number of entries
         value_access_energy = 3.47, # per operand (pJ)
         bandwidth = 32, # operands per cycle (shared)
-        factors_contraints = {},
+        factors_constraints = {},
         bypasses = ['out']
     ),
     FanoutLevel(
@@ -101,7 +101,7 @@ arch_true_gemmini = [
         dim = WS[0],
         mesh = 16,
         pe_to_pe = True, 
-        factors_contraints = {'M': 16}
+        factors_constraints = {'M': 16}
     ),
     MemLevel(
         name = "Accumulator",
@@ -109,7 +109,7 @@ arch_true_gemmini = [
         size = (256//4)*(2**10)//16, # number of entries (PER ONE INSTANCE!!) (remeber to account for operand size)
         value_access_energy = 4.01, # per operand (pJ)
         bandwidth = 8, # operands per cycle (shared)
-        factors_contraints = {'M': 1, 'K': 1, 'N': 16}, # the systolic array does a 16x16 matmul in this case
+        factors_constraints = {'M': 1, 'K': 1, 'N': 16}, # the systolic array does a 16x16 matmul in this case
         bypasses = ['in', 'w']
     ),
     FanoutLevel(
@@ -117,7 +117,7 @@ arch_true_gemmini = [
         dim = WS[1],
         mesh = 16,
         pe_to_pe = True, 
-        factors_contraints = {'K': 16}
+        factors_constraints = {'K': 16}
     ),
     MemLevel(
         name = "Register",
@@ -125,7 +125,7 @@ arch_true_gemmini = [
         size = 1, # number of entries
         value_access_energy = 0.01, # per operand (pJ)
         bandwidth = 2, # operands per cycle (shared)
-        factors_contraints = {'M': 1, 'K': 1, 'N': 1},
+        factors_constraints = {'M': 1, 'K': 1, 'N': 1},
         bypasses = ['in', 'out']
     ),
     ComputeLevel(
@@ -134,7 +134,7 @@ arch_true_gemmini = [
         size = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
-        factors_contraints = {'N': 1}
+        factors_constraints = {'N': 1}
     )]
 
 
@@ -150,7 +150,7 @@ arch_eyeriss = [
         size = 2**64-1, # number of entries
         value_access_energy = 64.00, # per operand/scalar access (pJ)
         bandwidth = 8, # operands per cycle (shared)
-        factors_contraints = {},
+        factors_constraints = {},
         bypasses = []
     ),
     MemLevel(
@@ -159,21 +159,21 @@ arch_eyeriss = [
         size = 16384*8, # number of entries
         value_access_energy = 2.02, # per operand (pJ)
         bandwidth = 32, # operands per cycle (shared)
-        factors_contraints = {},
+        factors_constraints = {},
         bypasses = ['w']
     ),
     FanoutLevel(
         name = "SACols",
         mesh = 14,
         dims = WS[:2],
-        factors_contraints = {} #{'M': 8}
+        factors_constraints = {} #{'M': 8}
     ),
     FanoutLevel(
         name = "SARows",
         mesh = 12,
         # PATHOLOGICAL CASE: dims = WS[:2],
         dims = WS[:1],
-        factors_contraints = {} #{'M': 12}
+        factors_constraints = {} #{'M': 12}
     ),
     MemLevel(
         name = "InRegister",
@@ -181,7 +181,7 @@ arch_eyeriss = [
         size = 12*2, # number of entries
         value_access_energy = 0.69, # per operand (pJ)
         bandwidth = 4, # operands per cycle (shared)
-        factors_contraints = {'M': 1, 'K': 1, 'N': 1},
+        factors_constraints = {'M': 1, 'K': 1, 'N': 1},
         bypasses = ['w', 'out']
     ),
     MemLevel(
@@ -190,7 +190,7 @@ arch_eyeriss = [
         size = 192*2, # number of entries
         value_access_energy = 1.97, # per operand (pJ)
         bandwidth = 4, # operands per cycle (shared)
-        factors_contraints = {'M': 1, 'N': 1},
+        factors_constraints = {'M': 1, 'N': 1},
         bypasses = ['in', 'out']
     ),
     MemLevel(
@@ -199,7 +199,7 @@ arch_eyeriss = [
         size = 16*2, # number of entries
         value_access_energy = 1.34, # per operand (pJ)
         bandwidth = 4, # operands per cycle (shared)
-        factors_contraints = {'K': 1, 'N': 1},
+        factors_constraints = {'K': 1, 'N': 1},
         bypasses = ['in', 'w']
     ),
     ComputeLevel(
@@ -208,7 +208,7 @@ arch_eyeriss = [
         size = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
-        factors_contraints = {'N': 1}
+        factors_constraints = {'N': 1}
     )]
 
 
@@ -225,7 +225,7 @@ arch_simba = [
         size = 2**64-1, # number of entries
         value_access_energy = 64.00, # per operand/scalar access (pJ)
         bandwidth = 8, # operands per cycle (shared)
-        factors_contraints = {},
+        factors_constraints = {},
         bypasses = []
     ),
     MemLevel(
@@ -234,14 +234,14 @@ arch_simba = [
         size = 65536, # number of entries
         value_access_energy = 1.85, # per operand (pJ)
         bandwidth = 2**10, # operands per cycle (shared)
-        factors_contraints = {},
+        factors_constraints = {},
         bypasses = ['w']
     ),
     FanoutLevel(
         name = "PEs",
         mesh = 16,
         dims = ['K', 'M'],
-        factors_contraints = {}
+        factors_constraints = {}
     ),
     MemLevel(
         name = "PEInputBuffer",
@@ -249,14 +249,14 @@ arch_simba = [
         size = 65536, # number of entries
         value_access_energy = 30.26, # per operand (pJ)
         bandwidth = 2**10, # operands per cycle (shared)
-        factors_contraints = {},
+        factors_constraints = {},
         bypasses = ['w', 'out']
     ),
     FanoutLevel(
         name = "DistributionBuffers",
         mesh = 4,
         dims = ['M'],
-        factors_contraints = {}
+        factors_constraints = {}
     ),
     MemLevel(
         name = "PEWeightBuffer",
@@ -264,7 +264,7 @@ arch_simba = [
         size = 32768, # number of entries
         value_access_energy = 15.16, # per operand (pJ)
         bandwidth = 2**10, # operands per cycle (shared)
-        factors_contraints = {},
+        factors_constraints = {},
         bypasses = ['in', 'out']
     ),
     MemLevel(
@@ -273,14 +273,14 @@ arch_simba = [
         size = 128, # number of entries
         value_access_energy = 3.93, # per operand (pJ)
         bandwidth = 2**10, # operands per cycle (shared)
-        factors_contraints = {},
+        factors_constraints = {},
         bypasses = ['in', 'w']
     ),
     FanoutLevel(
         name = "RegMac",
         mesh = 4,
         dims = ['K'],
-        factors_contraints = {}
+        factors_constraints = {}
     ),
     MemLevel(
         name = "PEWeightRegs",
@@ -288,7 +288,7 @@ arch_simba = [
         size = 1, # number of entries (64 in TL)
         value_access_energy = 0.70, # per operand (pJ)
         bandwidth = 2**10, # operands per cycle (shared)
-        factors_contraints = {},
+        factors_constraints = {},
         bypasses = ['in', 'out']
     ),
     ComputeLevel(
@@ -297,7 +297,7 @@ arch_simba = [
         size = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
-        factors_contraints = {'N': 1}
+        factors_constraints = {'N': 1}
     )]
 
 
@@ -313,7 +313,7 @@ arch_tpu = [
         size = 8*2**30, # number of entries
         value_access_energy = 560.00, # per operand/scalar access (pJ)
         bandwidth = 8, # operands per cycle (shared)
-        factors_contraints = {},
+        factors_constraints = {},
         bypasses = ['w']
     ),
     MemLevel(
@@ -322,7 +322,7 @@ arch_tpu = [
         size = 8*2**30, # number of entries
         value_access_energy = 560.00, # per operand/scalar access (pJ)
         bandwidth = 8, # operands per cycle (shared)
-        factors_contraints = {},
+        factors_constraints = {},
         bypasses = ['in', 'out']
     ),
     MemLevel(
@@ -331,7 +331,7 @@ arch_tpu = [
         size = 24*(2**20), # number of entries
         value_access_energy = 19.66, # per operand (pJ)
         bandwidth = 32, # operands per cycle (shared)
-        factors_contraints = {},
+        factors_constraints = {},
         # The Unified Buffer also stores outputs after the activation is
         # performed. Not modeled as we are only interested in GEMMs.
         bypasses = ['w', 'out']
@@ -342,7 +342,7 @@ arch_tpu = [
         size = 4*2**16, # number of entries
         value_access_energy = 2.11, # per operand/scalar access (pJ)
         bandwidth = 8, # operands per cycle (shared)
-        factors_contraints = {},
+        factors_constraints = {},
         bypasses = ['in', 'out']
     ),
     FanoutLevel(
@@ -352,7 +352,7 @@ arch_tpu = [
         # pe_to_pe should be used, since the TPU uses a systolic array, but Timeloop
         # does not have this feature, so for sake of comparison, it is turned off
         #pe_to_pe = True, 
-        factors_contraints = {'M': 256}
+        factors_constraints = {'M': 256}
     ),
     MemLevel(
         name = "Accumulator",
@@ -361,7 +361,7 @@ arch_tpu = [
         value_access_energy = 3.03, # per operand (pJ)
         bandwidth = 8, # operands per cycle (shared)
         multiple_buffering = 2,
-        factors_contraints = {},
+        factors_constraints = {},
         bypasses = ['in', 'w']
     ),
     FanoutLevel(
@@ -371,7 +371,7 @@ arch_tpu = [
         # pe_to_pe should be used, since the TPU uses a systolic array, but Timeloop
         # does not have this feature, so for sake of comparison, it is turned off
         #pe_to_pe = True, 
-        factors_contraints = {'K': 256}
+        factors_constraints = {'K': 256}
     ),
     MemLevel(
         name = "Register",
@@ -380,7 +380,7 @@ arch_tpu = [
         value_access_energy = 0.01, # per operand (pJ)
         bandwidth = 2, # operands per cycle (shared)
         multiple_buffering = 2,
-        factors_contraints = {'M': 1, 'K': 1}, # L is free
+        factors_constraints = {'M': 1, 'K': 1}, # L is free
         bypasses = ['in', 'out']
     ),
     ComputeLevel(
@@ -389,7 +389,7 @@ arch_tpu = [
         size = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
-        factors_contraints = {'N': 1}
+        factors_constraints = {'N': 1}
     )]
 
 

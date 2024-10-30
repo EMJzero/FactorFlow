@@ -19,7 +19,7 @@ class Level:
     factors: None # iterations done for the dimensions at this lever
     tile_sizes: None # indicate the size of a tile used in the level BELOW
     constraints: None
-    factors_contraints: None
+    factors_constraints: None
 
     """
     Add "amount" instances of the provided factor to those of
@@ -62,9 +62,9 @@ class Level:
     its constraints.
     """
     def checkConstraints(self):
-        return (('M' not in self.factors_contraints or self.factors_contraints['M'] == self.factors.dimProduct('M')) and
-                ('K' not in self.factors_contraints or self.factors_contraints['K'] == self.factors.dimProduct('K')) and
-                ('N' not in self.factors_contraints or self.factors_contraints['N'] == self.factors.dimProduct('N')))
+        return (('M' not in self.factors_constraints or self.factors_constraints['M'] == self.factors.dimProduct('M')) and
+                ('K' not in self.factors_constraints or self.factors_constraints['K'] == self.factors.dimProduct('K')) and
+                ('N' not in self.factors_constraints or self.factors_constraints['N'] == self.factors.dimProduct('N')))
         
     """
     Returns a string describing the current violation of constraints,
@@ -73,9 +73,9 @@ class Level:
     def logConstraintsViolation(self):
         if not self.checkConstraints():
             return (f"CONSTRAINTS VIOLATION: level {self.name}, "
-        + (f"constrained M: {self.factors_contraints['M']} VS obtained M: {self.factors.dimProduct('M')}, " if ('M' in self.factors_contraints and self.factors_contraints['M'] != self.factors.dimProduct('M')) else "")
-        + (f"constrained K: {self.factors_contraints['K']} VS obtained K: {self.factors.dimProduct('K')}, " if ('K' in self.factors_contraints and self.factors_contraints['K'] != self.factors.dimProduct('K')) else "")
-        + (f"constrained N: {self.factors_contraints['N']} VS obtained N: {self.factors.dimProduct('N')}, " if ('N' in self.factors_contraints and self.factors_contraints['N'] != self.factors.dimProduct('N')) else ""))[:-2]
+        + (f"constrained M: {self.factors_constraints['M']} VS obtained M: {self.factors.dimProduct('M')}, " if ('M' in self.factors_constraints and self.factors_constraints['M'] != self.factors.dimProduct('M')) else "")
+        + (f"constrained K: {self.factors_constraints['K']} VS obtained K: {self.factors.dimProduct('K')}, " if ('K' in self.factors_constraints and self.factors_constraints['K'] != self.factors.dimProduct('K')) else "")
+        + (f"constrained N: {self.factors_constraints['N']} VS obtained N: {self.factors.dimProduct('N')}, " if ('N' in self.factors_constraints and self.factors_constraints['N'] != self.factors.dimProduct('N')) else ""))[:-2]
         return ""
 
     def __getitem__(self, key):
@@ -113,8 +113,8 @@ Constructor arguments:
 - tile_sizes: specifies the initial tile sizes for this level, should not be normally
               specified aside for initializing MSE from a specific configuration,
               in which case it must be consistent with any other factors initialization
-- factors_contraints: constraints on the factors that must be placed on this level.
-                      Valid dictionary keys are 'M', 'K', and 'N'.
+- factors_constraints: constraints on the factors that must be placed on this level.
+                       Valid dictionary keys are 'M', 'K', and 'N'.
 - dataflow_constraints: constraints for the order of loops at this level, for any dim
                         not specified here, all permutations are tried while keeping
                         fixed the relative order of constrained dimensions.
@@ -133,7 +133,7 @@ Constructor arguments:
   - Note: either both or none of read_bandwidth and write_bandwidth must be specified
 """
 class MemLevel(Level):
-    def __init__(self, name, size, value_access_energy = None, wordline_access_energy = None, word_bits = None, value_bits = None, leakage_energy = 0, bandwidth = None, dataflow = None, factors = None, tile_sizes = None, factors_contraints = None, dataflow_constraints = None, bypasses = None, multiple_buffering = 1,  read_value_access_energy = None, write_value_access_energy = None, read_wordline_access_energy = None, write_wordline_access_energy = None, read_bandwidth = None, write_bandwidth = None):
+    def __init__(self, name, size, value_access_energy = None, wordline_access_energy = None, word_bits = None, value_bits = None, leakage_energy = 0, bandwidth = None, dataflow = None, factors = None, tile_sizes = None, factors_constraints = None, dataflow_constraints = None, bypasses = None, multiple_buffering = 1,  read_value_access_energy = None, write_value_access_energy = None, read_wordline_access_energy = None, write_wordline_access_energy = None, read_bandwidth = None, write_bandwidth = None):
         self.name = name
         # NOTE: this way of constructing the dataflow from the constraints is redundant, but useful if one wants to skip the
         # exploration of permutations since with this method the dataflow will be immediately consistent with constraints.
@@ -160,8 +160,8 @@ class MemLevel(Level):
         assert self.read_bandwidth >= 0 and self.write_bandwidth >= 0, f"Level: {name}: a negative bandwidth ({self.read_bandwidth} R, {self.write_bandwidth} W) does not mean anything."
         self.factors = factors if factors else Factors()
         self.tile_sizes = tile_sizes if tile_sizes else Shape(1, 1, 1)
-        self.factors_contraints = factors_contraints if factors_contraints else {}
-        assert all([constr in self.dataflow for constr in self.factors_contraints.keys()]), f"Level: {name}: all dims with factor constraints ({self.factors_contraints.keys()}) must be part of the dataflow ({self.dataflow})."
+        self.factors_constraints = factors_constraints if factors_constraints else {}
+        assert all([constr in self.dataflow for constr in self.factors_constraints.keys()]), f"Level: {name}: all dims with factor constraints ({self.factors_constraints.keys()}) must be part of the dataflow ({self.dataflow})."
         self.dataflow_constraints = dataflow_constraints if dataflow_constraints else []
         assert all([constr in self.dataflow for constr in self.dataflow_constraints]), f"Level: {name}: all dims specified as dataflow constraints ({self.dataflow_constraints}) must be part of the dataflow ({self.dataflow})."
         self.bypasses = bypasses if bypasses else []
@@ -172,11 +172,11 @@ class MemLevel(Level):
         assert self.multiple_buffering >= 1, f"Level: {name}: multiple buffering ({self.multiple_buffering}) must be at least 1."
         # NOTE: removed for consistency with Timeloop - not necessarily wrong...
         #if not self.in_bp and not self.w_bp:
-        #    self.factors_contraints['K'] = 1
+        #    self.factors_constraints['K'] = 1
         #if not self.in_bp and not self.out_bp:
-        #    self.factors_contraints['N'] = 1
+        #    self.factors_constraints['N'] = 1
         #if not self.out_bp and not self.w_bp:
-        #    self.factors_contraints['M'] = 1
+        #    self.factors_constraints['M'] = 1
 
         # STATISTICS:
         self.instances = 1
@@ -521,8 +521,8 @@ Constructor arguments:
 - tile_sizes: specifies the initial tile sizes for this level, should not be normally
               specified aside for initializing MSE from a specific configuration,
               in which case it must be consistent with any other factors initialization
-- factors_contraints: constraints on the factors that must be placed on this level.
-                      Valid dictionary keys are 'M', 'K', and 'N'.
+- factors_constraints: constraints on the factors that must be placed on this level.
+                       Valid dictionary keys are 'M', 'K', and 'N'.
 """
 # IMPORTANT:
 # Currently fanout levels reuse all operands mapped on them, period. However this should be up to hardware support.
@@ -532,7 +532,7 @@ Constructor arguments:
 # them both to false.
 # Obviously, in case N < |dims| you need to change the "iterate permutations" step to actually permute spatial loops!!!
 class FanoutLevel(Level):
-    def __init__(self, name, mesh, dim : str = None, dims : list[str] = None, pe_to_pe = False, spatial_multicast_support = True, spatial_reduction_support = True, power_gating_support = False, factors = None, tile_sizes = None, factors_contraints = None):
+    def __init__(self, name, mesh, dim : str = None, dims : list[str] = None, pe_to_pe = False, spatial_multicast_support = True, spatial_reduction_support = True, power_gating_support = False, factors = None, tile_sizes = None, factors_constraints = None):
         self.name = name
         assert (dim and not dims) or (dims and not dim), f"Level: {name}: exactly one of dim ({dim}) or dims ({dims}) must be specified."
         self.dims = [dim] if dim else dims
@@ -547,7 +547,7 @@ class FanoutLevel(Level):
         self.power_gating_support = power_gating_support
         self.factors = factors if factors else Factors()
         self.tile_sizes = tile_sizes if tile_sizes else Shape(1, 1, 1)
-        self.factors_contraints = factors_contraints if factors_contraints else {}
+        self.factors_constraints = factors_constraints if factors_constraints else {}
 
     """
     Let inputs be the amount of operations occuring on a level below this fanout,
@@ -629,15 +629,15 @@ Constructor arguments:
 - tile_sizes: specifies the initial tile sizes for this level, should not be normally
               specified aside for initializing MSE from a specific configuration,
               in which case it must be consistent with any other factors initialization
-- factors_contraints: constraints on the factors that must be placed on this level.
-                      Valid dictionary keys are 'M', 'K', and 'N'.
+- factors_constraints: constraints on the factors that must be placed on this level.
+                       Valid dictionary keys are 'M', 'K', and 'N'.
 - dataflow_constraints: constraints for the order of loops at this level, for any dim
                         not specified here, all permutations are tried while keeping
                         fixed the relative order of constrained dimensions.
                         Valid strings are 'M', 'K', and 'N'.
 """
 class ComputeLevel(Level):
-    def __init__(self, name, size, compute_energy, cycles, leakage_energy = 0, dataflow = None, factors = None, tile_sizes = None, factors_contraints = None, dataflow_constraints = None):
+    def __init__(self, name, size, compute_energy, cycles, leakage_energy = 0, dataflow = None, factors = None, tile_sizes = None, factors_constraints = None, dataflow_constraints = None):
         self.name = name
         # NOTE: this way of constructing the dataflow from the constraints is redundant, but useful if one wants to skip the
         # exploration of permutations since with this method the dataflow will be immediately consistent with constraints.
@@ -653,7 +653,7 @@ class ComputeLevel(Level):
         self.cycles = cycles # clock cycles used per element in the inner dimension (latency of one MAC)
         self.factors = factors if factors else Factors()
         self.tile_sizes = tile_sizes if tile_sizes else Shape(1, 1, 1)
-        self.factors_contraints = factors_contraints if factors_contraints else {}
+        self.factors_constraints = factors_constraints if factors_constraints else {}
         self.dataflow_constraints = dataflow_constraints if dataflow_constraints else []
         assert all([constr in self.dataflow for constr in self.dataflow_constraints]), f"Level: {name}: all dims specified as dataflow constraints ({self.dataflow_constraints}) must be part of the dataflow ({self.dataflow})."
 
