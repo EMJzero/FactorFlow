@@ -147,6 +147,7 @@ def enforceFactorsConstraints(arch, allow_padding = False, verbose_padding = Tru
                     arch[0].factors[dim] = primeFactors(padded_dim_size)
                     arch[0].factors.resetDimProducts([dim])
                     for fact, amount in constr_factors[dim].items():
+                        # be wary that here we skip constraints checks in moveFactor, so one must follow up this method with findConstraintsViolation
                         assert moveFactor(arch, 0, i, dim, fact, amount, True, True), "Failed to enforce constraints even with padding..."
 
 """
@@ -307,7 +308,7 @@ def interleave(array, elements):
 Returns a list of all versions of 'array' that differ by a rotation (or shift).
 """
 def rotations(array):
-    return [array[i:] + array[:i] for i in range(len(array))]
+    return [array[i:] + array[:i] for i in range(len(array))] or [[]]
 
 """
 Returns, if any, the sets of elements which can undergo a cyclic shift and

@@ -3,6 +3,8 @@
 - ~~prune some dataflow permutations via the work on derivatives~~
 - in case of padding, ignore the MAC cost for padding values
 
+- decide whether to treat ComputeLevels as FanoutLevels or MemLevels in fanoutMaximization and optimizeDataflows!!!
+
 ```python
 # >>>> THIS WAS LOCATED IN LEVEL.PY, LINE 122 <<<<
 # >> MODEL VECTOR ENERGY FIX <<

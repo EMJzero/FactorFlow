@@ -241,7 +241,9 @@ def fanoutMaximization(arch, comp, bias_read, verbose = False):
     # TECHNIQUE: Find the prime factors of the mesh, and pick the largest common ones with the dimension
     # mapped along that mesh, continue picking from the largest ones in common until you run out!
     # NOTE: When making this handle Fanouts with multiple unrolled dimensions, the issue is dividing the fanout size across dimensions
-    # IDEA: use a binary (ternary) tree expansion, start with 50-50 (30-30-30), explore each child and prune worse branches?
+    # IDEA: Use a binary (ternary) tree expansion, start with 50-50 (30-30-30), explore each child and prune worse branches?
+    # IMPORTANT: from optimizeDataflow, if there are unconstrained dimensions, those are always the first ones!
+    # TODO: Evaluate whether to apply this step to ComputeLevels too (see fanoutMaximization TODOs as well)!
     if verbose: print("\nStarting fanout maximization:\n")
     if Settings.ONLY_MAXIMIZE_ONE_FANOUT_DIM:
         if Settings.PADDED_MAPPINGS:
@@ -278,12 +280,15 @@ def fanoutMaximization(arch, comp, bias_read, verbose = False):
         for i in range(1, len(arch) - 1): # second round: fill any remaining space as best as you can
             level = arch[i]
             if isinstance(level, FanoutLevel):
-                dim = level.dataflow[0]
-                if level.factors.fullProduct() < level.mesh:
-                    space = level.mesh // level.factors.fullProduct()
-                    factors, _ = largest_product_less_than(arch[0].factors.toList(dim), space)
-                    for f in factors:
-                        assert moveFactor(arch, 0, i, dim, f, 1), f"Fanout maximization failed to fill up the leftover space on level {level.name}, dim {dim} with factor {f} (mesh: {level.mesh}, space: {space})..."
+                for dim in level.dataflow: # as a last resort, try dimensions beyond the first one
+                    if dim in level.factors_contraints:
+                        continue
+                    if level.factors.fullProduct() < level.mesh:
+                        space = level.mesh // level.factors.fullProduct()
+                        factors, _ = largest_product_less_than(arch[0].factors.toList(dim), space)
+                        for f in factors:
+                            if not moveFactor(arch, 0, i, dim, f, 1) and verbose:
+                                print(f"Fanout maximization failed to fill up the leftover space on level {level.name}, dim {dim} with factor {f} (mesh: {level.mesh}, space: {space})...")
     
     else:
         for i in range(1, len(arch) - 1):
@@ -464,7 +469,8 @@ def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, threads_count = 1,
     # best mapping a factor of 1, SKIP THE CONFIGURATION.
     # NOTE: we cannot truly skip the configuration, but we can re-start the factorFlow exploration
     # from where it was left -> adaptive programming!
-    permutations = [[perm for perm in interleave(level.dataflow_constraints, [dim for dim in level.dataflow if dim not in level.dataflow_constraints])] if not isinstance(level, FanoutLevel) else rotations(level.dims) for level in targets]
+    # TODO: Evaluate whether to treat ComputeLevels as FanoutLevels too (see fanoutMaximization TODOs as well)!
+    permutations = [[perm for perm in interleave(level.dataflow_constraints, [dim for dim in level.dataflow if dim not in level.dataflow_constraints])] if not isinstance(level, FanoutLevel) else [rot + [dim for dim in level.dims if dim in level.factors_contraints] for rot in rotations([dim for dim in level.dims if dim not in level.factors_contraints])] for level in targets]
     
     # divide permutations across threads (if multithreading is enabled)
     #print(f"Original permutations: {permutations}")
