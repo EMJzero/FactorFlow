@@ -56,15 +56,14 @@ class Level:
         else:
             raise Exception(f"Unrecognized Dataflow in level {self.name} with dimension {innermost[-1]} != M, K, or N!")
 
-    # TODO: add the possibility for < and > constraints!
     """
     Returns True iif factors present on this level satisfy all of
     its constraints.
     """
     def checkConstraints(self):
-        return (('M' not in self.factors_constraints or self.factors_constraints['M'] == self.factors.dimProduct('M')) and
-                ('K' not in self.factors_constraints or self.factors_constraints['K'] == self.factors.dimProduct('K')) and
-                ('N' not in self.factors_constraints or self.factors_constraints['N'] == self.factors.dimProduct('N')))
+        return (all([(dim not in self.factors_constraints or self.factors_constraints[dim] == self.factors.dimProduct(dim)) for dim in self.dataflow]) and
+                all([(dim + '<=' not in self.factors_constraints or self.factors_constraints[dim + '<='] >= self.factors.dimProduct(dim)) for dim in self.dataflow]) and
+                all([(dim + '>=' not in self.factors_constraints or self.factors_constraints[dim + '>='] <= self.factors.dimProduct(dim)) for dim in self.dataflow]))
         
     """
     Returns a string describing the current violation of constraints,
@@ -73,9 +72,9 @@ class Level:
     def logConstraintsViolation(self):
         if not self.checkConstraints():
             return (f"CONSTRAINTS VIOLATION: level {self.name}, "
-        + (f"constrained M: {self.factors_constraints['M']} VS obtained M: {self.factors.dimProduct('M')}, " if ('M' in self.factors_constraints and self.factors_constraints['M'] != self.factors.dimProduct('M')) else "")
-        + (f"constrained K: {self.factors_constraints['K']} VS obtained K: {self.factors.dimProduct('K')}, " if ('K' in self.factors_constraints and self.factors_constraints['K'] != self.factors.dimProduct('K')) else "")
-        + (f"constrained N: {self.factors_constraints['N']} VS obtained N: {self.factors.dimProduct('N')}, " if ('N' in self.factors_constraints and self.factors_constraints['N'] != self.factors.dimProduct('N')) else ""))[:-2]
+                + ', '.join([f"constrained {dim} == {self.factors_constraints[dim]} VS obtained {dim}: {self.factors.dimProduct(dim)}, " for dim in self.dataflow if (dim in self.factors_constraints and self.factors_constraints[dim] != self.factors.dimProduct(dim))])
+                + ', '.join([f"constrained {dim} <= {self.factors_constraints[dim + '<=']} VS obtained {dim}: {self.factors.dimProduct(dim)}, " for dim in self.dataflow if (dim + '<=' in self.factors_constraints and self.factors_constraints[dim + '<='] >= self.factors.dimProduct(dim))])
+                + ', '.join([f"constrained {dim} >= {self.factors_constraints[dim + '>=']} VS obtained {dim}: {self.factors.dimProduct(dim)}, " for dim in self.dataflow if (dim + '>=' in self.factors_constraints and self.factors_constraints[dim + '>='] <= self.factors.dimProduct(dim))]))
         return ""
 
     def __getitem__(self, key):
@@ -114,7 +113,12 @@ Constructor arguments:
               specified aside for initializing MSE from a specific configuration,
               in which case it must be consistent with any other factors initialization
 - factors_constraints: constraints on the factors that must be placed on this level.
-                       Valid dictionary keys are 'M', 'K', and 'N'.
+                      Valid dictionary keys are:
+                          - 'M', 'K', and 'N' for exact values;
+                          - 'M<=', 'K<=', and 'N<=' for upper bounds;
+                          - 'M>=', 'K>=', and 'N>=' for lower bounds;
+                      NOTE: the use of the '<=' and '>=' constraints does not shorten the
+                            mapper's runtime as much as exact constraints.
 - dataflow_constraints: constraints for the order of loops at this level, for any dim
                         not specified here, all permutations are tried while keeping
                         fixed the relative order of constrained dimensions.
@@ -161,7 +165,9 @@ class MemLevel(Level):
         self.factors = factors if factors else Factors()
         self.tile_sizes = tile_sizes if tile_sizes else Shape(1, 1, 1)
         self.factors_constraints = factors_constraints if factors_constraints else {}
-        assert all([constr in self.dataflow for constr in self.factors_constraints.keys()]), f"Level: {name}: all dims with factor constraints ({self.factors_constraints.keys()}) must be part of the dataflow ({self.dataflow})."
+        assert all([constr[0] in self.dataflow and constr[1:] in ['', '>=', '<='] for constr in self.factors_constraints.keys()]), f"Level: {name}: all keys within factor constraints ({list(self.factors_constraints.keys())}) must be a dimension of the dataflow ({self.dataflow}) and in the form 'dim', 'dim<=', or 'dim>='."
+        assert all([sum(constr[0] == dim for constr in self.factors_constraints.keys()) <= 1 for dim in self.dataflow]), f"Level: {name}: each dimension must occur at most once in constraints ({list(self.factors_constraints.keys())}), regardless of the use of '>=' or '<='."
+        assert all([value > 0 for value in self.factors_constraints.values()]), f"Level: {name}: all constraints ({self.factors_constraints}) must have a value strictly > 0."
         self.dataflow_constraints = dataflow_constraints if dataflow_constraints else []
         assert all([constr in self.dataflow for constr in self.dataflow_constraints]), f"Level: {name}: all dims specified as dataflow constraints ({self.dataflow_constraints}) must be part of the dataflow ({self.dataflow})."
         self.bypasses = bypasses if bypasses else []
@@ -544,7 +550,12 @@ Constructor arguments:
               specified aside for initializing MSE from a specific configuration,
               in which case it must be consistent with any other factors initialization
 - factors_constraints: constraints on the factors that must be placed on this level.
-                       Valid dictionary keys are 'M', 'K', and 'N'.
+                      Valid dictionary keys are:
+                          - 'M', 'K', and 'N' for exact values;
+                          - 'M<=', 'K<=', and 'N<=' for upper bounds;
+                          - 'M>=', 'K>=', and 'N>=' for lower bounds;
+                      NOTE: the use of the '<=' and '>=' constraints does not shorten the
+                            mapper's runtime as much as exact constraints.
 """
 # IMPORTANT:
 # Currently fanout levels reuse all operands mapped on them, period. However this should be up to hardware support.
@@ -570,6 +581,9 @@ class FanoutLevel(Level):
         self.factors = factors if factors else Factors()
         self.tile_sizes = tile_sizes if tile_sizes else Shape(1, 1, 1)
         self.factors_constraints = factors_constraints if factors_constraints else {}
+        assert all([constr[0] in self.dataflow and constr[1:] in ['', '>=', '<='] for constr in self.factors_constraints.keys()]), f"Level: {name}: all keys within factor constraints ({list(self.factors_constraints.keys())}) must be a dimension of the dataflow ({self.dataflow}) and in the form 'dim', 'dim<=', or 'dim>='."
+        assert all([sum(constr[0] == dim for constr in self.factors_constraints.keys()) <= 1 for dim in self.dataflow]), f"Level: {name}: each dimension must occur at most once in constraints ({list(self.factors_constraints.keys())}), regardless of the use of '>=' or '<='."
+        assert all([value > 0 for value in self.factors_constraints.values()]), f"Level: {name}: all constraints ({self.factors_constraints}) must have a value strictly > 0."
 
     """
     Let inputs be the amount of operations occuring on a level below this fanout,
@@ -652,7 +666,12 @@ Constructor arguments:
               specified aside for initializing MSE from a specific configuration,
               in which case it must be consistent with any other factors initialization
 - factors_constraints: constraints on the factors that must be placed on this level.
-                       Valid dictionary keys are 'M', 'K', and 'N'.
+                      Valid dictionary keys are:
+                          - 'M', 'K', and 'N' for exact values;
+                          - 'M<=', 'K<=', and 'N<=' for upper bounds;
+                          - 'M>=', 'K>=', and 'N>=' for lower bounds;
+                      NOTE: the use of the '<=' and '>=' constraints does not shorten the
+                            mapper's runtime as much as exact constraints.
 - dataflow_constraints: constraints for the order of loops at this level, for any dim
                         not specified here, all permutations are tried while keeping
                         fixed the relative order of constrained dimensions.
@@ -676,6 +695,9 @@ class ComputeLevel(Level):
         self.factors = factors if factors else Factors()
         self.tile_sizes = tile_sizes if tile_sizes else Shape(1, 1, 1)
         self.factors_constraints = factors_constraints if factors_constraints else {}
+        assert all([constr[0] in self.dataflow and constr[1:] in ['', '>=', '<='] for constr in self.factors_constraints.keys()]), f"Level: {name}: all keys within factor constraints ({list(self.factors_constraints.keys())}) must be a dimension of the dataflow ({self.dataflow}) and in the form 'dim', 'dim<=', or 'dim>='."
+        assert all([sum(constr[0] == dim for constr in self.factors_constraints.keys()) <= 1 for dim in self.dataflow]), f"Level: {name}: each dimension must occur at most once in constraints ({list(self.factors_constraints.keys())}), regardless of the use of '>=' or '<='."
+        assert all([value > 0 for value in self.factors_constraints.values()]), f"Level: {name}: all constraints ({self.factors_constraints}) must have a value strictly > 0."
         self.dataflow_constraints = dataflow_constraints if dataflow_constraints else []
         assert all([constr in self.dataflow for constr in self.dataflow_constraints]), f"Level: {name}: all dims specified as dataflow constraints ({self.dataflow_constraints}) must be part of the dataflow ({self.dataflow})."
 
