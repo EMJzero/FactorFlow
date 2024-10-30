@@ -5,6 +5,11 @@ Spatial architectures aim to reduce the energy and latency required for running 
 
 This repository presents **FactorFlow (FF)**, a framework for mapping GEMMs on SAs, comprising an analytical model and a mapper. The analytical model within FF uses a description of a SA and a mapping to quickly estimate the performance of the two. FF's mapper employs instead three steps to search the map-space for optimal mappings, while using the analytical model to gather feedback throughout its exploration.
 
+## Authors
+
+- **Marco Ronzani** ([marco.ronzani@polimi.it](mailto:marco.ronzani@polimi.it)), PhD Student, DEIB, Politecnico di Milano
+- **Cristina Silvano** ([cristina.silvano@polimi.it](mailto:cristina.silvano@polimi.it)), Full Professor, DEIB, Politecnico di Milano
+
 ## Publications
 
 Marco Ronzani and Cristina Silvano. 2025. **FactorFlow: Mapping GEMMs on Spatial Architectures through Adaptive Programming and Greedy Optimization.** In 30th Asia and South Pacific Design Automation Conference (ASPDAC ’25), January 20–23, 2025, Tokyo, Japan. ACM, New York, NY, USA, 7 pages. https://doi.org/10.1145/3658617.3697670
@@ -15,7 +20,17 @@ Marco Ronzani and Cristina Silvano. 2025. **FactorFlow: Mapping GEMMs on Spatial
 
 Requires **Python 3.9** or newer.
 
-Clone this repository and run both `main.py` and `test.py` to ensure that you have all required python packages installed.
+To setup FactorFlow run:
+```bash
+# clone this repository
+git clone https://github.com/EMJzero/FactorFlow.git
+cd FactorFlow
+# install python dependencies
+pip install -r requirements.txt
+# test that everything works
+python test.py
+python main.py
+```
 
 Optionally install Accelergy through the instructions for the [Timeloop Infrastructure (native install)](https://timeloop.csail.mit.edu/v4/installation). Install solely Accelergy, there is no need for Timeloop.<br>
 This isn't required to used FactorFlow as long as you provide the component-level energy estimates yourself or use the provided examples in [`architectures.py`](architectures/architectures.py) or [`solutions_db.py`](architectures/solutions_db.py). Installing Accelergy is instead mandatory whenever you intend for it to provide component level energy estimates (that is, whenever importing [`accelergy_hw_data.py`](architectures/accelergy_hw_data.py), like shown in [`architectures_hw_data.py`](architectures/architectures_hw_data.py)).<br>
@@ -37,7 +52,7 @@ Additional scripts:
 
 - [`explore_random_mappings.py`](comparisons/explore_random_mappings.py) enables the gathering of data for random mappings on a given architecture. Run with `python -m comparisons.explore_random_mappings`, use `-h` for usage instructions.
 
-- [`explore_starting_points.py`](comparisons/explore_starting_points.py) enables the gathering of data for FactorFlow optimization resutls when starting from a random mapping during local search on a given architecture. Run with `python -m comparisons.explore_starting_points`, use `-h` for usage instructions.
+- [`explore_starting_points.py`](comparisons/explore_starting_points.py) enables the gathering of data for FactorFlow optimization results when starting from a random mapping during local search on a given architecture. Run with `python -m comparisons.explore_starting_points`, use `-h` for usage instructions.
 
 At last, consider updating [`settings.py`](settings.py) to accomodate your needs, every setting is thereby documented.
 
