@@ -290,7 +290,7 @@ if __name__ == "__main__":
     
     for level_idx in range(len(arch)):
         #if not isinstance(arch[level_idx], ComputeLevel):
-        arch[level_idx].factors_contraints = base_arch[level_idx].factors_contraints
+        arch[level_idx].factors_constraints = base_arch[level_idx].factors_constraints
     #Here changing settings is fine, there are no processes
     Settings.forcedSettingsUpdate(arch, False)
     

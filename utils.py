@@ -17,8 +17,8 @@ def findConstraintsViolation(arch, verbose = True):
             if dim not in level.dataflow and len(level.factors[dim]) != 0:
                 if verbose: print(f"Factor-dataflow missmatch for constraint ({dim}: {level.factors.dimProduct(dim)}) enforced on level \"{level.name}\"")
                 violation = True
-            if dim in level.factors_contraints and level.factors_contraints[dim] != level.factors.dimProduct(dim):
-                if verbose: print(f"Constraint violation, desired was ({dim}: {level.factors_contraints[dim]}), obtained was ({dim}: {level.factors.dimProduct(dim)}), on level \"{level.name}\"")
+            if dim in level.factors_constraints and level.factors_constraints[dim] != level.factors.dimProduct(dim):
+                if verbose: print(f"Constraint violation, desired was ({dim}: {level.factors_constraints[dim]}), obtained was ({dim}: {level.factors.dimProduct(dim)}), on level \"{level.name}\"")
                 violation = True
     return violation
 
@@ -126,13 +126,13 @@ def enforceFactorsConstraints(arch, allow_padding = False, verbose_padding = Tru
     # assuming that initially all factors are on the first level
     for i in range(1, len(arch)):
         level = arch[i]
-        assert 'M' not in level.factors_contraints or 'M' in level.dataflow, f"Level {level.name}: cannot enforce constraint on dimension 'M' not in dataflow {level.dataflow}."
-        assert 'K' not in level.factors_contraints or 'K' in level.dataflow, f"Level {level.name}: cannot enforce constraint on dimension 'K' not in dataflow {level.dataflow}."
-        assert 'N' not in level.factors_contraints or 'N' in level.dataflow, f"Level {level.name}: cannot enforce constraint on dimension 'N' not in dataflow {level.dataflow}."
+        assert 'M' not in level.factors_constraints or 'M' in level.dataflow, f"Level {level.name}: cannot enforce constraint on dimension 'M' not in dataflow {level.dataflow}."
+        assert 'K' not in level.factors_constraints or 'K' in level.dataflow, f"Level {level.name}: cannot enforce constraint on dimension 'K' not in dataflow {level.dataflow}."
+        assert 'N' not in level.factors_constraints or 'N' in level.dataflow, f"Level {level.name}: cannot enforce constraint on dimension 'N' not in dataflow {level.dataflow}."
         constr_factors = Factors(
-            M = primeFactors(level.factors_contraints['M']) if 'M' in level.factors_contraints else {},
-            K = primeFactors(level.factors_contraints['K']) if 'K' in level.factors_contraints else {},
-            N = primeFactors(level.factors_contraints['N']) if 'N' in level.factors_contraints else {}
+            M = primeFactors(level.factors_constraints['M']) if 'M' in level.factors_constraints else {},
+            K = primeFactors(level.factors_constraints['K']) if 'K' in level.factors_constraints else {},
+            N = primeFactors(level.factors_constraints['N']) if 'N' in level.factors_constraints else {}
             )
         if arch[0].factors.isSubset(constr_factors) or allow_padding:
             for dim in ['M', 'K', 'N']:
@@ -259,20 +259,20 @@ def fitConstraintsToComp(arch, comp, arch_name = None, comp_name = None):
     for dim in ['M', 'K', 'N']:
         total_constraint = 1
         for level in arch:
-            if dim in level.factors_contraints:
-                if comp[dim] // total_constraint < level.factors_contraints[dim]:
+            if dim in level.factors_constraints:
+                if comp[dim] // total_constraint < level.factors_constraints[dim]:
                     if comp[dim] // total_constraint <= 0:
                         if arch_name and comp_name:
-                            print(f"ERROR: failed to fit comp: {comp_name} to arch: {arch_name} because the constraint on level: {level.name} and dimension: {dim} ({level.factors_contraints[dim]}) cannot be satisfied by comp ({dim}: {comp[dim]})!")
+                            print(f"ERROR: failed to fit comp: {comp_name} to arch: {arch_name} because the constraint on level: {level.name} and dimension: {dim} ({level.factors_constraints[dim]}) cannot be satisfied by comp ({dim}: {comp[dim]})!")
                         else:
-                            assert False, f"Failed to fit comp to arch because the constraint on level: {level.name} and dimension: {dim} ({level.factors_contraints[dim]}) cannot be satisfied by comp ({dim}: {comp[dim]})!"
+                            assert False, f"Failed to fit comp to arch because the constraint on level: {level.name} and dimension: {dim} ({level.factors_constraints[dim]}) cannot be satisfied by comp ({dim}: {comp[dim]})!"
                         failed = True
                         break
-                    print(f"WARNING: updating constraint ({dim}: {level.factors_contraints[dim]}) on level \"{level.name}\" to ({dim}: {comp[dim] // total_constraint}) to fit the computation.")
-                    level.factors_contraints[dim] = comp[dim] // total_constraint
-                elif (comp[dim] // total_constraint) % level.factors_contraints[dim] != 0 and not Settings.PADDED_MAPPINGS:
-                    assert False, f"Failed to fit comp to arch because the constraint on level {level.name} ({dim}: {level.factors_contraints[dim]}) does not divide comp dimension {dim} ({comp[dim]}) exactly. To compensate, consider setting 'Settings.PADDED_MAPPINGS' to True."
-            total_constraint *= level.factors_contraints[dim] if dim in level.factors_contraints else 1
+                    print(f"WARNING: updating constraint ({dim}: {level.factors_constraints[dim]}) on level \"{level.name}\" to ({dim}: {comp[dim] // total_constraint}) to fit the computation.")
+                    level.factors_constraints[dim] = comp[dim] // total_constraint
+                elif (comp[dim] // total_constraint) % level.factors_constraints[dim] != 0 and not Settings.PADDED_MAPPINGS:
+                    assert False, f"Failed to fit comp to arch because the constraint on level {level.name} ({dim}: {level.factors_constraints[dim]}) does not divide comp dimension {dim} ({comp[dim]}) exactly. To compensate, consider setting 'Settings.PADDED_MAPPINGS' to True."
+            total_constraint *= level.factors_constraints[dim] if dim in level.factors_constraints else 1
         if failed:
             break
     return failed

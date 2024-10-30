@@ -281,7 +281,7 @@ def fanoutMaximization(arch, comp, bias_read, verbose = False):
             level = arch[i]
             if isinstance(level, FanoutLevel):
                 for dim in level.dataflow: # as a last resort, try dimensions beyond the first one
-                    if dim in level.factors_contraints:
+                    if dim in level.factors_constraints:
                         continue
                     if level.factors.fullProduct() < level.mesh:
                         space = level.mesh // level.factors.fullProduct()
@@ -381,7 +381,7 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
             #print("Initial proposal: ", src_level_idx, dim, factor)
 
             # go back to the first valid source
-            while src_level_idx >= 0 and dim in arch[src_level_idx].factors_contraints:
+            while src_level_idx >= 0 and dim in arch[src_level_idx].factors_constraints:
                 src_level_idx -= 1
             if src_level_idx < 0 or factor not in arch[src_level_idx].factors[dim]:
                 continue
@@ -389,12 +389,12 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
             # pick the factor from the highest level that you can
             #new_src = src_level_idx - 1
             #while new_src >= 0 and factor in arch[new_src].factors[dim]:
-            #    if dim not in arch[new_src].factors_contraints:
+            #    if dim not in arch[new_src].factors_constraints:
             #        src_level_idx = new_src
             #    new_src -= 1
 
             for dst_level_idx in range(len(arch)):
-                if dst_level_idx != src_level_idx and dim not in arch[dst_level_idx].factors_contraints and dim in arch[dst_level_idx].dataflow and (not Settings.FREEZE_SA or not isinstance(arch[dst_level_idx], FanoutLevel)):
+                if dst_level_idx != src_level_idx and dim not in arch[dst_level_idx].factors_constraints and dim in arch[dst_level_idx].dataflow and (not Settings.FREEZE_SA or not isinstance(arch[dst_level_idx], FanoutLevel)):
                     #print(src_level_idx, dst_level_idx, dim, factor)
                     if target_dst_level_idx and dst_level_idx != target_dst_level_idx:
                         continue
@@ -470,7 +470,7 @@ def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, threads_count = 1,
     # NOTE: we cannot truly skip the configuration, but we can re-start the factorFlow exploration
     # from where it was left -> adaptive programming!
     # TODO: Evaluate whether to treat ComputeLevels as FanoutLevels too (see fanoutMaximization TODOs as well)!
-    permutations = [[perm for perm in interleave(level.dataflow_constraints, [dim for dim in level.dataflow if dim not in level.dataflow_constraints])] if not isinstance(level, FanoutLevel) else [rot + [dim for dim in level.dims if dim in level.factors_contraints] for rot in rotations([dim for dim in level.dims if dim not in level.factors_contraints])] for level in targets]
+    permutations = [[perm for perm in interleave(level.dataflow_constraints, [dim for dim in level.dataflow if dim not in level.dataflow_constraints])] if not isinstance(level, FanoutLevel) else [rot + [dim for dim in level.dims if dim in level.factors_constraints] for rot in rotations([dim for dim in level.dims if dim not in level.factors_constraints])] for level in targets]
     
     # divide permutations across threads (if multithreading is enabled)
     #print(f"Original permutations: {permutations}")
