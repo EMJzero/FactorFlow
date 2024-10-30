@@ -16,10 +16,9 @@ from levels import *
 from prints import *
 from utils import *
 
-#from solutions_db import *
+#from architectures.solutions_db import *
 #from comparisons.ZigZag.zigzag_archs import *
 #from comparisons.CoSA.cosa_archs import *
-#from comparisons.MAESTRO.maestro_archs import *
 
 
 # CLI MANAGEMENT

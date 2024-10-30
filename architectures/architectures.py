@@ -1,4 +1,5 @@
 from levels import *
+from arch import *
 
 # DATAFLOWS (outer to inner):
 WS = ['M', 'K', 'N']
@@ -9,7 +10,7 @@ IS = ['K', 'N', 'M']
 # >>> GEMMINI <<<
 # > WS version  <
 
-arch_gemmini = [
+arch_gemmini = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = [], #['N', 'K', 'M'],
@@ -71,13 +72,13 @@ arch_gemmini = [
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )], name="Gemmini")
 
 
 # >>> TRUE GEMMINI <<<
 # TODO: UPDATE ME OR REMOVE ME!
 
-arch_true_gemmini = [
+arch_true_gemmini = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = [], #['N', 'K', 'M'],
@@ -135,7 +136,7 @@ arch_true_gemmini = [
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )], name="True Gemmini")
 
 
 # >>> EYERISS <<<
@@ -143,7 +144,7 @@ arch_true_gemmini = [
 # C -> K
 # M -> M
 # P -> N
-arch_eyeriss = [
+arch_eyeriss = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = [], # ['N', 'M', 'K'],
@@ -209,7 +210,7 @@ arch_eyeriss = [
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )], name="Eyeriss")
 
 
 # >>> SIMBA <<<
@@ -218,7 +219,7 @@ arch_eyeriss = [
 # M -> M
 # P -> N
 # REMEMBER: number of entries, aka size, is (width*depth)/(cluster_size*datawidth)
-arch_simba = [
+arch_simba = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = [],
@@ -298,7 +299,7 @@ arch_simba = [
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )], name="Simba")
 
 
 # >>>  TPU  <<<
@@ -306,7 +307,7 @@ arch_simba = [
 
 # NOTE: use STEPS_TO_EXPLORE = 2
 
-arch_tpu = [
+arch_tpu = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = [],
@@ -390,7 +391,7 @@ arch_tpu = [
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )], name="TPUv1")
 
 
 # >>>  NVDLA  <<<
