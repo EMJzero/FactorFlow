@@ -133,10 +133,10 @@ def randomFactorsInitializations(arch, comp):
 
 # Random-ish but faster
 def randomFactorsInitializationsFast(arch, comp, random_moves = 10):
-    initFactors(arch, comp)
-    enforceFactorsConstraints(arch)
-    setupBypasses(arch)
-    updateInstances(arch)
+    arch.initFactors(comp)
+    arch.enforceFactorsConstraints()
+    arch.setupBypasses()
+    arch.updateInstances()
     
     mems = list(filter(lambda l : isinstance(l, MemLevel), arch))
     factors = reduce(lambda l, a : l + a, [[(dim, f) for f in mems[0].factors.toList(dim)] for dim in ['M', 'K', 'N']], [])
@@ -146,16 +146,16 @@ def randomFactorsInitializationsFast(arch, comp, random_moves = 10):
         for dim, factor in factors:
             for _ in range(n):
                 dst_level_idx = random.choice(range(len(mems)))
-                if dst_level_idx == 0 or moveFactor(arch, 0, dst_level_idx, dim, factor, 1):
+                if dst_level_idx == 0 or arch.moveFactor(0, dst_level_idx, dim, factor, 1):
                     break
     
-    already_seen = [hashFromFactors(arch)]
+    already_seen = [arch.hashFromFactors()]
     
     fails = 0
     while True:
         random_arch = copy.deepcopy(arch)
         randomMoves(random_arch, random_moves)
-        hash = hashFromFactors(random_arch)
+        hash = random_arch.hashFromFactors()
         if hash not in already_seen:
             already_seen.append(hash)
             fails = 0
@@ -168,10 +168,10 @@ def randomFactorsInitializationsFast(arch, comp, random_moves = 10):
 
 # Truly random, but slower
 def randomFactorsInitializationsSlow(arch, comp, random_moves = 10):
-    initFactors(arch, comp)
-    enforceFactorsConstraints(arch)
-    setupBypasses(arch)
-    updateInstances(arch)
+    arch.initFactors(comp)
+    arch.enforceFactorsConstraints()
+    arch.setupBypasses()
+    arch.updateInstances()
     
     def randomMoves(arch, n):
         mems = list(filter(lambda l : isinstance(l, MemLevel), arch))
@@ -183,16 +183,16 @@ def randomFactorsInitializationsSlow(arch, comp, random_moves = 10):
             for factor in mems[0].factors.toList(dim):
                 for _ in range(n):
                     dst_level_idx = random.choice(range(len(mems)))
-                    if dst_level_idx == 0 or moveFactor(arch, 0, dst_level_idx, dim, factor, 1):
+                    if dst_level_idx == 0 or arch.moveFactor(0, dst_level_idx, dim, factor, 1):
                         break
     
-    already_seen = [hashFromFactors(arch)]
+    already_seen = [arch.hashFromFactors()]
     
     fails = 0
     while True:
         random_arch = copy.deepcopy(arch)
         randomMoves(random_arch, random_moves)
-        hash = hashFromFactors(random_arch)
+        hash = random_arch.hashFromFactors()
         if hash not in already_seen:
             already_seen.append(hash)
             fails = 0
@@ -307,14 +307,14 @@ if __name__ == "__main__":
 
         #print("Generating random starting points...")
         arch_copy = copy.deepcopy(arch)
-        if fitConstraintsToComp(arch_copy, comp, arch_name, comp_name):
+        if arch_copy.fitConstraintsToComp(comp, comp_name):
             continue
         random_archs = randomFactorsInitializationsFast(arch_copy, comp, RANDOM_MOVES)
         #_ = next(random_archs)
         print(f"Starting optimization of {MAX_TRIES} different starting points:")
         for current_arch in random_archs:
             try:
-                assert not findConstraintsViolation(current_arch, False)
+                assert not current_arch.findConstraintsViolation(False)
                 if STORE_INITIAL_CONDITIONS: initial_conditions.append(factorsString(current_arch))
                 current_arch, wart = factorFlow(current_arch, comp, bias_read, already_initialized = True)
                 edp = EDP(current_arch, bias_read, True)
@@ -358,7 +358,7 @@ if __name__ == "__main__":
             #    print(f"\nComplete random starting point Warts: {short_warts}")
         else:
             arch_ff = copy.deepcopy(arch)
-            if fitConstraintsToComp(arch_ff, comp, arch_name, comp_name):
+            if arch_ff.fitConstraintsToComp(comp, comp_name):
                 continue
             arch_ff, factorflow_wart = factorFlow(arch_ff, comp, bias_read)
             factorflow_edp = EDP(arch_ff, bias_read, True)
