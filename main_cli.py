@@ -161,7 +161,7 @@ if __name__ == "__main__":
             #for comp_name, current_comp in zip(list(comp_maestro_blas.keys())[:2], list(comp_maestro_blas.values())[:2]):
                 current_arch_copy = copy.deepcopy(current_arch)
                 print(f"Now running FactorFlow on arch: {arch_name} and comp: {comp_name}...")
-                if fitConstraintsToComp(current_arch_copy, current_comp, arch_name, comp_name):
+                if current_arch_copy.fitConstraintsToComp(current_comp, comp_name):
                     continue
                 edp, mops, energy, latency, utilization, end_time, _ = run_engine(current_arch_copy, current_comp, bias_read, verbose = False)
                 table.add_row([arch_name, comp_name, f"{edp:.3e}", f"{mops[0]+mops[1]:.0f}", f"{latency:.3e}", f"{energy:.3e}", f"{utilization:.3e}", f"{end_time:.3f}"] + extra_constant_columns_values)
@@ -170,7 +170,7 @@ if __name__ == "__main__":
     elif options["gen-tests"]:
         #Here changing settings does not propagate to processes, which reimport and reset settings.py
         #Settings.forcedSettingsUpdate(arch)
-        fitConstraintsToComp(arch, comp)
+        arch.fitConstraintsToComp(comp, enforce=True)
         edp, mops, energy, latency, utilization, _, arch = run_engine(arch, comp, bias_read, verbose = True)
         from test import generateTestMOPs, generateTestLatency
         print("\nGenerated tests:")
@@ -180,5 +180,5 @@ if __name__ == "__main__":
     else:
         #Here changing settings does not propagate to processes, which reimport and reset settings.py
         #Settings.forcedSettingsUpdate(arch)
-        fitConstraintsToComp(arch, comp)
+        arch.fitConstraintsToComp(comp, enforce=True)
         run_engine(arch, comp, bias_read, verbose = True)
