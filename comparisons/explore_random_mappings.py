@@ -85,10 +85,10 @@ def randomDataflows(arch):
 
 # Random-ish but faster
 def randomFactorsInitializationsFast(arch, comp):
-    initFactors(arch, comp)
-    enforceFactorsConstraints(arch)
-    setupBypasses(arch)
-    updateInstances(arch)
+    arch.initFactors(comp)
+    arch.enforceFactorsConstraints()
+    arch.setupBypasses()
+    arch.updateInstances()
     
     factors = reduce(lambda l, a : l + a, [[(dim, f) for f in arch[0].factors.toList(dim)] for dim in ['M', 'K', 'N']], [])
     
@@ -98,7 +98,7 @@ def randomFactorsInitializationsFast(arch, comp):
             choices = list(range(len(arch)))
             random.shuffle(choices)
             for dst_level_idx in choices:
-                if dst_level_idx == 0 or moveFactor(arch, 0, dst_level_idx, dim, factor, 1):
+                if dst_level_idx == 0 or arch.moveFactor(0, dst_level_idx, dim, factor, 1):
                     break
 
     already_seen = []
@@ -108,7 +108,7 @@ def randomFactorsInitializationsFast(arch, comp):
         random_arch = copy.deepcopy(arch)
         randomMoves(random_arch)
         randomDataflows(arch)
-        hash = hashFromFactors(random_arch)
+        hash = random_arch.hashFromFactors()
         if hash not in already_seen:
             already_seen.append(hash)
             fails = 0
@@ -121,10 +121,10 @@ def randomFactorsInitializationsFast(arch, comp):
 
 # Truly random, but slower
 def randomFactorsInitializationsSlow(arch, comp, random_moves = 10):
-    initFactors(arch, comp)
-    enforceFactorsConstraints(arch)
-    setupBypasses(arch)
-    updateInstances(arch)
+    arch.initFactors(comp)
+    arch.enforceFactorsConstraints()
+    arch.setupBypasses()
+    arch.updateInstances()
     
     def randomMoves(arch, n):
         mems = list(filter(lambda l : isinstance(l, MemLevel), arch))
@@ -136,7 +136,7 @@ def randomFactorsInitializationsSlow(arch, comp, random_moves = 10):
             for factor in mems[0].factors.toList(dim):
                 for _ in range(n):
                     dst_level_idx = random.choice(range(len(mems)))
-                    if dst_level_idx == 0 or moveFactor(arch, 0, dst_level_idx, dim, factor, 1):
+                    if dst_level_idx == 0 or arch.moveFactor(0, dst_level_idx, dim, factor, 1):
                         break
     
     already_seen = []
@@ -146,7 +146,7 @@ def randomFactorsInitializationsSlow(arch, comp, random_moves = 10):
         random_arch = copy.deepcopy(arch)
         randomMoves(random_arch, random_moves)
         randomDataflows(arch)
-        hash = hashFromFactors(random_arch)
+        hash = random_arch.hashFromFactors()
         if hash not in already_seen:
             already_seen.append(hash)
             fails = 0
@@ -238,14 +238,14 @@ if __name__ == "__main__":
 
         #print("Generating random starting points...")
         arch_copy = copy.deepcopy(arch)
-        if fitConstraintsToComp(arch_copy, comp, arch_name, comp_name):
+        if arch_copy.fitConstraintsToComp(comp, comp_name):
             continue
         random_archs = randomFactorsInitializationsFast(arch_copy, comp)
         #_ = next(random_archs)
         print(f"Starting generation of {MAX_TRIES} random mappings:")
         for current_arch in random_archs:
             try:
-                assert not findConstraintsViolation(current_arch, False)
+                assert not current_arch.findConstraintsViolation(False)
                 if STORE_INITIAL_CONDITIONS: initial_conditions.append(factorsString(current_arch))
                 edp = EDP(current_arch, bias_read, True)
                 wart = Wart(current_arch, comp, bias_read)
@@ -291,7 +291,7 @@ if __name__ == "__main__":
                 print(f"\nComplete mappings EDPs: {short_edps}")
         else:
             arch_ff = copy.deepcopy(arch)
-            if fitConstraintsToComp(arch_ff, comp, arch_name, comp_name):
+            if arch_ff.fitConstraintsToComp(comp, comp_name):
                 continue
             factorflow_edp, _, _, _, _, _, arch_ff = run_engine(arch_ff, comp, bias_read, False)
             factorflow_wart = Wart(arch_ff, comp, bias_read)

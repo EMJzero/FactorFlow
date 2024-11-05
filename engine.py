@@ -171,7 +171,7 @@ It is equivalent to FLOPs/EDPoU, where EDPoU = (Energy * Latency) / Utilization
 def Wart(arch, comp, bias_read):
     FLOPs = comp.FLOPs()
     WMOPs, max_latency = updateStats(arch, bias_read)
-    utilization = fanoutsUtilization(arch) if Settings.UTILIZATION_IN_WART else 1
+    utilization = arch.fanoutsUtilization() if Settings.UTILIZATION_IN_WART else 1
     return (FLOPs/(WMOPs*max_latency))*utilization
 
 """
@@ -250,31 +250,31 @@ def fanoutMaximization(arch, comp, bias_read, verbose = False):
         if Settings.PADDED_MAPPINGS:
             for dim in ['M', 'K', 'N']:
                 total_mesh = math.prod([level.mesh for level in arch if isinstance(level, FanoutLevel) and level.dataflow[0] == dim])
-                mesh_factors = [f for level in arch if isinstance(level, FanoutLevel) and level.dataflow[0] == dim for f in primeFactorsList(level.mesh)]
+                mesh_factors = [f for level in arch if isinstance(level, FanoutLevel) and level.dataflow[0] == dim for f in prime_factors_list(level.mesh)]
                 dim_size = arch[0].factors.dimProduct(dim)
                 dim_factors = arch[0].factors.toList(dim)
                 if total_mesh > dim_size:
                     used_factors, padding = smallest_product_greater_than(mesh_factors, dim_size)
                     if padding != math.inf and not all([f in dim_factors for f in used_factors]): # only pad if some different factor achieved higher utilization
                         if Settings.VERBOSE_PADDED_MAPPINGS: print(f"PADDING: enlarged {dim} from {dim_size} to {dim_size + padding}")
-                        arch[0].factors[dim] = primeFactors(dim_size + padding)
+                        arch[0].factors[dim] = prime_factors(dim_size + padding)
                         arch[0].factors.resetDimProducts([dim])
                 else:
                     if not all([f in dim_factors for f in mesh_factors]): # only pad if you are not already a multiple
                         padded_dim_size = dim_size + total_mesh - dim_size%total_mesh
                         if Settings.VERBOSE_PADDED_MAPPINGS: print(f"PADDING: enlarged {dim} from {dim_size} to {padded_dim_size}")
-                        arch[0].factors[dim] = primeFactors(padded_dim_size)
+                        arch[0].factors[dim] = prime_factors(padded_dim_size)
                         arch[0].factors.resetDimProducts([dim])
         
         for i in range(1, len(arch) - 1): # first round: start from common factors
             level = arch[i]
             if isinstance(level, FanoutLevel):
                 dim = level.dataflow[0]
-                common_mesh_factors = [f for f in primeFactors(level.mesh).keys() if f in arch[0].factors[dim]]
+                common_mesh_factors = [f for f in prime_factors(level.mesh).keys() if f in arch[0].factors[dim]]
                 for f in sorted(common_mesh_factors, reverse=True): # try largest factors first
                     amount = arch[0].factors[dim][f]
                     while amount > 0:
-                        if moveFactor(arch, 0, i, dim, f, amount):
+                        if arch.moveFactor(0, i, dim, f, amount):
                             break
                         amount -= 1 # lower the amount until you succeed
         
@@ -288,7 +288,7 @@ def fanoutMaximization(arch, comp, bias_read, verbose = False):
                         space = level.mesh // level.factors.fullProduct()
                         factors, _ = largest_product_less_than(arch[0].factors.toList(dim), space)
                         for f in factors:
-                            if not moveFactor(arch, 0, i, dim, f, 1) and verbose:
+                            if not arch.moveFactor(0, i, dim, f, 1) and verbose:
                                 print(f"Fanout maximization failed to fill up the leftover space on level {level.name}, dim {dim} with factor {f} (mesh: {level.mesh}, space: {space})...")
     
     else:
@@ -297,17 +297,17 @@ def fanoutMaximization(arch, comp, bias_read, verbose = False):
             if isinstance(level, FanoutLevel):
                 assert len(level.dims) <= 2, f"Level: {level.name}: CURRENT LIMITATION - at most 2 dimensions on the same fanout, limit dims ({level.dims}) to at most 2 entries when Settings.ONLY_MAXIMIZE_ONE_FANOUT_DIM is False."
                 # TODO: as of now this accepts only at most 2 dimensions on same fanout - pick mesh_split_factor >= 3 to allow more?
-                mesh_prime_factors = primeFactors(level.mesh)
+                mesh_prime_factors = prime_factors(level.mesh)
                 common_mesh_factors = [f for f in mesh_prime_factors.keys() if f in [ft for dim in level.dims for ft in arch[0].factors[dim]]]
                 ping_pong = 0
                 for f in sorted(common_mesh_factors, reverse=True): # try largest factors first
                     for _ in range(max(map(lambda dim : arch[0].factors[dim][f] if f in arch[0].factors[dim] else 0, level.dims))):
                         if f not in arch[0].factors[level.dims[ping_pong]]:
                             ping_pong = len(level.dims) - 1 - ping_pong
-                        if moveFactor(arch, 0, i, level.dims[ping_pong], f):
+                        if arch.moveFactor(0, i, level.dims[ping_pong], f):
                             ping_pong = len(level.dims) - 1 - ping_pong
         
-    updateInstances(arch)
+    arch.updateInstances()
     if verbose: print(f"After fanout maximization (Wart: {Wart(arch, comp, bias_read):.3e}):")
     if verbose: printFactors(arch)
 
@@ -344,24 +344,24 @@ Adjacency: two mappings are adjacent if one can be constructed from the other
 def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = False):
     if verbose: print("-------- factorFlow --------")
     if not already_initialized:
-        initFactors(arch, comp)
-        enforceFactorsConstraints(arch, Settings.PADDED_MAPPINGS, Settings.VERBOSE_PADDED_MAPPINGS)
-    assert not findConstraintsViolation(arch), "Factor constraints or dataflow violation in the given architecture."
+        arch.initFactors(comp)
+        arch.enforceFactorsConstraints(Settings.PADDED_MAPPINGS, Settings.VERBOSE_PADDED_MAPPINGS)
+    assert not arch.findConstraintsViolation(), "Factor constraints or dataflow violation in the given architecture."
     constraints_check = [level.checkConstraints() for level in arch]
     assert all(constraints_check), f"Ill-posed constraints:\n{arch[constraints_check.index(False)].logConstraintsViolation()}"
     if not already_initialized:
-        setupBypasses(arch)
-        updateInstances(arch)
+        arch.setupBypasses()
+        arch.updateInstances()
     assert isinstance(arch[0], MemLevel), f"The first/outermost level must a MemoryLevel, the provided one is {type(arch[-1])}."
     assert isinstance(arch[-1], ComputeLevel), f"The last/innermost level must a ComputeLevel, the provided one is {type(arch[-1])}."
     assert not any(map(lambda l : isinstance(l, ComputeLevel), arch[:-1])), "No other compute levels admitted beside the last/innermost one."
-    assert checkDataflowConstraints(arch), "Dataflow constraints violated."
+    assert arch.checkDataflowConstraints(), "Dataflow constraints violated."
 
     if verbose: print(f"Initial condition (Wart: {Wart(arch, comp, bias_read):.3e}):")
     if verbose: printFactors(arch)
 
     # never re-visit the same mapping
-    already_seen = [hashFromFactors(arch)]
+    already_seen = [arch.hashFromFactors()]
 
     # maximize fanout dimensions
     if not already_initialized:
@@ -399,8 +399,8 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
                     #print(src_level_idx, dst_level_idx, dim, factor)
                     if target_dst_level_idx and dst_level_idx != target_dst_level_idx:
                         continue
-                    if moveFactor(arch, src_level_idx, dst_level_idx, dim, factor, amount, skip_src_constraints = Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and remaining_steps > 1):
-                        hsh = hashFromFactors(arch)
+                    if arch.moveFactor(src_level_idx, dst_level_idx, dim, factor, amount, skip_src_constraints = Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and remaining_steps > 1):
+                        hsh = arch.hashFromFactors()
                         if hsh not in already_seen:
                             already_seen.append(hsh)
                             if remaining_steps > 1:
@@ -417,7 +417,7 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
                                         choices[(src_level_idx, dst_level_idx, dim, factor, amount)] = wart
                             else:
                                 choices[(src_level_idx, dst_level_idx, dim, factor, amount)] = Wart(arch, comp, bias_read)
-                        assert moveFactor(arch, dst_level_idx, src_level_idx, dim, factor, amount, skip_dst_constraints = Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and remaining_steps > 1) # something went wrong, unreversible move of a factor    
+                        assert arch.moveFactor(dst_level_idx, src_level_idx, dim, factor, amount, skip_dst_constraints = Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and remaining_steps > 1) # something went wrong, unreversible move of a factor    
         return choices
     
     while True:
@@ -434,10 +434,10 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
             # each individual choice is defined by 5 parameters, chained to another 5 for each nested exploration step
             multisteps = len(best_choice) // 5
             for i in range(multisteps):
-                assert moveFactor(arch, best_choice[5*i + 0], best_choice[5*i + 1], best_choice[5*i + 2], best_choice[5*i + 3], best_choice[5*i + 4], skip_src_constraints = Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and i < multisteps - 1) # best choice is an invalid mapping
+                assert arch.moveFactor(best_choice[5*i + 0], best_choice[5*i + 1], best_choice[5*i + 2], best_choice[5*i + 3], best_choice[5*i + 4], skip_src_constraints = Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and i < multisteps - 1) # best choice is an invalid mapping
             best_wart = choices[best_choice]
 
-    updateInstances(arch)
+    arch.updateInstances()
     updateStats(arch, bias_read)
     if verbose: print(f"Final condition:\nWart: {best_wart}\nEDP: {EDP(arch, bias_read, True):.3e} (J*cycle)")
     if verbose: printFactors(arch)
@@ -616,7 +616,7 @@ def run_engine(arch, comp, bias_read, verbose = False):
     mops = MOPs(arch)
     energy = Energy(arch, True)
     latency = Latency(arch)
-    utilization = fanoutsUtilization(arch)
+    utilization = arch.fanoutsUtilization()
 
     if verbose:
         print(f"\nFinished in: {end_time:.3f}s")
