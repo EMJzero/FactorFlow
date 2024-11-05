@@ -10,11 +10,11 @@ the form of a complete constraints set. The test passes iif all the newly
 evaluated statistics match those in "correct_data".
 """
 def runTest(arch, correct_data, comp, bias_read):
-    initFactors(arch, comp)
-    enforceFactorsConstraints(arch)
-    assert checkDataflowConstraints(arch), "Dataflow constraints violated."
-    setupBypasses(arch)
-    updateInstances(arch)
+    arch.initFactors(comp)
+    arch.enforceFactorsConstraints()
+    assert arch.checkDataflowConstraints(), "Dataflow constraints violated."
+    arch.setupBypasses()
+    arch.updateInstances()
     updateStats(arch, bias_read)
     mem = list(filter(lambda l : isinstance(l, MemLevel), arch))
     passed = True
