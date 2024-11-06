@@ -12,10 +12,10 @@ class LevelCore:
     factors: None # iterations done for the dimensions at this lever
     tile_sizes: None # indicate the size of a tile used in the level BELOW
     
-    def __init__(self, dataflow, factors, tile_sizes):
+    def __init__(self, dataflow, factors, tile_sizes = None):
         self.dataflow = dataflow
         self.factors = factors
-        self.tile_sizes = tile_sizes
+        self.tile_sizes = tile_sizes if tile_sizes else Shape(1, 1, 1)
 
 """
 Abstract class representing a level of the accelerator's architecture.

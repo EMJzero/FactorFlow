@@ -38,7 +38,12 @@ class Shape():
 
     def __setitem__(self, key, value):
         setattr(self, key, value)
-        
+
+    def clear(self):
+        self.M = 1
+        self.K = 1
+        self.N = 1
+
     def __str__(self):
         return f"{{M: {self.M}, K: {self.K}, N: {self.N}}}"
 
