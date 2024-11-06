@@ -1,7 +1,7 @@
 from functools import reduce
+from copy import deepcopy
 import multiprocessing
 import math
-import copy
 import time
 
 from computations import *
@@ -10,6 +10,7 @@ from factors import *
 from levels import *
 from prints import *
 from utils import *
+from arch import *
 
 
 """
@@ -468,7 +469,7 @@ def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, threads_count = 1,
     # HOW-TO: exploit the fact that you are going in order! If the difference between the
     # next configuration and the current one involves a dimension which had in the previous
     # best mapping a factor of 1, SKIP THE CONFIGURATION.
-    # NOTE: we cannot truly skip the configuration, but we can re-start the factorFlow exploration
+    # NOTE: we cannot truly skip the configuration, but we can re-start the "factorFlow" exploration
     # from where it was left -> adaptive programming!
     # TODO: Evaluate whether to treat ComputeLevels as FanoutLevels too (see fanoutMaximization TODOs as well)!
     permutations = [[perm for perm in interleave(level.dataflow_constraints, [dim for dim in level.dataflow if dim not in level.dataflow_constraints])] if not isinstance(level, FanoutLevel) else [rot + [dim for dim in level.dims if dim in level.factors_constraints] for rot in rotations([dim for dim in level.dims if dim not in level.factors_constraints])] for level in targets]
@@ -514,61 +515,113 @@ def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, threads_count = 1,
     
     # clockwork counter to try all permutations at all levels (in lexicographical order)
     current_perms = [0 for _ in targets]
-    # optimization: If the difference between the next permutation and the current one involves solely dimensions which had in the previous best mapping a factor of 1, skip the permutation
-    # TODO: could be improved further by looking at the whole history of swapped dimensions
-    factors_at_one = [{'M': False, 'K': False, 'N': False} for _ in targets]
-    best_perm, best_arch, best_wart = current_perms.copy(), None, 0
+    # optimization: if the difference between a past permutation and the current one involves solely dimensions which had in the previous best mapping a factor of 1, skip the permutation
+    # NOTE: since we check equi-dataflow matches on the last permuted level, which thus follows an inner-levels-first order, and skip entirely inner permutations of an outer permutation
+    #       when there is a match, we never end up in a situation where equi-dataflow matches need to be checked on a level other than the last permuted one, as outer ones have always
+    #       been already checked, while inner ones already skipped if needed!
+    # WARNING: the above NOTE holds IIF you go over permutations innermost-first (lexicographica order), but this DOES NOT HAPPEN when we distribute permutations among threads,
+    #          which is done from outer permutations first! So different threads may waste time on equi-dataflow permutations...
+    past_permutations = [[] for _ in range(len(targets))] # must be kept in order of Wart!
+    best_perm, best_mapping, best_wart = current_perms.copy(), None, 0
     tried_perms = 0
     #skipped_perms_total = 0
     
+    """
+    Helper class to store past mappings together with their Wart and factors at one.
+    """
+    class PastSolution():
+        def __init__(self, mapping, wart):
+            self.mapping : list[LevelCore] = mapping
+            self.wart = wart
+            
+        def factorsAtOne(self, level_idx):
+            return {dim:self.mapping[level_idx].factors.dimProduct(dim) == 1 for dim in ['M', 'K', 'N']}
+    
+    """
+    Step forward the clockwork counter by permuting w.r.t. lexicographical order the
+    next level that has index >= than the provided "i".
+    """
     def nextPermutations(i):
         while i >= 0:
             if current_perms[i] + 1 == len(permutations[i]):
                 current_perms[i] = 0
-                for k in factors_at_one[i]:
-                    factors_at_one[i][k] = False
+                # clear current past solutions buffer and move the best solution upward
+                if i > 0:
+                    for j in range(len(past_permutations[i - 1]) + 1):
+                        if j == len(past_permutations[i - 1]) or past_permutations[i - 1][j].wart < past_permutations[i][0].wart:
+                            past_permutations[i - 1].insert(j, past_permutations[i][0])
+                            break
+                past_permutations[i].clear()
                 i -= 1
             else:
                 current_perms[i] += 1
-                for dim in factors_at_one[i].keys():
-                    factors_at_one[i][dim] = current_targets[i].factors.dimProduct(dim) == 1
                 break
         return i
     
+    """
+    Checks for an equi-dataflow match with past solutions.
+    Returns the best match found or None if no match was found.
+    """
+    def equiDataflowMatch(i):
+        # TODO: create the dump of a mapping functionality within the new Arch class!
+        #       => NEW FILE arch.py containing two classes, Arch and (maybe) Mapping (which shall also store top metrics: EDP and Wart, shall also have the factorsAtOne method)
+        if isinstance(targets[i], FanoutLevel):
+            return None
+        
+        for perm in past_permutations[i]:
+            # True if any set of dimensions which with a cyclic shift can yield the previous permutation from the current one is entirely made of dims with a factor of 1,
+            # or true if of all dimensions involved in swaps between neighbouring nested loops to go from the previous permutation to the current one at least all except one have a factor of 1.
+            if (any(map(lambda dims : all([perm.factorsAtOne(i)[dim] for dim in dims]), single_cyclic_shift(permutations[i][current_perms[i]], permutations[i][current_perms[i] - 1])))
+                    or (lambda dims : sum([perm.factorsAtOne(i)[dim] for dim in dims]) >= len(dims) - 1)(pairwise_swaps(permutations[i][current_perms[i]], permutations[i][current_perms[i] - 1]))):
+                return perm.mapping
+        return None
+    
+    # NOTE: "i" is the last memory hierarchy level which had its permutation updated
+    i = len(targets) - 1
     while True:
-        # TODO: remove this deepcopy and just reset factors (requires a "reset" method implemented in each layer)
-        #resetTilesAndFactors(arch)
-        current_arch = copy.deepcopy(arch)
-        current_targets = list(filter(lambda l : isinstance(l, MemLevel) or isinstance(l, ComputeLevel) or (Settings.ONLY_MAXIMIZE_ONE_FANOUT_DIM and isinstance(l, FanoutLevel)), current_arch))
-        for mem_idx in range(len(current_targets)):
-            current_targets[mem_idx].dataflow = permutations[mem_idx][current_perms[mem_idx]]
-        current_arch, wart = factorFlow(current_arch, comp, bias_read)
+        arch.resetFactors()
+        equidataflow_past_solution = equiDataflowMatch(i) if Settings.PERM_SKIP else None
+        
+        if not equidataflow_past_solution:
+            # prepare present permutation and optimize its mapping
+            for mem_idx in range(i, len(targets)):
+                targets[mem_idx].dataflow = permutations[mem_idx][current_perms[mem_idx]]
+
+            arch, wart = factorFlow(arch, comp, bias_read)
+        elif not Settings.HARD_PERM_SKIP:
+            # copy over the mapping and quickly re-optimize it
+            arch.importMapping(deepcopy(equidataflow_past_solution))
+            targets[i].dataflow = permutations[i][current_perms[i]]
+            
+            arch, wart = factorFlow(arch, comp, bias_read, True)
+        
         if wart > best_wart:
             best_perm = current_perms.copy()
-            best_arch = current_arch
+            best_mapping = arch.exportMapping()
             best_wart = wart
-            
-        tried_perms += 1
-        if verbose and math.floor((tried_perms/total_perms)*10) > math.floor(((tried_perms - 1)/total_perms)*10):
-            if thread_idx == -1: print(f"Progress: {tried_perms}/{total_perms} tried...")
-            else: print(f"Progress in thread {thread_idx}: {tried_perms}/{total_perms} tried...")
-        # NOTE: "i" is the outermost memory hierarchy level which had its permutation updated right now
-        i = nextPermutations(len(targets) - 1)
         
-        # True if any set of dimensions which with a cyclic shift can yield the previous permutation from the current one is entirely made of dims with a factor of 1,
-        # or true if of all dimensions involved in swaps between neighbouring nested loops to go from the previous permutation to the current one at least all except one have a factor of 1.
-        while (Settings.PERM_SKIP and i >= 0 and not isinstance(current_targets[i], FanoutLevel) and
-               (any(map(lambda dims : all([factors_at_one[i][dim] for dim in dims]), single_cyclic_shift(permutations[i][current_perms[i]], permutations[i][current_perms[i] - 1])))
-               or (lambda dims : sum([factors_at_one[i][dim] for dim in dims]) >= len(dims) - 1)(pairwise_swaps(permutations[i][current_perms[i]], permutations[i][current_perms[i] - 1])))):
-            if not Settings.HARD_PERM_SKIP:
-                current_targets[i].dataflow = permutations[i][current_perms[i]]
-                for j in range(i + 1, len(targets)):
-                    current_targets[j].dataflow = permutations[j][best_perm[j]]
-                current_arch, wart = factorFlow(current_arch, comp, bias_read, True)
-                if wart > best_wart:
-                    best_perm = current_perms.copy()
-                    best_arch = current_arch
-                    best_wart = wart
+        if not equidataflow_past_solution:
+            # store past solutions (in order of Wart)
+            #if not isinstance(targets[i], FanoutLevel):
+            for j in range(len(past_permutations[-1]) + 1):
+                if j == len(past_permutations[-1]) or past_permutations[-1][j].wart < wart:
+                    past_permutations[-1].insert(j, PastSolution(arch.exportMapping(), wart))
+                    break
+                
+            tried_perms += 1
+            if verbose and math.floor((tried_perms/total_perms)*10) > math.floor(((tried_perms - 1)/total_perms)*10):
+                if thread_idx == -1: print(f"Progress: {tried_perms}/{total_perms} tried...")
+                else: print(f"Progress in thread {thread_idx}: {tried_perms}/{total_perms} tried...")
+            
+            # permute the next level in lexicographical order
+            i = nextPermutations(len(targets) - 1)
+        else:
+            # store past solutions (in order of Wart)
+            #if not isinstance(targets[i], FanoutLevel):
+            for j in range(len(past_permutations[i]) + 1):
+                if j == len(past_permutations[i]) or past_permutations[i][j].wart < wart:
+                    past_permutations[i].insert(j, PastSolution(arch.exportMapping(), wart))
+                    break
             
             skipped_perms = reduce(lambda tot, perms : tot * len(perms), permutations[i+1:len(permutations)], 1)
             tried_perms += skipped_perms
@@ -576,17 +629,21 @@ def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, threads_count = 1,
             if verbose and math.floor((tried_perms/total_perms)*10) > math.floor(((tried_perms - skipped_perms)/total_perms)*10):
                 if thread_idx == -1: print(f"Progress: {tried_perms}/{total_perms} tried...")
                 else: print(f"Progress in thread {thread_idx}: {tried_perms}/{total_perms} tried...")
+            
+            # permute the same level that was permuted last
             i = nextPermutations(i)
-            if i < 0:
-                break
+        
         if i < 0:
             break
     
-    if verbose and thread_idx != -1: print(f"Terminating thread {thread_idx} with best Wart: {best_wart:.3e}, EDP: {EDP(best_arch, bias_read, True):.3e} (J*cycle)")
+    #print("SKIPPED:", skipped_perms_total)
+    arch.importMapping(best_mapping)
+    
+    if verbose and thread_idx != -1: print(f"Terminating thread {thread_idx} with best Wart: {best_wart:.3e}, EDP: {EDP(arch, bias_read, True):.3e} (J*cycle)")
     #print(f"Terminating thread {thread_idx} with skipped permutations (total): {skipped_perms_total}")
     
-    if thread_idx == -1: return best_arch, best_wart, best_perm
-    else: return_list[thread_idx] = (best_arch, best_wart, best_perm)
+    if thread_idx == -1: return arch, best_wart, best_perm
+    else: return_list[thread_idx] = (arch, best_wart, best_perm)
 
 """
 Mapper entry point.
@@ -594,12 +651,17 @@ Mapper entry point.
 def run_engine(arch, comp, bias_read, verbose = False):
     start_time = time.time()
 
+    # TODO: this is redundant with it being done at the start of "optimizeDataflows".
+    #       Remove this when you manage to share settings between processes!
+    if verbose:
+        Settings.forcedSettingsUpdate(arch)
+
     if Settings.MULTITHREADED:
         manager = multiprocessing.Manager()
         return_list = manager.list([None]*Settings.THREADS_COUNT)
         processes = []
         for i in range(Settings.THREADS_COUNT):
-            p = multiprocessing.Process(target=optimizeDataflows, args=(copy.deepcopy(arch), copy.deepcopy(comp), bias_read, i, Settings.THREADS_COUNT, return_list, Settings.VERBOSE))
+            p = multiprocessing.Process(target=optimizeDataflows, args=(deepcopy(arch), deepcopy(comp), bias_read, i, Settings.THREADS_COUNT, return_list, Settings.VERBOSE))
             processes.append(p)
             p.start()
         for p in processes:

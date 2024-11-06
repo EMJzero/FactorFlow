@@ -6,6 +6,8 @@ from utils import *
 
 """
 Class wrapping a list of levels into an architecture.
+In FF, the terms outermost and innermost refer to the first and last elements
+in the list, in accordance with the HW componenets represented by levels.
 
 Constructor arguments:
 - iterable: the list of levels for the architecture
@@ -33,9 +35,14 @@ class Arch(list):
 
     """
     Loads a mapping (preferably coming from "exportMapping") into the architecture.
+    
+    Arguments:
+    - mapping: the mapping to be loaded
+    - from_level: optional outermost level included in the copy
+    - to_level: optional innermost level included in the copy
     """
-    def importMapping(self, mapping : list[LevelCore]):
-        for i in range(len(self)):
+    def importMapping(self, mapping : list[LevelCore], from_level = 0, to_level = -1):
+        for i in range(from_level, to_level % len(self)):
             self[i].dataflow = mapping[i].dataflow
             self[i].factors = mapping[i].factors
             self[i].tile_sizes = mapping[i].tile_sizes
@@ -111,6 +118,15 @@ class Arch(list):
     def initFactors(self, comp):
         # initialize with all factors on first level, all tile sizes of 1!
         self[0].factors = Factors(M = prime_factors(comp.M), K = prime_factors(comp.K), N = prime_factors(comp.N))
+        
+    """
+    Resets the architecture's mapping to a blank state.
+    [Dataflows are not affected, and remain arbitrary]
+    """
+    def resetFactors(self):
+        for level in self:
+            level.factors.clear()
+            level.tile_sizes.clear()
 
     """
     This function must start from arch having all factors on its first level,
