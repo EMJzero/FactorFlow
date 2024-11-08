@@ -29,7 +29,8 @@ class Settings():
     # If True, in case of 2 dimensions on the same fanout only the FIRST dimension gets factors
     # allocation during fanout maximization. If False, both dimensions equally get factors.
     # NOTE: when this is True, optimizeDataflows also iterates over which dimension is maximized,
-    #        in other words also fanout dimensions are permutated to pick the one to maximize.
+    #       in other words also fanout dimensions are permutated to pick the one to maximize.
+    #       [Dimensions with a constraint are not iterated over]
     # >>> Play with this in case of 2 dimensions on the same fanout!!!
     # >>> Setting this to True costs Nx time, where N is the number of rotations of fanout dimensions.
     # >>> Henceforth, usage is suggested when MULTITHREADED is True.
@@ -47,6 +48,10 @@ class Settings():
     # If True, the Wart will be multiplied by the utilization of the fanouts in the spatial architecture,
     # punishing mappings which underutilize fanouts.
     UTILIZATION_IN_WART = True
+    # If True, drain reads will be assumed at zero energy cost for all levels, this is equivalent to
+    # assuming that the last write bypasses the target level, going upward, and directly writes in the
+    # above level, thus negating the need for a read to drain.
+    FREE_DRAINS = False
     # If True, GEMM dimensions might get padded to reach the least larger-than-current size which can
     # be allocated to the entirety of a fanout's instances.
     # This is performed as part of the fanout maximization.
@@ -63,8 +68,20 @@ class Settings():
     # logical CPUs available on the system.
     THREADS_COUNT = 8
     
+    # Path to the folder above Accelergy, for a normal installation in Ubuntu that is usually like:
+    # "/home/<username>/.local/lib/python3.X/site-packages/"
+    # FactorFlow has been tested with commit 'd1d199e571e621ce11168efe1af2583dec0c2c49' of Accelergy.
+    # NOTE: this is NOT required if you have installed Accelergy as a python package and can import it.
+    ACCELERGY_PATH = "\\\\wsl.localhost/Ubuntu-22.04/home/zero/.local/lib/python3.10/site-packages"
+    
+    """
+    Update settings:
+    - initialize some depeding on runtime information.
+    - set some to best target the provided architecture.
+    """
     @classmethod
     def forcedSettingsUpdate(self, arch, verbose = True):
+        #return
         for level in arch:
             if isinstance(level, FanoutLevel) and len(level.dims) >= 2:
                 self.FREEZE_SA = False
@@ -83,3 +100,11 @@ class Settings():
         if not self.VERBOSE:
             if verbose: print(f"INFO: VERBOSE output disabled, wait patiently...")
         if verbose: print("")
+        
+    @classmethod
+    def toString(self):
+        res = "Settings("
+        for k, v in vars(self).items():
+            if not k.startswith("__"):
+                res += f"{k}={v},"
+        return res[:-1] + ")"

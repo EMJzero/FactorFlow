@@ -1,20 +1,24 @@
 from itertools import chain, combinations, permutations
 import math
 
+from settings import *
 from levels import *
 
 
 # >>> Helper functions to operate on the architecture (camelCase ones)
 
+"""
+Checks factors allocation constraints. Returns False if a violation is found.
+"""
 def findConstraintsViolation(arch, verbose = True):
     violation = False
     for level in arch:
-        for dim in ['D', 'E', 'L']:
+        for dim in ['M', 'K', 'N']:
             if dim not in level.dataflow and len(level.factors[dim]) != 0:
                 if verbose: print(f"Factor-dataflow missmatch for constraint ({dim}: {level.factors.dimProduct(dim)}) enforced on level \"{level.name}\"")
                 violation = True
-            if dim in level.factors_contraints and level.factors_contraints[dim] != level.factors.dimProduct(dim):
-                if verbose: print(f"Constraint violation, desired was ({dim}: {level.factors_contraints[dim]}), obtained was ({dim}: {level.factors.dimProduct(dim)}), on level \"{level.name}\"")
+            if dim in level.factors_constraints and level.factors_constraints[dim] != level.factors.dimProduct(dim):
+                if verbose: print(f"Constraint violation, desired was ({dim}: {level.factors_constraints[dim]}), obtained was ({dim}: {level.factors.dimProduct(dim)}), on level \"{level.name}\"")
                 violation = True
     return violation
 
@@ -51,7 +55,24 @@ def primeFactorsList(n):
         factors.append(n)
     return factors
 
-# moves a factor and updates tile sizes accordingly, returns False (and reverts changes) if it violates any constraint
+"""
+Moves a factor between the same dimension of two levels, transitioning
+between adjacent mappings. it also updates tile sizes accordingly for all levels
+between the affected ones.
+
+Returns False (and reverts changes) if the move violates any constraint.
+
+Arguments:
+- src_level_idx: level giving up the prime factor
+- dst_level_idx: level receiving the prime factor
+- dimension: the computation's dimension of the moved factor
+- factor: specify which prime factor is moved
+- amount: which arity of the factor is moved
+- skip_src_constraints: if True, any constraints violation on the source level
+                        is ignored.
+- skip_dst_constraints: if True, any constraints violation on the destination level
+                        is ignored.
+"""
 def moveFactor(arch, src_level_idx, dst_level_idx, dimension, factor, amount = 1, skip_src_constraints = False, skip_dst_constraints = False):
     # check that the factor exists in the required amount
     if not arch[src_level_idx].removeFactor(dimension, factor, amount):
@@ -83,26 +104,38 @@ def moveFactor(arch, src_level_idx, dst_level_idx, dimension, factor, amount = 1
         return False
     return True
 
+"""
+Initializes the architecture's mapping with all the computation's prime
+factors placed on the first level. This is the mapper's starting point.
+"""
 def initFactors(arch, comp):
     # initialize with all factors on first level, all tile sizes of 1!
-    arch[0].factors = Factors(D = primeFactors(comp.D), E = primeFactors(comp.E), L = primeFactors(comp.L))
-    # TODO: to support a random starting point, add here a set of moveFactor
-    # invocations, and add a method to "reset" the architecture (tile sizes and all)
+    arch[0].factors = Factors(M = primeFactors(comp.M), K = primeFactors(comp.K), N = primeFactors(comp.N))
 
+"""
+This function must start from arch having all factors on its first level,
+then it ensures that all constraints of all levels are satisfied.
+If 'allow_padding' is True then computation dimensions not exactly
+divided by constraints will be padded up to a multiple of constraints.
+
+This function assumes that the computation is larger than what required
+by constraints, if this is not satisfied, an assertion will be triggered.
+-> use 'fitConstraintsToComp' to prevent such a situation.
+"""
 def enforceFactorsConstraints(arch, allow_padding = False, verbose_padding = True):
     # assuming that initially all factors are on the first level
     for i in range(1, len(arch)):
         level = arch[i]
-        assert 'D' not in level.factors_contraints or 'D' in level.dataflow, f"Level {level.name}: cannot enforce constraint on dimension 'D' not in dataflow {level.dataflow}."
-        assert 'E' not in level.factors_contraints or 'E' in level.dataflow, f"Level {level.name}: cannot enforce constraint on dimension 'E' not in dataflow {level.dataflow}."
-        assert 'L' not in level.factors_contraints or 'L' in level.dataflow, f"Level {level.name}: cannot enforce constraint on dimension 'L' not in dataflow {level.dataflow}."
+        assert 'M' not in level.factors_constraints or 'M' in level.dataflow, f"Level {level.name}: cannot enforce constraint on dimension 'M' not in dataflow {level.dataflow}."
+        assert 'K' not in level.factors_constraints or 'K' in level.dataflow, f"Level {level.name}: cannot enforce constraint on dimension 'K' not in dataflow {level.dataflow}."
+        assert 'N' not in level.factors_constraints or 'N' in level.dataflow, f"Level {level.name}: cannot enforce constraint on dimension 'N' not in dataflow {level.dataflow}."
         constr_factors = Factors(
-            D = primeFactors(level.factors_contraints['D']) if 'D' in level.factors_contraints else {},
-            E = primeFactors(level.factors_contraints['E']) if 'E' in level.factors_contraints else {},
-            L = primeFactors(level.factors_contraints['L']) if 'L' in level.factors_contraints else {}
+            M = primeFactors(level.factors_constraints['M']) if 'M' in level.factors_constraints else {},
+            K = primeFactors(level.factors_constraints['K']) if 'K' in level.factors_constraints else {},
+            N = primeFactors(level.factors_constraints['N']) if 'N' in level.factors_constraints else {}
             )
         if arch[0].factors.isSubset(constr_factors) or allow_padding:
-            for dim in ['D', 'E', 'L']:
+            for dim in ['M', 'K', 'N']:
                 dim_size = arch[0].factors.dimProduct(dim)
                 constraint = constr_factors.dimProduct(dim)
                 if dim_size%constraint == 0:
@@ -114,8 +147,12 @@ def enforceFactorsConstraints(arch, allow_padding = False, verbose_padding = Tru
                     arch[0].factors[dim] = primeFactors(padded_dim_size)
                     arch[0].factors.resetDimProducts([dim])
                     for fact, amount in constr_factors[dim].items():
+                        # be wary that here we skip constraints checks in moveFactor, so one must follow up this method with findConstraintsViolation
                         assert moveFactor(arch, 0, i, dim, fact, amount, True, True), "Failed to enforce constraints even with padding..."
 
+"""
+Checks dataflow (loop ordering) constraints. Returns False if a violation is found.
+"""
 def checkDataflowConstraints(arch):
     for level in filter(lambda l : isinstance(l, MemLevel), arch):
         dim_idx = 0
@@ -128,6 +165,14 @@ def checkDataflowConstraints(arch):
                 dim_idx += 1
     return True
 
+"""
+Initializes bypasses between MemLevels of the architecture.
+For each operand and bypass, setup a pointer in the last MemLevel before the bypass
+to the list of levels affected by the bypass.
+
+This way such last level can compute its MOPs according to the level it actually
+supplies data to.
+"""
 def setupBypasses(arch):
     # bypasses at the initial layer simply skip the cost of operands
     for bypass in ['in', 'w', 'out']:
@@ -151,6 +196,10 @@ def setupBypasses(arch):
                 last_before_bypass = i
                 i += 1
 
+"""
+Updates the count of ACTIVE instances throughout Mem- and Compute- Levels.
+An instance is ACTIVE if a FanoutLevel maps a spatial iteration to it.
+"""
 def updateInstances(arch):
     spatial_fanout = 1
     for i in range(len(arch)):
@@ -164,12 +213,19 @@ def updateInstances(arch):
         elif isinstance(level, ComputeLevel):
             level.instances = spatial_fanout
 
+"""
+Clears the accumulators for incrementally updated tile sizes and
+prime factors products in the architecture.
+"""
 def resetTilesAndFactors(arch):
     for level in arch:
         level.factors.clear()
-        for dim in ['D', 'E', 'L']:
+        for dim in ['M', 'K', 'N']:
             level.tile_sizes[dim] = 1
 
+"""
+Returns the overall utilization of spatial instances of a mapping.
+"""
 def fanoutsUtilization(arch):
     utilization = 1
     for level in arch:
@@ -177,6 +233,9 @@ def fanoutsUtilization(arch):
             utilization *= level.factors.fullProduct()/level.mesh
     return utilization
 
+"""
+Hash unique for each factors allocation and dataflows pair.
+"""
 def hashFromFactors(arch):
     hsh = ""
     for level_idx in range(len(arch)):
@@ -186,6 +245,37 @@ def hashFromFactors(arch):
             for factor, amount in arch[level_idx].factors[dim].items():
                 hsh += f"{factor}{amount}"
     return hash(hsh)
+
+"""
+Reduces constraints to the largest possible ones that can be satisfied
+by the present computations.
+
+If arch and comp names are provided, an error is printed and the return
+value must be checked for failure. Otherwise, an assertion requires
+constraints comply.
+"""
+def fitConstraintsToComp(arch, comp, arch_name = None, comp_name = None):
+    failed = False
+    for dim in ['M', 'K', 'N']:
+        total_constraint = 1
+        for level in arch:
+            if dim in level.factors_constraints:
+                if comp[dim] // total_constraint < level.factors_constraints[dim]:
+                    if comp[dim] // total_constraint <= 0:
+                        if arch_name and comp_name:
+                            print(f"ERROR: failed to fit comp: {comp_name} to arch: {arch_name} because the constraint on level: {level.name} and dimension: {dim} ({level.factors_constraints[dim]}) cannot be satisfied by comp ({dim}: {comp[dim]})!")
+                        else:
+                            assert False, f"Failed to fit comp to arch because the constraint on level: {level.name} and dimension: {dim} ({level.factors_constraints[dim]}) cannot be satisfied by comp ({dim}: {comp[dim]})!"
+                        failed = True
+                        break
+                    print(f"WARNING: updating constraint ({dim}: {level.factors_constraints[dim]}) on level \"{level.name}\" to ({dim}: {comp[dim] // total_constraint}) to fit the computation.")
+                    level.factors_constraints[dim] = comp[dim] // total_constraint
+                elif (comp[dim] // total_constraint) % level.factors_constraints[dim] != 0 and not Settings.PADDED_MAPPINGS:
+                    assert False, f"Failed to fit comp to arch because the constraint on level {level.name} ({dim}: {level.factors_constraints[dim]}) does not divide comp dimension {dim} ({comp[dim]}) exactly. To compensate, consider setting 'Settings.PADDED_MAPPINGS' to True."
+            total_constraint *= level.factors_constraints[dim] if dim in level.factors_constraints else 1
+        if failed:
+            break
+    return failed
 
 
 # >>> Miscellaneus functions working with iterables/arrays (snake_cased ones)
@@ -218,7 +308,7 @@ def interleave(array, elements):
 Returns a list of all versions of 'array' that differ by a rotation (or shift).
 """
 def rotations(array):
-    return [array[i:] + array[:i] for i in range(len(array))]
+    return [array[i:] + array[:i] for i in range(len(array))] or [[]]
 
 """
 Returns, if any, the sets of elements which can undergo a cyclic shift and
