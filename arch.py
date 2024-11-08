@@ -28,10 +28,16 @@ class Arch(list):
         assert not any(constr[1:] == '<=' for constr in self[0].factors_constraints.keys()), f"Arch: {self.name}: the outermost (idx 0) level's constraints ({self[0].factors_constraints}) must never be of the '<=' kind."
 
     """
-    Returns a deep-copied compact representation of the current mapping.
+    Returns a compact representation of the current mapping.
+    
+    Arguments:
+    - copy: if True, the returned mapping is a deep-copy of the current one
     """
-    def exportMapping(self):
-        return [LevelCore(deepcopy(level.dataflow), deepcopy(level.factors), deepcopy(level.tile_sizes)) for level in self]
+    def exportMapping(self, copy = False):
+        if copy:
+            return [LevelCore(deepcopy(level.dataflow), deepcopy(level.factors), deepcopy(level.tile_sizes)) for level in self]
+        else:
+            return [LevelCore(level.dataflow, level.factors, level.tile_sizes) for level in self]
 
     """
     Loads a mapping (preferably coming from "exportMapping") into the architecture.
@@ -122,11 +128,19 @@ class Arch(list):
     """
     Resets the architecture's mapping to a blank state.
     [Dataflows are not affected, and remain arbitrary]
+    
+    Arguments:
+    - copy: if True, it does not overwrite the previous state's
+            datastructures, but creates new blank instances of them.
     """
-    def resetFactors(self):
+    def resetFactors(self, copy = False):
         for level in self:
-            level.factors.clear()
-            level.tile_sizes.clear()
+            if copy:
+                level.factors = Factors()
+                level.tile_sizes = Shape(1, 1, 1)
+            else:
+                level.factors.clear()
+                level.tile_sizes.clear()
 
     """
     This function must start from arch having all factors on its first level,
