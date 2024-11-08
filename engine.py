@@ -579,11 +579,11 @@ def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, threads_count = 1,
     # NOTE: "i" is the last memory hierarchy level which had its permutation updated
     i = len(targets) - 1
     while True:
-        arch.resetFactors()
         equidataflow_past_solution = equiDataflowMatch(i) if Settings.PERM_SKIP else None
         
         if not equidataflow_past_solution:
             # prepare present permutation and optimize its mapping
+            arch.resetFactors(copy = True)
             for mem_idx in range(i, len(targets)):
                 targets[mem_idx].dataflow = permutations[mem_idx][current_perms[mem_idx]]
 
@@ -636,7 +636,7 @@ def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, threads_count = 1,
         if i < 0:
             break
     
-    #print("SKIPPED:", skipped_perms_total)
+    #print(f"SKIPPED (thread {thread_idx}):", skipped_perms_total)
     arch.importMapping(best_mapping)
     
     if verbose and thread_idx != -1: print(f"Terminating thread {thread_idx} with best Wart: {best_wart:.3e}, EDP: {EDP(arch, bias_read, True):.3e} (J*cycle)")
