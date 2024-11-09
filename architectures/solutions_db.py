@@ -59,8 +59,8 @@ arch_gemmini_timeloop = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -119,8 +119,8 @@ arch_gemmini_factorflow_1 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -179,8 +179,8 @@ arch_gemmini_factorflow_2 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -251,8 +251,8 @@ arch_eyeriss_timeloop = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -335,8 +335,8 @@ arch_eyeriss_timeloop_ex_1 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -419,8 +419,8 @@ arch_eyeriss_timeloop_ex_2 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -488,8 +488,8 @@ arch_eyeriss_factorflow_1 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -575,8 +575,8 @@ arch_simba_timeloop = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -659,8 +659,8 @@ arch_simba_factorflow_1 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -742,8 +742,8 @@ arch_tpu_factorflow_1 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -840,8 +840,8 @@ arch_tpu_timeloop_ex = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}

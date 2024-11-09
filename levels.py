@@ -16,6 +16,10 @@ class LevelCore:
         self.dataflow = dataflow
         self.factors = factors
         self.tile_sizes = tile_sizes
+    
+    def __str__(self):
+        return f"dataflow: {self.dataflow}, factors: {self.factors}, tile_sizes: {self.tile_sizes}"
+
 
 """
 Abstract class representing a level of the accelerator's architecture.
@@ -26,7 +30,6 @@ to DRAM or slower memories.
 """
 class Level(LevelCore):
     name: None
-    dataflow_constraints: None
     factors_constraints: None
 
     """
@@ -72,7 +75,7 @@ class Level(LevelCore):
         return (all([(dim not in self.factors_constraints or self.factors_constraints[dim] == self.factors.dimProduct(dim)) for dim in self.dataflow]) and
                 all([(dim + '<=' not in self.factors_constraints or self.factors_constraints[dim + '<='] >= self.factors.dimProduct(dim)) for dim in self.dataflow]) and
                 all([(dim + '>=' not in self.factors_constraints or self.factors_constraints[dim + '>='] <= self.factors.dimProduct(dim)) for dim in self.dataflow]))
-        
+
     """
     Returns a string describing the current violation of constraints,
     if any.
@@ -90,6 +93,9 @@ class Level(LevelCore):
 
     def __setitem__(self, key, value):
         setattr(self, key, value)
+
+    def __str__(self):
+        return f"{self.name}: ({super().__str__()}, factors_constraints: {self.factors_constraints})"
 
 
 """
@@ -508,6 +514,17 @@ class MemLevel(Level):
             return f"CONSTRAINTS VIOLATION: level {self.name}, memory used: {mem_footprint} VS memory available: {self.size/self.multiple_buffering:.0f}"
         return ""
 
+    def __str__(self):
+        return f"{super().__str__()}, size: {self.size}, read_access_energy: {self.read_access_energy}, write_access_energy: {self.write_access_energy}, leakage_energy: {self.leakage_energy}, read_bandwidth: {self.read_bandwidth}, write_bandwidth: {self.write_bandwidth}, bypasses: {self.bypasses}, multiple_buffering: {self.multiple_buffering}"
+
+
+"""
+Abstract class for a level introducing multiple spatial instances.
+"""
+class SpatialLevel(Level):
+    dims: None
+    mesh: None
+
 
 """
 A Spatial Fanout Level within the architecture, the core of a spatial architecture,
@@ -518,10 +535,10 @@ others, with partially different data.
 Constructor arguments:
 - name: the level's name
 - mesh: the maximum spatial fanout available at this level
-- dim: single dimension to spatially unroll at this level, if specified, dims
-       must not be specified
-- dims: list of dimensions to spatially unroll at this level, if specified, dims
-        must not be specified. The order in dims does not matter
+- dim: single dimension to spatially unroll at this level, if dim is specified,
+       dims must not be specified
+- dims: list of dimensions to spatially unroll at this level, if dims is specified,
+        dim must not be specified. The order in dims does not matter.
 - pe_to_pe: if True, data is not multicasted in one shot, but sent to only the first
             fanout entry, which then forwards it to the second, and so on, just like
             the operands flowing in/out of a systolic array (or, like in a pipeline).
@@ -550,7 +567,8 @@ Constructor arguments:
 # and spatial_reduction_support were True (if they were False to begin with, let them be False (&&)), for the second set
 # them both to false.
 # Obviously, in case N < |dims| you need to change the "iterate permutations" step to actually permute spatial loops!!!
-class FanoutLevel(Level):
+# BETTER: make spatial_reduction_support and spatial_multicast_support be specified per-dimension!
+class FanoutLevel(SpatialLevel):
     def __init__(self, name, mesh, dim : str = None, dims : list[str] = None, pe_to_pe = False, spatial_multicast_support = True, spatial_reduction_support = True, power_gating_support = False, factors = None, tile_sizes = None, factors_constraints = None):
         self.name = name
         assert (dim and not dims) or (dims and not dim), f"Level: {name}: exactly one of dim ({dim}) or dims ({dims}) must be specified."
@@ -621,6 +639,9 @@ class FanoutLevel(Level):
             return f"CONSTRAINTS VIOLATION: level {self.name}, spatial iterations used: {self.factors.fullProduct()} VS available instances (mesh): {self.mesh}"
         return ""
 
+    def __str__(self):
+        return f"{super().__str__()}, mesh: {self.mesh}, pe_to_pe: {self.pe_to_pe}, spatial_multicast_support: {self.spatial_multicast_support}, spatial_reduction_support: {self.spatial_reduction_support}, power_gating_support: {self.power_gating_support}"
+
 
 """
 A Compute Level within the architecture, it is a placeholder for any processing
@@ -631,21 +652,27 @@ clock-cycles specified in "cycles", execute all such iterations. It is also assu
 that the data required for all iterations done at this level is held within hardware
 registers whose energy cost is modeled by the "compute energy", together with the
 actual compute cost. As such, iterations done here are equivalent to a PE capable
-of multiple concurrent (simultaneous or pipelined) MACs.
+of multiple concurrent (parallel or pipelined (chaining accumulation output)) MACs.
 Then intuitively, increasing the number of iterations done at this level linearly
 increases the required bandwidth of all memory levels feeding it, as they need to
 keep up with the concurrent MACs done here.
 
 Constructor arguments:
 - name: the level's name
-- size: how many concurrent (simultaneous or pipelined) MACs the compute element
+- mesh: how many concurrent (parallel or pipelined) MACs the compute element
         can perform within "cycles" clock-cycles.
 - compute_energy: the energy required for a single MAC (regardless of how many
                   you run concurrently), accounting for all computation-related
                   costs at the PE level.
 - cycles: the number of clock cycles of latency required to execute "size" MACs
 - leakage_energy: energy leaked each clock cycle by the component (in pJ)
-- dataflow: specifies the dimensions over which to iterate, defaults to all dimensions
+- dim: single dimension along which MAC operations are picked to run concurrently
+       on this level, if dim is specified, dims must not be specified
+       NOTE: when mesh is 1, both dim and dims can be omitted
+- dims: list of dimensions from which MAC operations are picked to run concurrently
+       on this level, if dims is specified, dim must not be specified.
+       The order in dims does not matter.
+       NOTE: when mesh is 1, both dim and dims can be omitted
 - factors: specifies the initial factors for this level, should not be normally
            specified aside for initializing MSE from a specific configuration
 - tile_sizes: specifies the initial tile sizes for this level, should not be normally
@@ -658,20 +685,16 @@ Constructor arguments:
                           - 'M>=', 'K>=', and 'N>=' for lower bounds;
                       NOTE: the use of the '<=' and '>=' constraints does not shorten the
                             mapper's runtime as much as exact constraints.
-- dataflow_constraints: constraints for the order of loops at this level, for any dim
-                        not specified here, all permutations are tried while keeping
-                        fixed the relative order of constrained dimensions.
-                        Valid strings are 'M', 'K', and 'N'.
 """
-class ComputeLevel(Level):
-    def __init__(self, name, size, compute_energy, cycles, leakage_energy = 0, dataflow = None, factors = None, tile_sizes = None, factors_constraints = None, dataflow_constraints = None):
+class ComputeLevel(SpatialLevel):
+    def __init__(self, name, mesh, compute_energy, cycles, dim : str = None, dims : list[str] = None, leakage_energy = 0, factors = None, tile_sizes = None, factors_constraints = None):
         self.name = name
-        # NOTE: this way of constructing the dataflow from the constraints is redundant, but useful if one wants to skip the
-        # exploration of permutations since with this method the dataflow will be immediately consistent with constraints.
-        self.dataflow = dataflow if dataflow else (dataflow_constraints + [dim for dim in ['M', 'K', 'N'] if dim not in dataflow_constraints] if dataflow_constraints else ['M', 'K', 'N']) # dimensions over which to iterate
-        assert all([dim in ['M', 'K', 'N'] for dim in self.dataflow]), f"Level: {name}: accepted dimension names in the dataflow are solely M, K and N, provided ones were {self.dataflow}."
-        assert size > 0, f"Level: {name}: a zero or negative size ({size}) does not make sense."
-        self.size = size # for a systolic array, this is the length of the operand buffers
+        assert mesh == 1 or (dim and not dims) or (dims and not dim), f"Level: {name}: when mesh ({mesh}) is > 1, exactly one of dim ({dim}) or dims ({dims}) must be specified."
+        self.dims = ([dim] if dim else dims) if dim or dims else []
+        self.dataflow = self.dims
+        assert all([dim in ['M', 'K', 'N'] for dim in self.dataflow]), f"Level: {name}: accepted names for dimensions are solely M, K and N, provided ones were {self.dataflow}."
+        assert mesh > 0, f"Level: {name}: a zero or negative size ({mesh}) does not make sense."
+        self.mesh = mesh # for a systolic array, this is the length of the operand buffers
         assert compute_energy >= 0, f"Level: {name}: a negative compute energy ({compute_energy}) does not mean anything (unless you watched too much Gundam and discovered Minovsky particles...)."
         self.compute_energy = compute_energy
         assert leakage_energy >= 0, f"Level: {name}: a negative leakage energy ({leakage_energy}) does not mean anything (unless you watched too much Gundam 00 and discovered GN particles...)."
@@ -684,8 +707,6 @@ class ComputeLevel(Level):
         assert all([constr[0] in self.dataflow and constr[1:] in ['', '>=', '<='] for constr in self.factors_constraints.keys()]), f"Level: {name}: all keys within factor constraints ({list(self.factors_constraints.keys())}) must be a dimension of the dataflow ({self.dataflow}) and in the form 'dim', 'dim<=', or 'dim>='."
         assert all([sum(constr[0] == dim for constr in self.factors_constraints.keys()) <= 1 for dim in self.dataflow]), f"Level: {name}: each dimension must occur at most once in constraints ({list(self.factors_constraints.keys())}), regardless of the use of '>=' or '<='."
         assert all([value > 0 for value in self.factors_constraints.values()]), f"Level: {name}: all constraints ({self.factors_constraints}) must have a value strictly > 0."
-        self.dataflow_constraints = dataflow_constraints if dataflow_constraints else []
-        assert all([constr in self.dataflow for constr in self.dataflow_constraints]), f"Level: {name}: all dims specified as dataflow constraints ({self.dataflow_constraints}) must be part of the dataflow ({self.dataflow})."
 
         # STATISTICS:
         self.instances = 1
@@ -721,8 +742,8 @@ class ComputeLevel(Level):
     including not exceeding the phisical number of concurrent MACs performed here.
     """
     def checkConstraints(self):
-        return self.factors.fullProduct() <= self.size and super().checkConstraints()
-    
+        return self.factors.fullProduct() <= self.mesh and super().checkConstraints()
+
     """
     Returns a string describing the current violation of constraints, if any.
     """
@@ -730,5 +751,8 @@ class ComputeLevel(Level):
         if not super().checkConstraints():
             return super().logConstraintsViolation()
         elif not self.checkConstraints():
-            return f"CONSTRAINTS VIOLATION: level {self.name}, concurrent MACs used: {self.factors.fullProduct()} VS concurrent MACs available: {self.size}"
+            return f"CONSTRAINTS VIOLATION: level {self.name}, concurrent MACs used: {self.factors.fullProduct()} VS concurrent MACs available: {self.mesh}"
         return ""
+
+    def __str__(self):
+        return f"{super().__str__()}, mesh: {self.mesh}, compute_energy: {self.compute_energy}, leakage_energy: {self.leakage_energy}, cycles: {self.cycles}"

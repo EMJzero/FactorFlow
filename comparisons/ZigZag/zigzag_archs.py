@@ -77,8 +77,8 @@ arch_gemmini_zigzag_compatible = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -149,8 +149,8 @@ arch_gemmini_zigzag_loma_kqv = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -218,8 +218,8 @@ arch_gemmini_zigzag_loma_vscores = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -278,8 +278,8 @@ arch_gemmini_zigzag_loma_ktq = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -338,8 +338,8 @@ arch_gemmini_zigzag_loma_ff1 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -398,8 +398,8 @@ arch_gemmini_zigzag_loma_mb1 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -458,8 +458,8 @@ arch_gemmini_zigzag_loma_mb2 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -518,8 +518,8 @@ arch_gemmini_zigzag_loma_mb3 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -587,8 +587,8 @@ arch_gemmini_zigzag_loma_mb4 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -656,8 +656,8 @@ arch_gemmini_zigzag_loma_mb5 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -716,8 +716,8 @@ arch_gemmini_zigzag_loma_mb6 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -776,8 +776,8 @@ arch_gemmini_zigzag_salsa_kqv = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -836,8 +836,8 @@ arch_gemmini_zigzag_salsa_ktq = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -905,8 +905,8 @@ arch_gemmini_zigzag_salsa_vscores = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -965,8 +965,8 @@ arch_gemmini_zigzag_salsa_ff1 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -1025,8 +1025,8 @@ arch_gemmini_zigzag_salsa_mb1 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -1085,8 +1085,8 @@ arch_gemmini_zigzag_salsa_mb2 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -1145,8 +1145,8 @@ arch_gemmini_zigzag_salsa_mb3 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -1214,8 +1214,8 @@ arch_gemmini_zigzag_salsa_mb4 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -1283,8 +1283,8 @@ arch_gemmini_zigzag_salsa_mb5 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -1343,8 +1343,8 @@ arch_gemmini_zigzag_salsa_mb6 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -1415,8 +1415,8 @@ arch_eyeriss_zigzag_compatible = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -1484,8 +1484,8 @@ arch_eyeriss_zigzag_compatible_2 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -1554,8 +1554,8 @@ arch_eyeriss_zigzag_loma_kqv = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -1626,8 +1626,8 @@ arch_eyeriss_zigzag_loma_vscores = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -1698,8 +1698,8 @@ arch_eyeriss_zigzag_loma_vscores = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -1767,8 +1767,8 @@ arch_eyeriss_zigzag_loma_ktq = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -1836,8 +1836,8 @@ arch_eyeriss_zigzag_loma_ff1 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -1905,8 +1905,8 @@ arch_eyeriss_zigzag_loma_mb1 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -1974,8 +1974,8 @@ arch_eyeriss_zigzag_loma_mb2 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -2043,8 +2043,8 @@ arch_eyeriss_zigzag_loma_mb3 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -2121,8 +2121,8 @@ arch_eyeriss_zigzag_loma_mb4 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -2190,8 +2190,8 @@ arch_eyeriss_zigzag_loma_mb5 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -2268,8 +2268,8 @@ arch_eyeriss_zigzag_loma_mb6 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -2337,8 +2337,8 @@ arch_eyeriss_zigzag_salsa_kqv = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -2406,8 +2406,8 @@ arch_eyeriss_zigzag_salsa_ktq = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -2484,8 +2484,8 @@ arch_eyeriss_zigzag_salsa_vscores = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -2553,8 +2553,8 @@ arch_eyeriss_zigzag_salsa_ff1 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -2622,8 +2622,8 @@ arch_eyeriss_zigzag_salsa_mb1 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -2691,8 +2691,8 @@ arch_eyeriss_zigzag_salsa_mb2 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -2760,8 +2760,8 @@ arch_eyeriss_zigzag_salsa_mb3 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -2838,8 +2838,8 @@ arch_eyeriss_zigzag_salsa_mb4 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -2907,8 +2907,8 @@ arch_eyeriss_zigzag_salsa_mb5 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -2976,8 +2976,8 @@ arch_eyeriss_zigzag_salsa_mb6 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -3063,8 +3063,8 @@ arch_simba_zigzag_loma_kqv = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -3147,8 +3147,8 @@ arch_simba_zigzag_loma_vscores = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -3231,8 +3231,8 @@ arch_simba_zigzag_loma_ktq = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -3315,8 +3315,8 @@ arch_simba_zigzag_loma_ff1 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -3399,8 +3399,8 @@ arch_simba_zigzag_loma_mb1 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -3483,8 +3483,8 @@ arch_simba_zigzag_loma_mb2 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -3567,8 +3567,8 @@ arch_simba_zigzag_loma_mb3 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -3651,8 +3651,8 @@ arch_simba_zigzag_loma_mb4 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -3735,8 +3735,8 @@ arch_simba_zigzag_loma_mb5 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -3819,8 +3819,8 @@ arch_simba_zigzag_loma_mb6 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -3912,8 +3912,8 @@ arch_simba_zigzag_salsa_kqv = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -4005,8 +4005,8 @@ arch_simba_zigzag_salsa_ktq = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -4098,8 +4098,8 @@ arch_simba_zigzag_salsa_vscores = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -4191,8 +4191,8 @@ arch_simba_zigzag_salsa_ff1 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -4284,8 +4284,8 @@ arch_simba_zigzag_salsa_mb1 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -4377,8 +4377,8 @@ arch_simba_zigzag_salsa_mb2 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -4461,8 +4461,8 @@ arch_simba_zigzag_salsa_mb3 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -4554,8 +4554,8 @@ arch_simba_zigzag_salsa_mb4 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -4638,8 +4638,8 @@ arch_simba_zigzag_salsa_mb5 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -4722,8 +4722,8 @@ arch_simba_zigzag_salsa_mb6 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -4805,8 +4805,8 @@ arch_tpu_zigzag_loma_kqv = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -4885,8 +4885,8 @@ arch_tpu_zigzag_loma_ktq = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -4965,8 +4965,8 @@ arch_tpu_zigzag_loma_vscores = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -5045,8 +5045,8 @@ arch_tpu_zigzag_loma_ff1 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -5125,8 +5125,8 @@ arch_tpu_zigzag_loma_mb1 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -5205,8 +5205,8 @@ arch_tpu_zigzag_loma_mb2 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -5285,8 +5285,8 @@ arch_tpu_zigzag_loma_mb3 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -5365,8 +5365,8 @@ arch_tpu_zigzag_loma_mb4 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -5445,8 +5445,8 @@ arch_tpu_zigzag_loma_mb5 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -5525,8 +5525,8 @@ arch_tpu_zigzag_loma_mb6 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -5605,8 +5605,8 @@ arch_tpu_zigzag_salsa_kqv = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -5685,8 +5685,8 @@ arch_tpu_zigzag_salsa_ktq = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -5765,8 +5765,8 @@ arch_tpu_zigzag_salsa_vscores = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -5845,8 +5845,8 @@ arch_tpu_zigzag_salsa_ff1 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -5925,8 +5925,8 @@ arch_tpu_zigzag_salsa_mb1 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -6005,8 +6005,8 @@ arch_tpu_zigzag_salsa_mb2 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -6085,8 +6085,8 @@ arch_tpu_zigzag_salsa_mb3 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -6165,8 +6165,8 @@ arch_tpu_zigzag_salsa_mb4 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -6245,8 +6245,8 @@ arch_tpu_zigzag_salsa_mb5 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -6325,8 +6325,8 @@ arch_tpu_zigzag_salsa_mb6 = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}

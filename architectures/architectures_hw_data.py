@@ -150,8 +150,8 @@ def arch_eyeriss_hw_data():
         ),
         ComputeLevel(
             name = "Compute",
-            dataflow = WS[2],
-            size = 1,
+            dim = WS[2],
+            mesh = 1,
             compute_energy = accelergy_estimate_energy({
                 "class_name": "aladdin_adder",
                 "attributes": {

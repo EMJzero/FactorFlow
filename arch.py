@@ -226,10 +226,10 @@ class Arch(list):
     """
     Returns the overall utilization of spatial instances of a mapping.
     """
-    def fanoutsUtilization(self):
+    def spatialUtilization(self):
         utilization = 1
         for level in self:
-            if isinstance(level, FanoutLevel):
+            if isinstance(level, SpatialLevel):
                 utilization *= level.factors.fullProduct()/level.mesh
         return utilization
 
@@ -283,5 +283,8 @@ class Arch(list):
                 break
         return failed
 
+    def __repr__(self):
+        return f"<object Arch: name: {self.name}, levels: {super().__repr__()}>"
+    
     def __str__(self):
-        return f"{self.name}: {super().__str__()}"
+        return f"{self.name}: [" + ", ".join([level.__str__() for level in self]) + "]"

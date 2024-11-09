@@ -67,8 +67,8 @@ arch_gemmini = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim = WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -131,8 +131,8 @@ arch_true_gemmini = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim = WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -205,8 +205,8 @@ arch_eyeriss = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim = WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -294,8 +294,8 @@ arch_simba = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim = WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
@@ -386,8 +386,8 @@ arch_tpu = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim = WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
