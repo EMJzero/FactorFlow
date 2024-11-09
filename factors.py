@@ -38,7 +38,7 @@ class Shape():
 
     def __setitem__(self, key, value):
         setattr(self, key, value)
-        
+
     def __str__(self):
         return f"{{M: {self.M}, K: {self.K}, N: {self.N}}}"
 
@@ -164,3 +164,6 @@ class Factors():
 
     def __setitem__(self, key, value):
         setattr(self, key, value)
+
+    def __str__(self):
+        return f"{{M: {self.M}, K: {self.K}, N: {self.N}}}"

@@ -48,9 +48,9 @@ arch = Arch([
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = ['N'],
-        size = 1,
+        dims = ['N'],
+        mesh = 2,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
-        factors_constraints = {'N': 1}
+        factors_constraints = {}
     )], name="Example Architecture")

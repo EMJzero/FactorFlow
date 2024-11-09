@@ -26,49 +26,54 @@ Any other object should also work reasonably well.
 """
 def prettyPrint(obj):
     seen = set()
+    res = ""
     
     def pp(obj, indent=0, keep_first_indend = True):
+        nonlocal res
+        
         if isinstance(obj, dict):
             for key, value in obj.items():
-                print(f"{' ' * (indent + 4)}{key}: ")
+                res += f"{' ' * (indent + 4)}{key}:\n"
                 pp(value, indent + 4)
             if len(obj) == 0:
-                print(f"{' ' * (indent + 4)}<empty>")
+                res += f"{' ' * (indent + 4)}<empty>\n"
             return
         if isinstance(obj, collections.abc.Iterable) and not isinstance(obj, str):
             if len(obj) == 0:
-                print("[]")
+                res += "[]\n"
                 return
-            print(f"{' ' * indent * keep_first_indend}[")
+            res += f"{' ' * indent * keep_first_indend}[\n"
             for i, item in enumerate(obj):
-                print(f"{' ' * (indent + 4)}Item {i}: ")
+                res += f"{' ' * (indent + 4)}Item {i}:\n"
                 pp(item, indent + 8)
-            print(f"{' ' * indent}]")
+            res += f"{' ' * indent}]\n"
             return
         if hasattr(obj, "__dict__"):
             name = obj.name if hasattr(obj, "name") else id(obj)
             if id(obj) in seen:
-                print(f"{' ' * indent * keep_first_indend}- Reference to {obj.__class__.__name__}({name}) already printed")
+                res += f"{' ' * indent * keep_first_indend}- Reference to {obj.__class__.__name__}({name}) already printed\n"
                 return
             seen.add(id(obj))
-            print(f"{' ' * indent * keep_first_indend}{obj.__class__.__name__}({name}): ")
+            res += f"{' ' * indent * keep_first_indend}{obj.__class__.__name__}({name}):\n"
             for attr, value in obj.__dict__.items():
                 if attr.startswith('_'):
                     continue
                 if hasattr(value, "__dict__"):
-                    print(f"{' ' * (indent + 4)}{attr}: ")
+                    res += f"{' ' * (indent + 4)}{attr}:\n"
                     pp(value, indent + 4)
                 elif isinstance(value, dict):
-                    print(f"{' ' * (indent + 4)}{attr}: ")
+                    res += f"{' ' * (indent + 4)}{attr}:\n"
                     pp(value, indent + 4)
                 elif isinstance(value, collections.abc.Iterable) and not isinstance(value, str):
-                    print(f"{' ' * (indent + 4)}{attr}: ", end='')
+                    res += f"{' ' * (indent + 4)}{attr}: "
                     pp(value, indent + 4, False)
                 else:
-                    print(f"{' ' * (indent + 4)}{attr}: {value}")
+                    res += f"{' ' * (indent + 4)}{attr}: {value}\n"
         else:
-            print(f"{' ' * (indent + 4)}- {obj}")
+            res += f"{' ' * (indent + 4)}- {obj}\n"
+    
     pp(obj)
+    print(res)
 
 """
 Print to stdout a summary of the factors allocated to each dimension across the
@@ -80,7 +85,7 @@ def printFactors(arch):
         for dim in level.dataflow:
             fac_str += f"{dim}: {level.factors.dimProduct(dim)}, "
         print(fac_str[:-2])
-        
+
 """
 Returns a summary string representing the factors allocated to each dimension
 across the entire architecture.

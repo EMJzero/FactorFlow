@@ -170,7 +170,7 @@ It is equivalent to FLOPs/EDPoU, where EDPoU = (Energy * Latency) / Utilization
 def Wart(arch, comp, bias_read):
     FLOPs = comp.FLOPs()
     WMOPs, max_latency = updateStats(arch, bias_read)
-    utilization = arch.fanoutsUtilization() if Settings.UTILIZATION_IN_WART else 1
+    utilization = arch.spatialUtilization() if Settings.UTILIZATION_IN_WART else 1
     return (FLOPs/(WMOPs*max_latency))*utilization
 
 """
@@ -243,13 +243,13 @@ def fanoutMaximization(arch, comp, bias_read, verbose = False):
     # NOTE: When making this handle Fanouts with multiple unrolled dimensions, the issue is dividing the fanout size across dimensions
     # IDEA: Use a binary (ternary) tree expansion, start with 50-50 (30-30-30), explore each child and prune worse branches?
     # IMPORTANT: from optimizeDataflow, if there are unconstrained dimensions, those are always the first ones!
-    # TODO: Evaluate whether to apply this step to ComputeLevels too (see fanoutMaximization TODOs as well)!
+    # NOTE: This step applies to ComputeLevels too!
     if verbose: print("\nStarting fanout maximization:\n")
     if Settings.ONLY_MAXIMIZE_ONE_FANOUT_DIM:
         if Settings.PADDED_MAPPINGS:
             for dim in ['M', 'K', 'N']:
-                total_mesh = math.prod([level.mesh for level in arch if isinstance(level, FanoutLevel) and level.dataflow[0] == dim])
-                mesh_factors = [f for level in arch if isinstance(level, FanoutLevel) and level.dataflow[0] == dim for f in prime_factors_list(level.mesh)]
+                total_mesh = math.prod([level.mesh for level in arch if isinstance(level, SpatialLevel) and level.dataflow[0] == dim])
+                mesh_factors = [f for level in arch if isinstance(level, SpatialLevel) and level.dataflow[0] == dim for f in prime_factors_list(level.mesh)]
                 dim_size = arch[0].factors.dimProduct(dim)
                 dim_factors = arch[0].factors.toList(dim)
                 if total_mesh > dim_size:
@@ -267,7 +267,7 @@ def fanoutMaximization(arch, comp, bias_read, verbose = False):
         
         for i in range(1, len(arch) - 1): # first round: start from common factors
             level = arch[i]
-            if isinstance(level, FanoutLevel):
+            if isinstance(level, SpatialLevel):
                 dim = level.dataflow[0]
                 common_mesh_factors = [f for f in prime_factors(level.mesh).keys() if f in arch[0].factors[dim]]
                 for f in sorted(common_mesh_factors, reverse=True): # try largest factors first
@@ -279,7 +279,7 @@ def fanoutMaximization(arch, comp, bias_read, verbose = False):
         
         for i in range(1, len(arch) - 1): # second round: fill any remaining space as best as you can
             level = arch[i]
-            if isinstance(level, FanoutLevel):
+            if isinstance(level, SpatialLevel):
                 for dim in level.dataflow: # as a last resort, try dimensions beyond the first one
                     if dim in level.factors_constraints:
                         continue
@@ -293,7 +293,7 @@ def fanoutMaximization(arch, comp, bias_read, verbose = False):
     else:
         for i in range(1, len(arch) - 1):
             level = arch[i]
-            if isinstance(level, FanoutLevel):
+            if isinstance(level, SpatialLevel):
                 assert len(level.dims) <= 2, f"Level: {level.name}: CURRENT LIMITATION - at most 2 dimensions on the same fanout, limit dims ({level.dims}) to at most 2 entries when Settings.ONLY_MAXIMIZE_ONE_FANOUT_DIM is False."
                 # TODO: as of now this accepts only at most 2 dimensions on same fanout - pick mesh_split_factor >= 3 to allow more?
                 mesh_prime_factors = prime_factors(level.mesh)
@@ -318,11 +318,11 @@ Returned moves may violate constraints, use utils.moveFactor to apply them.
 Arguments:
 - iterate_amounts: if True, adjacency is extended to the idea of moving
                    any arity of a factor between loops on the same dimension.
-- skip_fanouts: if True, fanout levels are not considered for adjacency.
+- skip_spatial: if True, spatial levels are not considered for adjacency.
 """
-def factorsIterator(arch, iterate_amounts = False, skip_fanouts = False):
+def factorsIterator(arch, iterate_amounts = False, skip_spatial = False):
     for level_idx in range(len(arch)):
-        if skip_fanouts and (isinstance(arch[level_idx], FanoutLevel)):
+        if skip_spatial and (isinstance(arch[level_idx], SpatialLevel)):
             continue
         for dim in arch[level_idx].dataflow:
             for factor in list(arch[level_idx].factors[dim].keys()):
@@ -375,7 +375,7 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
     
     def exploreOneStep(remaining_steps = 1, target_src_level_idx = None, target_dim = None, target_factor = None, target_dst_level_idx = None):
         choices = {}
-        for src_level_idx, dim, factor, amount in factorsIterator(arch, iterate_amounts = Settings.ITERATE_AMOUNTS, skip_fanouts= Settings.FREEZE_SA):
+        for src_level_idx, dim, factor, amount in factorsIterator(arch, iterate_amounts = Settings.ITERATE_AMOUNTS, skip_spatial= Settings.FREEZE_SA):
             if target_src_level_idx and target_dim and target_factor and (target_src_level_idx != src_level_idx or target_dim != dim or target_factor != factor):
                 continue
             #print("Initial proposal: ", src_level_idx, dim, factor)
@@ -394,7 +394,7 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
             #    new_src -= 1
 
             for dst_level_idx in range(len(arch)):
-                if dst_level_idx != src_level_idx and dim not in arch[dst_level_idx].factors_constraints and dim in arch[dst_level_idx].dataflow and (not Settings.FREEZE_SA or not isinstance(arch[dst_level_idx], FanoutLevel)):
+                if dst_level_idx != src_level_idx and dim not in arch[dst_level_idx].factors_constraints and dim in arch[dst_level_idx].dataflow and (not Settings.FREEZE_SA or not isinstance(arch[dst_level_idx], SpatialLevel)):
                     #print(src_level_idx, dst_level_idx, dim, factor)
                     if target_dst_level_idx and dst_level_idx != target_dst_level_idx:
                         continue
@@ -462,15 +462,14 @@ def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, threads_count = 1,
     Settings.forcedSettingsUpdate(arch, False)
     
     if verbose and thread_idx <= 0: print("-------- optimizeDataflows --------")
-    targets = list(filter(lambda l : isinstance(l, MemLevel) or isinstance(l, ComputeLevel) or (Settings.ONLY_MAXIMIZE_ONE_FANOUT_DIM and isinstance(l, FanoutLevel)), arch))
+    targets = list(filter(lambda l : isinstance(l, MemLevel) or (Settings.ONLY_MAXIMIZE_ONE_FANOUT_DIM and isinstance(l, SpatialLevel)), arch))
     # IDEA: pre-exclude some permutations!
     # HOW-TO: exploit the fact that you are going in order! If the difference between the
     # next configuration and the current one involves a dimension which had in the previous
     # best mapping a factor of 1, SKIP THE CONFIGURATION.
     # NOTE: we cannot truly skip the configuration, but we can re-start the factorFlow exploration
     # from where it was left -> adaptive programming!
-    # TODO: Evaluate whether to treat ComputeLevels as FanoutLevels too (see fanoutMaximization TODOs as well)!
-    permutations = [[perm for perm in interleave(level.dataflow_constraints, [dim for dim in level.dataflow if dim not in level.dataflow_constraints])] if not isinstance(level, FanoutLevel) else [rot + [dim for dim in level.dims if dim in level.factors_constraints] for rot in rotations([dim for dim in level.dims if dim not in level.factors_constraints])] for level in targets]
+    permutations = [[perm for perm in interleave(level.dataflow_constraints, [dim for dim in level.dataflow if dim not in level.dataflow_constraints])] if not isinstance(level, SpatialLevel) else [rot + [dim for dim in level.dims if dim in level.factors_constraints] for rot in rotations([dim for dim in level.dims if dim not in level.factors_constraints])] for level in targets]
     
     # divide permutations across threads (if multithreading is enabled)
     #print(f"Original permutations: {permutations}")
@@ -538,7 +537,7 @@ def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, threads_count = 1,
         # TODO: remove this deepcopy and just reset factors (requires a "reset" method implemented in each layer)
         #resetTilesAndFactors(arch)
         current_arch = copy.deepcopy(arch)
-        current_targets = list(filter(lambda l : isinstance(l, MemLevel) or isinstance(l, ComputeLevel) or (Settings.ONLY_MAXIMIZE_ONE_FANOUT_DIM and isinstance(l, FanoutLevel)), current_arch))
+        current_targets = list(filter(lambda l : isinstance(l, MemLevel) or (Settings.ONLY_MAXIMIZE_ONE_FANOUT_DIM and isinstance(l, SpatialLevel)), current_arch))
         for mem_idx in range(len(current_targets)):
             current_targets[mem_idx].dataflow = permutations[mem_idx][current_perms[mem_idx]]
         current_arch, wart = factorFlow(current_arch, comp, bias_read)
@@ -556,7 +555,7 @@ def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, threads_count = 1,
         
         # True if any set of dimensions which with a cyclic shift can yield the previous permutation from the current one is entirely made of dims with a factor of 1,
         # or true if of all dimensions involved in swaps between neighbouring nested loops to go from the previous permutation to the current one at least all except one have a factor of 1.
-        while (Settings.PERM_SKIP and i >= 0 and not isinstance(current_targets[i], FanoutLevel) and
+        while (Settings.PERM_SKIP and i >= 0 and not isinstance(current_targets[i], SpatialLevel) and
                (any(map(lambda dims : all([factors_at_one[i][dim] for dim in dims]), single_cyclic_shift(permutations[i][current_perms[i]], permutations[i][current_perms[i] - 1])))
                or (lambda dims : sum([factors_at_one[i][dim] for dim in dims]) >= len(dims) - 1)(pairwise_swaps(permutations[i][current_perms[i]], permutations[i][current_perms[i] - 1])))):
             if not Settings.HARD_PERM_SKIP:
@@ -615,7 +614,7 @@ def run_engine(arch, comp, bias_read, verbose = False):
     mops = MOPs(arch)
     energy = Energy(arch, True)
     latency = Latency(arch)
-    utilization = arch.fanoutsUtilization()
+    utilization = arch.spatialUtilization()
 
     if verbose:
         print(f"\nFinished in: {end_time:.3f}s")
