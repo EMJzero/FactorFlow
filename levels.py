@@ -31,6 +31,7 @@ to DRAM or slower memories.
 class Level(LevelCore):
     name: None
     factors_constraints: None
+    area: None
 
     """
     Add "amount" instances of the provided factor to those of
@@ -118,6 +119,7 @@ Constructor arguments:
 - value_bits: size in bits of the values stored on the memory. This is the same for all
           operands, castings are implicitly assumed to take place whenever needed.
 - leakage_energy: energy leaked each clock cycle by the component (in pJ/cc)
+- area: the area occupied by the memory (in um^2).
 - bandwidth: the bandwidth for reads and writes, it will be divided in 1/2 for
              read and 1/2 for write (in operands/clock-cycle)
 - dataflow: specifies the dimensions over which to iterate, defaults to all dimensions
@@ -151,7 +153,7 @@ Constructor arguments:
   - Note: either both or none of read_bandwidth and write_bandwidth must be specified
 """
 class MemLevel(Level):
-    def __init__(self, name, size, value_access_energy = None, wordline_access_energy = None, word_bits = None, value_bits = None, leakage_energy = 0, bandwidth = None, dataflow = None, factors = None, tile_sizes = None, factors_constraints = None, dataflow_constraints = None, bypasses = None, multiple_buffering = 1,  read_value_access_energy = None, write_value_access_energy = None, read_wordline_access_energy = None, write_wordline_access_energy = None, read_bandwidth = None, write_bandwidth = None):
+    def __init__(self, name, size, value_access_energy = None, wordline_access_energy = None, word_bits = None, value_bits = None, leakage_energy = 0, area = None, bandwidth = None, dataflow = None, factors = None, tile_sizes = None, factors_constraints = None, dataflow_constraints = None, bypasses = None, multiple_buffering = 1,  read_value_access_energy = None, write_value_access_energy = None, read_wordline_access_energy = None, write_wordline_access_energy = None, read_bandwidth = None, write_bandwidth = None):
         self.name = name
         # NOTE: this way of constructing the dataflow from the constraints is redundant, but useful if one wants to skip the
         # exploration of permutations since with this method the dataflow will be immediately consistent with constraints.
@@ -171,6 +173,8 @@ class MemLevel(Level):
             self.write_access_energy = (write_wordline_access_energy if write_wordline_access_energy else wordline_access_energy) / self.values_per_wordline
         self.leakage_energy = leakage_energy
         assert self.read_access_energy >= 0 and self.write_access_energy >= 0 and self.leakage_energy >= 0, f"Level: {name}: a negative access energy ({self.read_access_energy} read, {self.read_access_energy} write), ({self.leakage_energy} leak), does not mean anything (unless you are into sci-fi stuff)."
+        assert not area or area >= 0, f"Level: {name}: a negative area ({area}) does not mean anything."
+        self.area = area
         # NOTE: 1/2 split of bandwidth for consistency with Timeloop - not a true must...
         assert (bandwidth and not read_bandwidth and not write_bandwidth) or (read_bandwidth and write_bandwidth), f"Level: {name}: either bandwidth ({bandwidth}) or read_bandwidth ({read_bandwidth}) and write_bandwidth ({write_bandwidth}) must be specified, if either of read_bandwidth or write_bandwidth is specified, the other must be specified as well."
         self.read_bandwidth = read_bandwidth if read_bandwidth else bandwidth/2
@@ -199,7 +203,7 @@ class MemLevel(Level):
         #    self.factors_constraints['M'] = 1
 
         # STATISTICS:
-        self.instances = 1
+        self.instances = 1 # this are the used/active instances
         self.next_is_compute = False
         self.temporal_iterations = 0
         self.in_reads = 0
@@ -539,6 +543,7 @@ Constructor arguments:
        dims must not be specified
 - dims: list of dimensions to spatially unroll at this level, if dims is specified,
         dim must not be specified. The order in dims does not matter.
+- area: the area occupied by the entire interconnect (in um^2).
 - pe_to_pe: if True, data is not multicasted in one shot, but sent to only the first
             fanout entry, which then forwards it to the second, and so on, just like
             the operands flowing in/out of a systolic array (or, like in a pipeline).
@@ -569,7 +574,7 @@ Constructor arguments:
 # Obviously, in case N < |dims| you need to change the "iterate permutations" step to actually permute spatial loops!!!
 # BETTER: make spatial_reduction_support and spatial_multicast_support be specified per-dimension!
 class FanoutLevel(SpatialLevel):
-    def __init__(self, name, mesh, dim : str = None, dims : list[str] = None, pe_to_pe = False, spatial_multicast_support = True, spatial_reduction_support = True, power_gating_support = False, factors = None, tile_sizes = None, factors_constraints = None):
+    def __init__(self, name, mesh, dim : str = None, dims : list[str] = None, area = None, pe_to_pe = False, spatial_multicast_support = True, spatial_reduction_support = True, power_gating_support = False, factors = None, tile_sizes = None, factors_constraints = None):
         self.name = name
         assert (dim and not dims) or (dims and not dim), f"Level: {name}: exactly one of dim ({dim}) or dims ({dims}) must be specified."
         self.dims = [dim] if dim else dims
@@ -577,6 +582,8 @@ class FanoutLevel(SpatialLevel):
         assert all([dim in ['M', 'K', 'N'] for dim in self.dataflow]), f"Level: {name}: accepted names for dimensions are solely M, K and N, provided ones were {self.dataflow}."
         assert mesh > 0, f"Level: {name}: a spatial fanout must have a mesh ({mesh}) of at least 1."
         self.mesh = mesh
+        assert not area or area >= 0, f"Level: {name}: a negative area ({area}) does not mean anything."
+        self.area = area
         assert not pe_to_pe or (spatial_multicast_support and spatial_reduction_support), f"Level: {name}: pe-to-pe forwarding is a form of spatial multicast or reduction, which must then both be supported to use it."
         self.pe_to_pe = pe_to_pe # True in all cases where the operand independent (ex: if dim = D, the operand is the input) of "dim" is forwarded pe->pe rather than multicasted
         self.spatial_multicast_support = spatial_multicast_support
@@ -666,6 +673,7 @@ Constructor arguments:
                   costs at the PE level.
 - cycles: the number of clock cycles of latency required to execute "size" MACs
 - leakage_energy: energy leaked each clock cycle by the component (in pJ/cc)
+- area: the area occupied by the entire PE (in um^2).
 - dim: single dimension along which MAC operations are picked to run concurrently
        on this level, if dim is specified, dims must not be specified
        NOTE: when mesh is 1, both dim and dims can be omitted
@@ -687,7 +695,7 @@ Constructor arguments:
                             mapper's runtime as much as exact constraints.
 """
 class ComputeLevel(SpatialLevel):
-    def __init__(self, name, mesh, compute_energy, cycles, dim : str = None, dims : list[str] = None, leakage_energy = 0, factors = None, tile_sizes = None, factors_constraints = None):
+    def __init__(self, name, mesh, compute_energy, cycles, dim : str = None, dims : list[str] = None, leakage_energy = 0, area = None, factors = None, tile_sizes = None, factors_constraints = None):
         self.name = name
         assert mesh == 1 or (dim and not dims) or (dims and not dim), f"Level: {name}: when mesh ({mesh}) is > 1, exactly one of dim ({dim}) or dims ({dims}) must be specified."
         self.dims = ([dim] if dim else dims) if dim or dims else []
@@ -699,6 +707,8 @@ class ComputeLevel(SpatialLevel):
         self.compute_energy = compute_energy
         assert leakage_energy >= 0, f"Level: {name}: a negative leakage energy ({leakage_energy}) does not mean anything (unless you watched too much Gundam 00 and discovered GN particles...)."
         self.leakage_energy = leakage_energy
+        assert not area or area >= 0, f"Level: {name}: a negative area ({area}) does not mean anything."
+        self.area = area
         assert cycles >= 0 # a negative number of clock-cycles per MAC does not mean anything
         self.cycles = cycles # clock cycles used per element in the inner dimension (latency of one MAC)
         self.factors = factors if factors else Factors()
@@ -709,7 +719,7 @@ class ComputeLevel(SpatialLevel):
         assert all([value > 0 for value in self.factors_constraints.values()]), f"Level: {name}: all constraints ({self.factors_constraints}) must have a value strictly > 0."
 
         # STATISTICS:
-        self.instances = 1
+        self.instances = 1 # this are the used/active instances
         self.temporal_iterations = 0
 
     """

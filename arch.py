@@ -211,7 +211,7 @@ class Arch(list):
                 level.instances = spatial_fanout
                 level.next_is_compute = isinstance(self[i+1], ComputeLevel) if i+1 < len(self) else False
             elif isinstance(level, ComputeLevel):
-                level.instances = spatial_fanout
+                level.instances = spatial_fanout*level.factors.fullProduct()
 
     """
     Clears the accumulators for incrementally updated tile sizes and
@@ -282,6 +282,23 @@ class Arch(list):
             if failed:
                 break
         return failed
+
+    """
+    Returns the overall estimated area for the architecture (in um^2).
+    Returns None if any component is missing an area estimate.
+    """
+    def totalArea(self, verbose = False):
+        area = 0
+        physical_instances = 1
+        for level in self:
+            if level.area == None:
+                if verbose:
+                    print(f"WARNING: None value for area found on level {level.name}, area calculation aborted.")
+                return None
+            area += level.area*physical_instances
+            if isinstance(level, SpatialLevel):
+                physical_instances *= level.mesh
+        return area
 
     def __repr__(self):
         return f"<object Arch: name: {self.name}, levels: {super().__repr__()}>"

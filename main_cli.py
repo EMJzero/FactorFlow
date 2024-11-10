@@ -123,9 +123,10 @@ if __name__ == "__main__":
             if sys.argv[1] in supported_archs:
                 if options["accelergy-data"]:
                     arch = supported_archs_accelergy[sys.argv[1]]()
+                    print()
                 else:
                     arch = supported_archs[sys.argv[1]]
-                print("Architecture:", sys.argv[1])
+                    print("Architecture:", sys.argv[1])
             elif sys.argv[1][-3:] == '.py':
                 arch_file = importlib.util.spec_from_file_location("user_arch", sys.argv[1])
                 arch_module = importlib.util.module_from_spec(arch_file)
