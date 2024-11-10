@@ -299,6 +299,16 @@ def printPadding(arch, comp):
         print(f"\t{dim}: {total_iterations[dim] - comp[dim]:.0f} ({comp[dim]} -> {total_iterations[dim]})")
 
 """
+Print to stdout the energy per action of the levels in the give architecture.
+"""
+def printEnergyPerAction(arch):
+    for level in arch:
+        if isinstance(level, MemLevel):
+            print(f"{level.name}:{chr(9) * (2 - (len(level.name) + 1)//8)}read {level.read_access_energy:.3e} pJ, write {level.write_access_energy:.3e} pJ, leak {level.leakage_energy:.3e} pJ/cc (values per wordline {level.values_per_wordline})")
+        if isinstance(level, ComputeLevel):
+            print(f"{level.name}:{chr(9) * (2 - (len(level.name) + 1)//8)}compute {level.compute_energy:.3e} pJ, leak {level.leakage_energy:.3e} pJ/cc")
+
+"""
 Shorthand to invoke prettyPrint on an architecture.
 """
 def printArch(arch):

@@ -117,7 +117,7 @@ Constructor arguments:
 - word_bits: size in bits of the memory's wordlines.
 - value_bits: size in bits of the values stored on the memory. This is the same for all
           operands, castings are implicitly assumed to take place whenever needed.
-- leakage_energy: energy leaked each clock cycle by the component (in pJ)
+- leakage_energy: energy leaked each clock cycle by the component (in pJ/cc)
 - bandwidth: the bandwidth for reads and writes, it will be divided in 1/2 for
              read and 1/2 for write (in operands/clock-cycle)
 - dataflow: specifies the dimensions over which to iterate, defaults to all dimensions
@@ -665,7 +665,7 @@ Constructor arguments:
                   you run concurrently), accounting for all computation-related
                   costs at the PE level.
 - cycles: the number of clock cycles of latency required to execute "size" MACs
-- leakage_energy: energy leaked each clock cycle by the component (in pJ)
+- leakage_energy: energy leaked each clock cycle by the component (in pJ/cc)
 - dim: single dimension along which MAC operations are picked to run concurrently
        on this level, if dim is specified, dims must not be specified
        NOTE: when mesh is 1, both dim and dims can be omitted
