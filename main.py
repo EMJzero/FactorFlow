@@ -3,6 +3,7 @@ from engine import *
 from utils import *
 
 #from architectures.solutions_db import *
+#from architectures.architectures_hw_data import *
 #from comparisons.ZigZag.zigzag_archs import *
 #from comparisons.CoSA.cosa_archs import *
 

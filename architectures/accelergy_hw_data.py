@@ -66,7 +66,7 @@ accelergy_estimate_energy = lambda query : accelergy_estimate_energy_raw(query=q
 
 if __name__ == "__main__":
     print("\nTesting Accelergy:")
-    print("LPDDR4 estimation test:", accelergy_estimate_energy(query={
+    print("LPDDR4 read estimation test:", accelergy_estimate_energy(query={
         "class_name": "DRAM",
         "attributes": {
             "type": "LPDDR4",
@@ -91,7 +91,7 @@ if __name__ == "__main__":
         }
     }), "pJ")
     
-    print("SRAM estimation test:", accelergy_estimate_energy(query={
+    print("SRAM read estimation test:", accelergy_estimate_energy(query={
         "class_name": "SRAM",
         "attributes": {
             "n_rw_ports": 1,
@@ -118,12 +118,16 @@ if __name__ == "__main__":
         }
     }), "pJ")
     
-    # bank of 192 registers
-    dynamic_energy_scale = (16/32)*((12/64)**(1.56/2)) # taken from smartbuffer_RF
-    print("Register estimation test:", accelergy_estimate_energy(query={
+    # bank of 12 registers with width 16
+    std_width, std_depth = 32, 64
+    dynamic_energy_scale = 1#(16/std_width)*((12/std_depth)**(1.56/2)) # taken from smartbuffer_RF
+    static_energy_scale = 1#(16/std_width)*(12/std_depth) # = area_scale
+    # NOTE: Accelergy seems to screw up and does not include these scales...
+    print(dynamic_energy_scale, static_energy_scale)
+    print("Register read estimation test:", accelergy_estimate_energy(query={
         "class_name": "aladdin_register",
         "attributes": {
-            #"global_cycle_seconds": 1.2e-09,
+            "global_cycle_seconds": 1.2e-09,
             #"action_latency_cycles": 1,
             #"cycle_seconds": 1.2e-09,
             #"n_instances": 1,
@@ -139,10 +143,10 @@ if __name__ == "__main__":
             #"n_instances": 1,
             #"technology": "32nm",
         }
-    })*32 + accelergy_estimate_energy(query={ # the 32 comes from smartbuffer_RF with max(32, width)
+    })*std_width*dynamic_energy_scale + accelergy_estimate_energy(query={ # the 32 comes from smartbuffer_RF with max(32, width)
         "class_name": "aladdin_comparator",
         "attributes": {
-            #"global_cycle_seconds": 1.2e-09,
+            "global_cycle_seconds": 1.2e-09,
             #"action_latency_cycles": 1,
             #"cycle_seconds": 1.2e-09,
             #"n_instances": 1,
@@ -158,7 +162,7 @@ if __name__ == "__main__":
             #"n_instances": 1,
             #"technology": "32nm",
         }
-    })*64 + accelergy_estimate_energy(query={ # the 64 comes from smartbuffer_RF with max(64, depth)
+    })*std_depth*dynamic_energy_scale + accelergy_estimate_energy(query={ # the 64 comes from smartbuffer_RF with max(64, depth)
         "class_name": "intadder",
         "attributes": {
             "n_bits": 8,
@@ -180,8 +184,68 @@ if __name__ == "__main__":
             #"technology": "32nm",
         }
     })*1, "pJ") # these are the 2 (whops, only 1 used while reading) address generators
+    print("Register leak estimation test:", accelergy_estimate_energy(query={
+        "class_name": "aladdin_register",
+        "attributes": {
+            "global_cycle_seconds": 1.2e-09,
+            #"action_latency_cycles": 1,
+            #"cycle_seconds": 1.2e-09,
+            #"n_instances": 1,
+            "technology": "32nm",
+            #"n_banks": 1,
+            #"latency": "5ns"
+        },
+        "action_name": "leak",
+        "arguments": {
+            #"global_cycle_seconds": 1.2e-09,
+            #"action_latency_cycles": 1
+            #"cycle_seconds": 1.2e-09,
+            #"n_instances": 1,
+            #"technology": "32nm",
+        }
+    })*std_width*std_depth*static_energy_scale + accelergy_estimate_energy(query={ # the 32 comes from smartbuffer_RF with max(32, width)
+        "class_name": "aladdin_comparator",
+        "attributes": {
+            "global_cycle_seconds": 1.2e-09,
+            #"action_latency_cycles": 1,
+            #"cycle_seconds": 1.2e-09,
+            #"n_instances": 1,
+            "technology": "32nm",
+            #"n_banks": 1,
+            #"latency": "5ns"
+        },
+        "action_name": "leak",
+        "arguments": {
+            #"global_cycle_seconds": 1.2e-09,
+            #"action_latency_cycles": 1
+            #"cycle_seconds": 1.2e-09,
+            #"n_instances": 1,
+            #"technology": "32nm",
+        }
+    })*std_depth*static_energy_scale + accelergy_estimate_energy(query={ # the 64 comes from smartbuffer_RF with max(64, depth)
+        "class_name": "intadder",
+        "attributes": {
+            "n_bits": 8,
+            "precision": 8,
+            "datawidth": 8,
+            #"n_instances": 1,
+            "technology": "32nm",
+            "global_cycle_seconds": 1.2e-09,
+            "cycle_seconds": 1.2e-09,
+            #"action_latency_cycles": 1
+            #"latency": "5ns"
+        },
+        "action_name": "leak",
+        "arguments": {
+            #"global_cycle_seconds": 1.2e-09,
+            #"action_latency_cycles": 1
+            #"cycle_seconds": 1.2e-09,
+            #"n_instances": 1,
+            #"technology": "32nm",
+        }
+    })*2, "pJ") # these are the 2 address generators
 
-    print("MAC estimation test:", accelergy_estimate_energy(query={
+    print("MAC compute (read) estimation test:", accelergy_estimate_energy(query={
         "class_name": "aladdin_adder",
         "attributes": {
             # output bitwidth
