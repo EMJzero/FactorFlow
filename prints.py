@@ -309,6 +309,19 @@ def printEnergyPerAction(arch):
             print(f"{level.name}:{chr(9) * (2 - (len(level.name) + 1)//8)}compute {level.compute_energy:.3e} pJ, leak {level.leakage_energy:.3e} pJ/cc")
 
 """
+Print to stdout the area of the levels in the give architecture.
+"""
+def printAreaPerLevel(arch):
+    physical_instances = 1
+    for level in arch:
+        if level.area != None:
+            print(f"{level.name}:{chr(9) * (2 - (len(level.name) + 1)//8)}total level area {level.area*physical_instances:.3e} um^2, per instance area {level.area:.3e} um^2")
+        else:
+            print(f"{level.name}:{chr(9) * (2 - (len(level.name) + 1)//8)}N/A")
+        if isinstance(level, SpatialLevel):
+            physical_instances *= level.mesh
+
+"""
 Shorthand to invoke prettyPrint on an architecture.
 """
 def printArch(arch):
