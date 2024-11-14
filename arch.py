@@ -174,7 +174,7 @@ class Arch(list):
     supplies data to.
     """
     def setupBypasses(self):
-        # bypasses at the initial layer simply skip the cost of operands
+        # bypasses at the initial level simply skip the cost of operands
         for bypass in ['in', 'w', 'out']:
             # if the first MemLevel has a bypass, no need to initialize it, just let it
             # affect its internal MOPs computation and that's it!

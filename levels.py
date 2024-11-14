@@ -223,18 +223,18 @@ class MemLevel(Level):
         self.ideal_bandwidth_fill = 0
         self.ideal_bandwidth_drain = 0
 
-        self.next_layers_with_bypass = {'in': None, 'w': None, 'out': None}
+        self.next_levels_with_bypass = {'in': None, 'w': None, 'out': None}
 
     """
-    Initializes the bypasses which start from this layer.
-    Let "layers" be all layers starting from the next one going downward
+    Initializes the bypasses which start from this level.
+    Let "levels" be all levels starting from the next one going downward
     up until and including the last one bypassing "operand".
 
-    => This method must be invoked while iterating from outer to inner layers
-    as it updates the layer's notion of bypassed operations.
+    => This method must be invoked while iterating from outer to inner levels
+    as it updates the level's notion of bypassed operations.
     """
-    def initBypass(self, operand, layers):
-        self.next_layers_with_bypass[operand] = layers
+    def initBypass(self, operand, levels):
+        self.next_levels_with_bypass[operand] = levels
         if operand == 'in':
             self.in_bp = 0
         elif operand == 'w':
@@ -243,7 +243,7 @@ class MemLevel(Level):
             self.out_bp = 0
 
     """
-    Sets MOPs statistics for this layer.
+    Sets MOPs statistics for this level.
     Those must include both operations with the above and below level.
     """
     def setMOPs(self, in_reads, w_reads, out_reads, in_writes, w_writes, out_writes):
@@ -255,7 +255,7 @@ class MemLevel(Level):
         self.out_writes = out_writes
 
     # fill, drain, read, and update are intended in the "Buffet" sense, and to be
-    # computed they require "last_out_writes"  and "last_out_reads" from the layer
+    # computed they require "last_out_writes"  and "last_out_reads" from the level
     # ABOVE to distinguish the components of "out_reads" and "out_writes"!
 
     """
@@ -301,7 +301,7 @@ class MemLevel(Level):
         return self.in_reads + self.w_reads + self.out_reads + self.in_writes + self.w_writes + self.out_writes
  
     """
-    Sets Latency and related statistics for this layer.
+    Sets Latency and related statistics for this level.
     """
     def setLatency(self, latency_read_drain, latency_fill_update, cc_per_tile, stall_cycles, ideal_bandwidth_read, ideal_bandwidth_update, ideal_bandwidth_fill, ideal_bandwidth_drain):
         self.latency_read_drain = latency_read_drain
@@ -322,7 +322,7 @@ class MemLevel(Level):
     # Memory operation between this level and the one below it! Specifically: returns reads outgoing
     # (downward) from this level and writes incoming (upward) from the below level.
     # In other words, reads and writes are between a level and the one below it.
-    # Let "size" be the tile_size of the above layer!
+    # Let "size" be the tile_size of the above level!
     # => The returned value must be multiplied by the factors above it.
     """
     Returns the memory operations between this level and the one below it.
@@ -395,13 +395,13 @@ class MemLevel(Level):
         #print("BEFORE BYPASS:\n", f"{self.name}:{chr(9) * (2 - len(self.name)//8)}{in_reads} In_R, {w_reads} W_R, {out_reads} Our_R, {in_reads + w_reads + out_reads} Tot_R, {out_writes} Out_W, {out_reads_factors} Out_R_Fac")
         # handle bypasses
         if not ignore_bypasses:
-            for operand, layers in self.next_layers_with_bypass.items():
-                if layers != None:
-                    in_between, layer = layers[:-1], layers[-1]
-                    in_reads_bp, w_reads_bp, out_reads_bp, out_writes_bp, out_reads_bp_factors = layer.MOPs(operand == 'in', operand == 'w', operand == 'out', True)
+            for operand, levels in self.next_levels_with_bypass.items():
+                if levels != None:
+                    in_between, level = levels[:-1], levels[-1]
+                    in_reads_bp, w_reads_bp, out_reads_bp, out_writes_bp, out_reads_bp_factors = level.MOPs(operand == 'in', operand == 'w', operand == 'out', True)
                     # bulid the inner-most dataflow, by piling one against the other all non-1 loops, then look at which is the innermost dimension, that is the one that matters!
                     # TL;DR: consider the dataflow only w.r.t. the innermost loop, ignoring those with 1 iteration!
-                    dataflow_bp = layer.actualDataflow()
+                    dataflow_bp = level.actualDataflow()
                     if dataflow_bp == None:
                         stationarity_to_address = True
                     else:
@@ -474,7 +474,7 @@ class MemLevel(Level):
                         out_reads_bp = factors_full*out_reads_bp
                         out_writes_bp = factors_full*out_writes_bp
                         out_reads_bp_factors *= factors_K
-                    #print(f"BYPASS ({operand}):\n", f"{self.name}->{layer.name}:{chr(9) * (3 - (len(self.name)+len(layer.name))//8)}{in_reads_bp} In_R, {w_reads_bp} W_R, {out_reads_bp} Our_R, {in_reads_bp + w_reads_bp + out_reads_bp} Tot_R, {out_writes_bp} Out_W, {out_reads_bp_factors} Out_R_Fac")
+                    #print(f"BYPASS ({operand}):\n", f"{self.name}->{level.name}:{chr(9) * (3 - (len(self.name)+len(level.name))//8)}{in_reads_bp} In_R, {w_reads_bp} W_R, {out_reads_bp} Our_R, {in_reads_bp + w_reads_bp + out_reads_bp} Tot_R, {out_writes_bp} Out_W, {out_reads_bp_factors} Out_R_Fac")
                     in_reads += in_reads_bp
                     w_reads += w_reads_bp
                     out_reads += out_reads_bp

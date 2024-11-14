@@ -534,7 +534,7 @@ def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, threads_count = 1,
         return i
     
     while True:
-        # TODO: remove this deepcopy and just reset factors (requires a "reset" method implemented in each layer)
+        # TODO: remove this deepcopy and just reset factors (requires a "reset" method implemented in each level)
         #resetTilesAndFactors(arch)
         current_arch = copy.deepcopy(arch)
         current_targets = list(filter(lambda l : isinstance(l, MemLevel) or (Settings.ONLY_MAXIMIZE_ONE_FANOUT_DIM and isinstance(l, SpatialLevel)), current_arch))
