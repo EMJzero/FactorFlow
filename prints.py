@@ -6,14 +6,14 @@ from factors import *
 """
 Returns a string with a pretty textual representation of the provided dictionary.
 """
-def pretty_format_dict(dictionary, level = 0):
+def prettyFormatDict(dictionary, level = 0):
     string = ""
     for key, value in (dictionary.items() if isinstance(dictionary, dict) else zip(["" for i in dictionary], dictionary)):
         string += ''*level + (f"{key}: " if key != "" else "- ")
         if isinstance(value, dict):
-            string += "\n" + pretty_format_dict(value, level + 4)
+            string += "\n" + prettyFormatDict(value, level + 4)
         elif isinstance(value, list) and len(value) > 0 and isinstance(value[0], dict):
-            string += "\n" + pretty_format_dict(value, level + 4)
+            string += "\n" + prettyFormatDict(value, level + 4)
         else:
             string += str(value)
         string += "\n"

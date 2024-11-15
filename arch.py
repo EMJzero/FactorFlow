@@ -1,29 +1,32 @@
+from __future__ import annotations
 from copy import deepcopy
 
-from levels import *
 from settings import *
+from levels import *
 from utils import *
 
 """
 Class wrapping a list of levels into an architecture.
 
 Constructor arguments:
-- iterable: the list of levels for the architecture
+- levels: the list of levels for the architecture
 - name: the name for the architecture
 """
 class Arch(list):
-    def __init__(self, iterable=None, name="<unnamed architecture>"):
-        self.name = name
+    def __init__(self, levels : list[Level], name : str ="<unnamed architecture>"):
+        self.name : str = name
         
-        if iterable is None:
-            iterable = []
-        super().__init__(iterable)
-
+        super().__init__(levels)
+        
         assert len(self) >= 2, f"Arch: {self.name}: at least two levels (one 'MemLevel', one 'ComputeLevel') are required for an architecture, {len(self)} provided."
         assert all(isinstance(item, Level) for item in self), f"Arch: {self.name}: all architecture entries must be levels (instances of the 'Level' class), provided ones are {list(map(lambda x : type(x).__name__, self))}."
         assert isinstance(self[0], MemLevel), f"Arch: {self.name}: the outermost (idx 0) level must be a memory level ('MemLevel' instance), {type(self[0]).__name__} provided."
         assert isinstance(self[-1], ComputeLevel), f"Arch: {self.name}: the innermost (idx len-1) level must be a compute level ('ComputeLevel' instance), {type(self[-1]).__name__} provided."
+        assert not any(map(lambda l : isinstance(l, ComputeLevel), self[:-1])), f"Arch: {self.name}: no other compute levels admitted apart from the innermost one."
         assert not any(constr[1:] == '<=' for constr in self[0].factors_constraints.keys()), f"Arch: {self.name}: the outermost (idx 0) level's constraints ({self[0].factors_constraints}) must never be of the '<=' kind."
+        
+        for level in self:
+            level.initArch(self)
 
     """
     Returns a deep-copied compact representation of the current mapping.
@@ -41,17 +44,17 @@ class Arch(list):
             self[i].tile_sizes = mapping[i].tile_sizes
             
     """
-    Checks factors allocation constraints. Returns False if a violation is found.
+    Checks factors allocation constraints. Returns True if a violation is found.
     """
     def findConstraintsViolation(self, verbose = True):
         violation = False
         for level in self:
             for dim in ['M', 'K', 'N']:
                 if dim not in level.dataflow and len(level.factors[dim]) != 0:
-                    if verbose: print(f"Factor-dataflow missmatch for constraint ({dim}: {level.factors.dimProduct(dim)}) enforced on level \"{level.name}\"")
+                    if verbose: print(f"Arch: {self.name} -> Level: {level.name}: dimension {dim} was not in dataflow, but still received some iterations ({dim}: {level.factors.dimProduct(dim)}) due to constraints.")
                     violation = True
                 if dim in level.factors_constraints and level.factors_constraints[dim] != level.factors.dimProduct(dim):
-                    if verbose: print(f"Constraint violation, desired was ({dim}: {level.factors_constraints[dim]}), obtained was ({dim}: {level.factors.dimProduct(dim)}), on level \"{level.name}\"")
+                    if verbose: print(f"Arch: {self.name} -> Level: {level.name}: Constraint violation, desired was ({dim}: {level.factors_constraints[dim]}), obtained was ({dim}: {level.factors.dimProduct(dim)}).")
                     violation = True
         return violation
 
@@ -127,7 +130,7 @@ class Arch(list):
         for i in range(1, len(self)):
             level = self[i]
             for k in level.factors_constraints.keys():
-                assert k[0] in level.dataflow, f"Level {level.name}: cannot enforce constraint on dimension {k[0]} that is not in dataflow {level.dataflow}."
+                assert k[0] in level.dataflow, f"Arch: {self.name} -> Level: {level.name}: cannot enforce constraint on dimension {k[0]} that is not in dataflow {level.dataflow}."
             # initialize only == and >= constraints, leave <= set to 1
             constr_factors = Factors(
                 M = prime_factors(level.factors_constraints['M']) if 'M' in level.factors_constraints else (prime_factors(level.factors_constraints['M>=']) if 'M>=' in level.factors_constraints else {}),
@@ -140,15 +143,15 @@ class Arch(list):
                     constraint = constr_factors.dimProduct(dim)
                     if dim_size%constraint == 0:
                         for fact, amount in constr_factors[dim].items():
-                            assert self.moveFactor(0, i, dim, fact, amount, True, True), f"Constraints are not satisfiable! Cannot give {amount} instances of prime factor {fact} to level {level.name} on dimension {dim}."
+                            assert self.moveFactor(0, i, dim, fact, amount, True, True), f"Arch {self.name} -> Level: {level.name}: Constraints are not satisfiable! Cannot give {amount} instances of prime factor {fact} to level {level.name} on dimension {dim}."
                     else:
                         padded_dim_size = dim_size + constraint - dim_size%constraint
-                        if verbose_padding: print(f"PADDING: enlarged {dim} from {dim_size} to {padded_dim_size} to respect constraints on level {level.name}")
+                        if verbose_padding: print(f"PADDING: Arch: {self.name} -> Level: {level.name}: enlarged {dim} from {dim_size} to {padded_dim_size} to respect constraints.")
                         self[0].factors[dim] = prime_factors(padded_dim_size)
                         self[0].factors.resetDimProducts([dim])
                         for fact, amount in constr_factors[dim].items():
                             # be wary that here we skip constraints checks in moveFactor, so one must follow up this method with findConstraintsViolation
-                            assert self.moveFactor(0, i, dim, fact, amount, True, True), "Failed to enforce constraints even with padding..."
+                            assert self.moveFactor(0, i, dim, fact, amount, True, True), f"Arch: {self.name} -> Level: {level.name}: Failed to enforce constraints even with padding..."
 
     """
     Checks dataflow (loop ordering) constraints. Returns False if a violation is found.
@@ -269,15 +272,15 @@ class Arch(list):
                     if comp[dim] // total_constraint < level.factors_constraints[dim + eq]:
                         if comp[dim] // total_constraint <= 0:
                             if self.name and comp_name:
-                                print(f"ERROR: failed to fit comp: {comp_name if comp_name else comp} to arch: {self.name} because the constraint on level: {level.name} and dimension: {dim} ({eq}{level.factors_constraints[dim + eq]}) cannot be satisfied by comp ({dim}: {comp[dim]})!")
+                                print(f"ERROR: Arch: {self.name} -> Level: {level.name}: failed to fit comp: {comp_name if comp_name else comp} to arch because the level's constraint on dimension: {dim} ({eq}{level.factors_constraints[dim + eq]}) cannot be satisfied by comp ({dim}: {comp[dim]})!")
                             else:
-                                assert False, f"Failed to fit comp to arch because the constraint on level: {level.name} and dimension: {dim} ({eq}{level.factors_constraints[dim + eq]}) cannot be satisfied by comp ({dim}: {comp[dim]})!"
+                                assert False, f"Arch: {self.name} -> Level: {level.name}: Failed to fit comp to arch because the level's constraint on dimension: {dim} ({eq}{level.factors_constraints[dim + eq]}) cannot be satisfied by comp ({dim}: {comp[dim]})!"
                             failed = True
                             break
-                        print(f"WARNING: updating constraint ({dim}: {level.factors_constraints[dim + eq]}) on level \"{level.name}\" to ({dim}: {comp[dim] // total_constraint}) to fit the computation.")
+                        print(f"WARNING: Arch: {self.name} -> Level: {level.name}: updating constraint ({dim}: {level.factors_constraints[dim + eq]}) to ({dim}: {comp[dim] // total_constraint}) to fit the computation.")
                         level.factors_constraints[dim + eq] = comp[dim] // total_constraint
                     elif eq == '' and (comp[dim] // total_constraint) % level.factors_constraints[dim] != 0 and not Settings.PADDED_MAPPINGS:
-                        assert False, f"Failed to fit comp to arch because the constraint on level {level.name} ({dim}: {level.factors_constraints[dim]}) does not divide comp dimension {dim} ({comp[dim]}) exactly. To compensate, consider setting 'Settings.PADDED_MAPPINGS' to True."
+                        assert False, f"Arch: {self.name} -> Level: {level.name}: Failed to fit comp to arch because the level's constraint ({dim}: {level.factors_constraints[dim]}) does not divide comp dimension {dim} ({comp[dim]}) exactly. To compensate, consider setting 'Settings.PADDED_MAPPINGS' to True."
                     total_constraint *= level.factors_constraints[dim + eq]
             if failed:
                 break
@@ -293,7 +296,7 @@ class Arch(list):
         for level in self:
             if level.area == None:
                 if verbose:
-                    print(f"WARNING: None value for area found on level {level.name}, area calculation aborted.")
+                    print(f"WARNING: Arch: {self.name}: None value for area found on level {level.name}, area calculation aborted.")
                 return None
             area += level.area*physical_instances
             if isinstance(level, SpatialLevel):

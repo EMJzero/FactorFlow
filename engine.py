@@ -255,13 +255,13 @@ def fanoutMaximization(arch, comp, bias_read, verbose = False):
                 if total_mesh > dim_size:
                     used_factors, padding = smallest_product_greater_than(mesh_factors, dim_size)
                     if padding != math.inf and not all([f in dim_factors for f in used_factors]): # only pad if some different factor achieved higher utilization
-                        if Settings.VERBOSE_PADDED_MAPPINGS: print(f"PADDING: enlarged {dim} from {dim_size} to {dim_size + padding}")
+                        if Settings.VERBOSE_PADDED_MAPPINGS: print(f"PADDING: Arch: {arch.name}: enlarged {dim} from {dim_size} to {dim_size + padding}")
                         arch[0].factors[dim] = prime_factors(dim_size + padding)
                         arch[0].factors.resetDimProducts([dim])
                 else:
                     if not all([f in dim_factors for f in mesh_factors]): # only pad if you are not already a multiple
                         padded_dim_size = dim_size + total_mesh - dim_size%total_mesh
-                        if Settings.VERBOSE_PADDED_MAPPINGS: print(f"PADDING: enlarged {dim} from {dim_size} to {padded_dim_size}")
+                        if Settings.VERBOSE_PADDED_MAPPINGS: print(f"PADDING: Arch: {arch.name}: enlarged {dim} from {dim_size} to {padded_dim_size}")
                         arch[0].factors[dim] = prime_factors(padded_dim_size)
                         arch[0].factors.resetDimProducts([dim])
         
@@ -288,13 +288,13 @@ def fanoutMaximization(arch, comp, bias_read, verbose = False):
                         factors, _ = largest_product_less_than(arch[0].factors.toList(dim), space)
                         for f in factors:
                             if not arch.moveFactor(0, i, dim, f, 1) and verbose:
-                                print(f"Fanout maximization failed to fill up the leftover space on level {level.name}, dim {dim} with factor {f} (mesh: {level.mesh}, space: {space})...")
+                                print(f"Arch: {arch.name}: fanout maximization failed to fill up the leftover space on level {level.name}, dim {dim} with factor {f} (mesh: {level.mesh}, space: {space})...")
     
     else:
         for i in range(1, len(arch) - 1):
             level = arch[i]
             if isinstance(level, SpatialLevel):
-                assert len(level.dims) <= 2, f"Level: {level.name}: CURRENT LIMITATION - at most 2 dimensions on the same fanout, limit dims ({level.dims}) to at most 2 entries when Settings.ONLY_MAXIMIZE_ONE_FANOUT_DIM is False."
+                assert len(level.dims) <= 2, f"Arch: {arch.name} -> Level: {level.name}: CURRENT LIMITATION - at most 2 dimensions on the same fanout, limit dims ({level.dims}) to at most 2 entries when Settings.ONLY_MAXIMIZE_ONE_FANOUT_DIM is False."
                 # TODO: as of now this accepts only at most 2 dimensions on same fanout - pick mesh_split_factor >= 3 to allow more?
                 mesh_prime_factors = prime_factors(level.mesh)
                 common_mesh_factors = [f for f in mesh_prime_factors.keys() if f in [ft for dim in level.dims for ft in arch[0].factors[dim]]]
@@ -345,16 +345,13 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
     if not already_initialized:
         arch.initFactors(comp)
         arch.enforceFactorsConstraints(Settings.PADDED_MAPPINGS, Settings.VERBOSE_PADDED_MAPPINGS)
-    assert not arch.findConstraintsViolation(), "Factor constraints or dataflow violation in the given architecture."
+    assert not arch.findConstraintsViolation(), f"Arch: {arch.name}: factor constraints violation in the given architecture."
     constraints_check = [level.checkConstraints() for level in arch]
     assert all(constraints_check), f"Ill-posed constraints:\n{arch[constraints_check.index(False)].logConstraintsViolation()}"
     if not already_initialized:
         arch.setupBypasses()
         arch.updateInstances()
-    assert isinstance(arch[0], MemLevel), f"The first/outermost level must a MemoryLevel, the provided one is {type(arch[-1])}."
-    assert isinstance(arch[-1], ComputeLevel), f"The last/innermost level must a ComputeLevel, the provided one is {type(arch[-1])}."
-    assert not any(map(lambda l : isinstance(l, ComputeLevel), arch[:-1])), "No other compute levels admitted beside the last/innermost one."
-    assert arch.checkDataflowConstraints(), "Dataflow constraints violated."
+    assert arch.checkDataflowConstraints(), f"Arch: {arch.name}: dataflow constraints violation."
 
     if verbose: print(f"Initial condition (Wart: {Wart(arch, comp, bias_read):.3e}):")
     if verbose: printFactors(arch)
