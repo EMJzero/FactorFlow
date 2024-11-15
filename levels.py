@@ -1,4 +1,11 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
 from factors import *
+
+# fix static typechecking without recursive imports
+if TYPE_CHECKING:
+    from arch import Arch
 
 """
 Class with the minimal information characterizing a level's mapping.
@@ -30,6 +37,7 @@ to DRAM or slower memories.
 """
 class Level(LevelCore):
     name: None
+    arch: None
     factors_constraints: None
     area: None
 
@@ -83,7 +91,7 @@ class Level(LevelCore):
     """
     def logConstraintsViolation(self):
         if not self.checkConstraints():
-            return (f"CONSTRAINTS VIOLATION: level {self.name}, "
+            return (f"CONSTRAINTS VIOLATION: Arch: {self.arch.name} -> Level: {self.name}: "
                 + ', '.join([f"constrained {dim} == {self.factors_constraints[dim]} VS obtained {dim}: {self.factors.dimProduct(dim)}, " for dim in self.dataflow if (dim in self.factors_constraints and self.factors_constraints[dim] != self.factors.dimProduct(dim))])
                 + ', '.join([f"constrained {dim} <= {self.factors_constraints[dim + '<=']} VS obtained {dim}: {self.factors.dimProduct(dim)}, " for dim in self.dataflow if (dim + '<=' in self.factors_constraints and self.factors_constraints[dim + '<='] >= self.factors.dimProduct(dim))])
                 + ', '.join([f"constrained {dim} >= {self.factors_constraints[dim + '>=']} VS obtained {dim}: {self.factors.dimProduct(dim)}, " for dim in self.dataflow if (dim + '>=' in self.factors_constraints and self.factors_constraints[dim + '>='] <= self.factors.dimProduct(dim))]))
@@ -155,52 +163,30 @@ Constructor arguments:
 class MemLevel(Level):
     def __init__(self, name, size, value_access_energy = None, wordline_access_energy = None, word_bits = None, value_bits = None, leakage_energy = 0, area = None, bandwidth = None, dataflow = None, factors = None, tile_sizes = None, factors_constraints = None, dataflow_constraints = None, bypasses = None, multiple_buffering = 1,  read_value_access_energy = None, write_value_access_energy = None, read_wordline_access_energy = None, write_wordline_access_energy = None, read_bandwidth = None, write_bandwidth = None):
         self.name = name
-        # NOTE: this way of constructing the dataflow from the constraints is redundant, but useful if one wants to skip the
-        # exploration of permutations since with this method the dataflow will be immediately consistent with constraints.
-        self.dataflow = dataflow if dataflow else (dataflow_constraints + [dim for dim in ['M', 'K', 'N'] if dim not in dataflow_constraints] if dataflow_constraints else ['M', 'K', 'N']) # dimensions over which to iterate
-        assert all([dim in ['M', 'K', 'N'] for dim in self.dataflow]), f"Level: {name}: accepted dimension names in the dataflow are solely M, K and N, provided ones were {self.dataflow}."
-        assert size >= 0, f"Level: {name}: a negative size ({size}) does not mean anything."
+        self.dataflow = dataflow
         self.size = size
-        # read_access_energy and write_access_energy are intended always for one value, remember to bring accessed values to a multiple of values_per_wordline for the correct total energy
-        assert (value_access_energy or (read_value_access_energy and write_value_access_energy)) or (word_bits and value_bits and (wordline_access_energy or (read_wordline_access_energy and write_wordline_access_energy))), f"Level: {name}: either value_access_energy ({value_access_energy}) or read_value_access_energy ({read_value_access_energy}) and write_value_access_energy ({write_value_access_energy}) must be specified, alternatively, you can specify word_bits ({word_bits}) and value_bits ({value_bits}) and either wordline_access_energy ({wordline_access_energy}) or read_wordline_access_energy ({read_wordline_access_energy}) and write_wordline_access_energy ({write_wordline_access_energy}). In any case, when if either of read_*_access_energy or write_*_access_energy is specified, the other must be present as well."
-        if (value_access_energy or (read_value_access_energy and write_value_access_energy)):
-            self.values_per_wordline = 1
-            self.read_access_energy = read_value_access_energy if read_value_access_energy else value_access_energy
-            self.write_access_energy = write_value_access_energy if write_value_access_energy else value_access_energy
-        else:
-            self.values_per_wordline = word_bits // value_bits
-            self.read_access_energy = (read_wordline_access_energy if read_wordline_access_energy else wordline_access_energy) / self.values_per_wordline
-            self.write_access_energy = (write_wordline_access_energy if write_wordline_access_energy else wordline_access_energy) / self.values_per_wordline
+        self.word_bits = word_bits
+        self.value_bits = value_bits
+        self.wordline_access_energy = wordline_access_energy
+        self.value_access_energy = value_access_energy
+        self.read_wordline_access_energy = read_wordline_access_energy
+        self.write_wordline_access_energy = write_wordline_access_energy
+        self.read_value_access_energy = read_value_access_energy
+        self.write_value_access_energy = write_value_access_energy
         self.leakage_energy = leakage_energy
-        assert self.read_access_energy >= 0 and self.write_access_energy >= 0 and self.leakage_energy >= 0, f"Level: {name}: a negative access energy ({self.read_access_energy} read, {self.read_access_energy} write), ({self.leakage_energy} leak), does not mean anything (unless you are into sci-fi stuff)."
-        assert not area or area >= 0, f"Level: {name}: a negative area ({area}) does not mean anything."
         self.area = area
-        # NOTE: 1/2 split of bandwidth for consistency with Timeloop - not a true must...
-        assert (bandwidth and not read_bandwidth and not write_bandwidth) or (read_bandwidth and write_bandwidth), f"Level: {name}: either bandwidth ({bandwidth}) or read_bandwidth ({read_bandwidth}) and write_bandwidth ({write_bandwidth}) must be specified, if either of read_bandwidth or write_bandwidth is specified, the other must be specified as well."
-        self.read_bandwidth = read_bandwidth if read_bandwidth else bandwidth/2
-        self.write_bandwidth = write_bandwidth if write_bandwidth else bandwidth/2
-        assert self.read_bandwidth >= 0 and self.write_bandwidth >= 0, f"Level: {name}: a negative bandwidth ({self.read_bandwidth} R, {self.write_bandwidth} W) does not mean anything."
+        self.bandwidth = bandwidth
+        self.read_bandwidth = read_bandwidth
+        self.write_bandwidth = write_bandwidth
         self.factors = factors if factors else Factors()
         self.tile_sizes = tile_sizes if tile_sizes else Shape(1, 1, 1)
         self.factors_constraints = factors_constraints if factors_constraints else {}
-        assert all([constr[0] in self.dataflow and constr[1:] in ['', '>=', '<='] for constr in self.factors_constraints.keys()]), f"Level: {name}: all keys within factor constraints ({list(self.factors_constraints.keys())}) must be a dimension of the dataflow ({self.dataflow}) and in the form 'dim', 'dim<=', or 'dim>='."
-        assert all([sum(constr[0] == dim for constr in self.factors_constraints.keys()) <= 1 for dim in self.dataflow]), f"Level: {name}: each dimension must occur at most once in constraints ({list(self.factors_constraints.keys())}), regardless of the use of '>=' or '<='."
-        assert all([value > 0 for value in self.factors_constraints.values()]), f"Level: {name}: all constraints ({self.factors_constraints}) must have a value strictly > 0."
         self.dataflow_constraints = dataflow_constraints if dataflow_constraints else []
-        assert all([constr in self.dataflow for constr in self.dataflow_constraints]), f"Level: {name}: all dims specified as dataflow constraints ({self.dataflow_constraints}) must be part of the dataflow ({self.dataflow})."
         self.bypasses = bypasses if bypasses else []
         self.in_bp = 0 if (bypasses and 'in' in bypasses) else 1
         self.w_bp = 0 if (bypasses and 'w' in bypasses) else 1
         self.out_bp = 0 if (bypasses and 'out' in bypasses) else 1
         self.multiple_buffering = multiple_buffering
-        assert self.multiple_buffering >= 1, f"Level: {name}: multiple buffering ({self.multiple_buffering}) must be at least 1."
-        # NOTE: removed for consistency with Timeloop - not necessarily wrong...
-        #if not self.in_bp and not self.w_bp:
-        #    self.factors_constraints['K'] = 1
-        #if not self.in_bp and not self.out_bp:
-        #    self.factors_constraints['N'] = 1
-        #if not self.out_bp and not self.w_bp:
-        #    self.factors_constraints['M'] = 1
 
         # STATISTICS:
         self.instances = 1 # this are the used/active instances
@@ -224,6 +210,44 @@ class MemLevel(Level):
         self.ideal_bandwidth_drain = 0
 
         self.next_levels_with_bypass = {'in': None, 'w': None, 'out': None}
+
+    """
+    Sets up a pointer back to the whole architecture.
+    Ultimates the initialization of the level and validates its attributes.
+    """
+    def initArch(self, arch : Arch):
+        self.arch = arch
+        # NOTE: this way of constructing the dataflow from the constraints is redundant, but useful if one wants to skip the
+        # exploration of permutations since with this method the dataflow will be immediately consistent with constraints.
+        self.dataflow = self.dataflow if self.dataflow else (self.dataflow_constraints + [dim for dim in ['M', 'K', 'N'] if dim not in self.dataflow_constraints] if self.dataflow_constraints else ['M', 'K', 'N']) # dimensions over which to iterate
+        #assert all(dim in arch.couplings.dims for dim in self.dataflow), f"Arch: {self.arch.name} -> Level: {self.name}: accepted names for dimensions, as per the present coupling, are solely {arch.couplings.dims} provided ones were {self.dataflow}."
+        assert all([dim in ['M', 'K', 'N'] for dim in self.dataflow]), f"Arch: {self.arch.name} -> Level: {self.name}: accepted dimension names in the dataflow are solely M, K and N, provided ones were {self.dataflow}."
+        assert self.size >= 0, f"Arch: {self.arch.name} -> Level: {self.name}: a negative size ({self.size}) does not mean anything."
+        # read_access_energy and write_access_energy are intended always for one value, remember to bring accessed values to a multiple of values_per_wordline for the correct total energy
+        assert (self.value_access_energy or (self.read_value_access_energy and self.write_value_access_energy)) or (self.word_bits and self.value_bits and (self.wordline_access_energy or (self.read_wordline_access_energy and self.write_wordline_access_energy))), f"Arch: {self.arch.name} -> Level: {self.name}: either value_access_energy ({self.value_access_energy}) or read_value_access_energy ({self.read_value_access_energy}) and write_value_access_energy ({self.write_value_access_energy}) must be specified, alternatively, you can specify word_bits ({self.word_bits}) and value_bits ({self.value_bits}) and either wordline_access_energy ({self.wordline_access_energy}) or read_wordline_access_energy ({self.read_wordline_access_energy}) and write_wordline_access_energy ({self.write_wordline_access_energy}). In any case, when if either of read_*_access_energy or write_*_access_energy is specified, the other must be present as well."
+        if (self.value_access_energy or (self.read_value_access_energy and self.write_value_access_energy)):
+            self.values_per_wordline = 1
+            self.read_access_energy = self.read_value_access_energy if self.read_value_access_energy else self.value_access_energy
+            self.write_access_energy = self.write_value_access_energy if self.write_value_access_energy else self.value_access_energy
+        else:
+            self.values_per_wordline = self.word_bits // self.value_bits
+            self.read_access_energy = (self.read_wordline_access_energy if self.read_wordline_access_energy else self.wordline_access_energy) / self.values_per_wordline
+            self.write_access_energy = (self.write_wordline_access_energy if self.write_wordline_access_energy else self.wordline_access_energy) / self.values_per_wordline
+        del self.word_bits, self.value_bits, self.wordline_access_energy, self.value_access_energy, self.read_wordline_access_energy, self.write_wordline_access_energy, self.read_value_access_energy, self.write_value_access_energy
+        assert self.read_access_energy >= 0 and self.write_access_energy >= 0 and self.leakage_energy >= 0, f"Arch: {self.arch.name} -> Level: {self.name}: a negative access energy ({self.read_access_energy} read, {self.read_access_energy} write), ({self.leakage_energy} leak), does not mean anything (unless you are into sci-fi stuff)."
+        assert not self.area or self.area >= 0, f"Arch: {self.arch.name} -> Level: {self.name}: a negative area ({self.area}) does not mean anything."
+        # NOTE: 1/2 split of bandwidth for consistency with Timeloop - not a true must...
+        assert (self.bandwidth and not self.read_bandwidth and not self.write_bandwidth) or (self.read_bandwidth and self.write_bandwidth), f"Arch: {self.arch.name} -> Level: {self.name}: either bandwidth ({self.bandwidth}) or read_bandwidth ({self.read_bandwidth}) and write_bandwidth ({self.write_bandwidth}) must be specified, if either of read_bandwidth or write_bandwidth is specified, the other must be specified as well."
+        self.read_bandwidth = self.read_bandwidth if self.read_bandwidth else self.bandwidth/2
+        self.write_bandwidth = self.write_bandwidth if self.write_bandwidth else self.bandwidth/2
+        del self.bandwidth
+        assert self.read_bandwidth >= 0 and self.write_bandwidth >= 0, f"Arch: {self.arch.name} -> Level: {self.name}: a negative bandwidth ({self.read_bandwidth} R, {self.write_bandwidth} W) does not mean anything."
+        assert all([constr[0] in self.dataflow and constr[1:] in ['', '>=', '<='] for constr in self.factors_constraints.keys()]), f"Arch: {self.arch.name} -> Level: {self.name}: all keys within factor constraints ({list(self.factors_constraints.keys())}) must be a dimension of the dataflow ({self.dataflow}) and in the form 'dim', 'dim<=', or 'dim>='."
+        assert all([sum(constr[0] == dim for constr in self.factors_constraints.keys()) <= 1 for dim in self.dataflow]), f"Arch: {self.arch.name} -> Level: {self.name}: each dimension must occur at most once in constraints ({list(self.factors_constraints.keys())}), regardless of the use of '>=' or '<='."
+        assert all([value > 0 for value in self.factors_constraints.values()]), f"Arch: {self.arch.name} -> Level: {self.name}: all constraints ({self.factors_constraints}) must have a value strictly > 0."
+        assert all([constr in self.dataflow for constr in self.dataflow_constraints]), f"Arch: {self.arch.name} -> Level: {self.name}: all dims specified as dataflow constraints ({self.dataflow_constraints}) must be part of the dataflow ({self.dataflow})."
+        assert self.multiple_buffering >= 1, f"Arch: {self.arch.name} -> Level: {self.name}: multiple buffering ({self.multiple_buffering}) must be at least 1."
+
 
     """
     Initializes the bypasses which start from this level.
@@ -346,8 +370,8 @@ class MemLevel(Level):
     presence or absence of the bias (bias_read flag).
     
     Arguments:
-    - in_bp, w_bp, out_bp: whether the respective operands are bypassed or not,
-                           defaults to the instance's setting if not provided
+    - in_bp, w_bp, out_bp: 0 or 1, whether the respective operands are bypassed or
+                           not, defaults to the instance's setting if not provided
     - ignore_bypasses: if True, MOPs are returned only relative to this level's
                        accesses from strictly adjacent levels, bypassed operands
                        will thus show 0 MOPs.
@@ -515,7 +539,7 @@ class MemLevel(Level):
             return super().logConstraintsViolation()
         elif not self.checkConstraints():
             mem_footprint = self.factors.mem_footprint(self.tile_sizes, not self.bypasses or 'in' not in self.bypasses, not self.bypasses or 'w' not in self.bypasses, not self.bypasses or 'out' not in self.bypasses)
-            return f"CONSTRAINTS VIOLATION: level {self.name}, memory used: {mem_footprint} VS memory available: {self.size/self.multiple_buffering:.0f}"
+            return f"CONSTRAINTS VIOLATION: Arch: {self.arch.name} -> Level: {self.name}: memory used: {mem_footprint} VS memory available: {self.size/self.multiple_buffering:.0f}"
         return ""
 
     def __str__(self):
@@ -576,25 +600,36 @@ Constructor arguments:
 class FanoutLevel(SpatialLevel):
     def __init__(self, name, mesh, dim : str = None, dims : list[str] = None, area = None, pe_to_pe = False, spatial_multicast_support = True, spatial_reduction_support = True, power_gating_support = False, factors = None, tile_sizes = None, factors_constraints = None):
         self.name = name
-        assert (dim and not dims) or (dims and not dim), f"Level: {name}: exactly one of dim ({dim}) or dims ({dims}) must be specified."
-        self.dims = [dim] if dim else dims
-        self.dataflow = self.dims
-        assert all([dim in ['M', 'K', 'N'] for dim in self.dataflow]), f"Level: {name}: accepted names for dimensions are solely M, K and N, provided ones were {self.dataflow}."
-        assert mesh > 0, f"Level: {name}: a spatial fanout must have a mesh ({mesh}) of at least 1."
+        self.dim = dim
+        self.dims =  dims
         self.mesh = mesh
-        assert not area or area >= 0, f"Level: {name}: a negative area ({area}) does not mean anything."
         self.area = area
-        assert not pe_to_pe or (spatial_multicast_support and spatial_reduction_support), f"Level: {name}: pe-to-pe forwarding is a form of spatial multicast or reduction, which must then both be supported to use it."
-        self.pe_to_pe = pe_to_pe # True in all cases where the operand independent (ex: if dim = D, the operand is the input) of "dim" is forwarded pe->pe rather than multicasted
+        self.pe_to_pe = pe_to_pe # True in all cases where the operand independent of "dim" (e.g.: in a GEMM, if dim = M, such operand is the input) is forwarded pe->pe rather than multicasted
         self.spatial_multicast_support = spatial_multicast_support
         self.spatial_reduction_support = spatial_reduction_support
         self.power_gating_support = power_gating_support
         self.factors = factors if factors else Factors()
         self.tile_sizes = tile_sizes if tile_sizes else Shape(1, 1, 1)
         self.factors_constraints = factors_constraints if factors_constraints else {}
-        assert all([constr[0] in self.dataflow and constr[1:] in ['', '>=', '<='] for constr in self.factors_constraints.keys()]), f"Level: {name}: all keys within factor constraints ({list(self.factors_constraints.keys())}) must be a dimension of the dataflow ({self.dataflow}) and in the form 'dim', 'dim<=', or 'dim>='."
-        assert all([sum(constr[0] == dim for constr in self.factors_constraints.keys()) <= 1 for dim in self.dataflow]), f"Level: {name}: each dimension must occur at most once in constraints ({list(self.factors_constraints.keys())}), regardless of the use of '>=' or '<='."
-        assert all([value > 0 for value in self.factors_constraints.values()]), f"Level: {name}: all constraints ({self.factors_constraints}) must have a value strictly > 0."
+
+    """
+    Sets up a pointer back to the whole architecture.
+    Ultimates the initialization of the level and validates its attributes.
+    """
+    def initArch(self, arch : Arch):
+        self.arch = arch
+        assert (self.dim and not self.dims) or (self.dims and not self.dim), f"Arch: {self.arch.name} -> Level: {self.name}: exactly one of dim ({self.dim}) or dims ({self.dims}) must be specified."
+        self.dims = [self.dim] if self.dim else self.dims
+        del self.dim
+        self.dataflow = self.dims
+        assert all([dim in ['M', 'K', 'N'] for dim in self.dataflow]), f"Arch: {self.arch.name} -> Level: {self.name}: accepted names for dimensions are solely M, K and N, provided ones were {self.dataflow}."
+        assert self.mesh > 0, f"Arch: {self.arch.name} -> Level: {self.name}: a spatial fanout must have a mesh ({self.mesh}) of at least 1."
+        assert not self.area or self.area >= 0, f"Arch: {self.arch.name} -> Level: {self.name}: a negative area ({self.area}) does not mean anything."
+        assert not self.pe_to_pe or (self.spatial_multicast_support and self.spatial_reduction_support), f"Arch: {self.arch.name} -> Level: {self.name}: pe-to-pe forwarding is a form of spatial multicast or reduction, which must then both be supported to use it."
+        assert all([constr[0] in self.dataflow and constr[1:] in ['', '>=', '<='] for constr in self.factors_constraints.keys()]), f"Arch: {self.arch.name} -> Level: {self.name}: all keys within factor constraints ({list(self.factors_constraints.keys())}) must be a dimension of the dataflow ({self.dataflow}) and in the form 'dim', 'dim<=', or 'dim>='."
+        assert all([sum(constr[0] == dim for constr in self.factors_constraints.keys()) <= 1 for dim in self.dataflow]), f"Arch: {self.arch.name} -> Level: {self.name}: each dimension must occur at most once in constraints ({list(self.factors_constraints.keys())}), regardless of the use of '>=' or '<='."
+        assert all([value > 0 for value in self.factors_constraints.values()]), f"Arch: {self.arch.name} -> Level: {self.name}: all constraints ({self.factors_constraints}) must have a value strictly > 0."
+
 
     """
     Let inputs be the amount of operations occuring on a level below this fanout,
@@ -643,7 +678,7 @@ class FanoutLevel(SpatialLevel):
         if not super().checkConstraints():
             return super().logConstraintsViolation()
         elif not self.checkConstraints():
-            return f"CONSTRAINTS VIOLATION: level {self.name}, spatial iterations used: {self.factors.fullProduct()} VS available instances (mesh): {self.mesh}"
+            return f"CONSTRAINTS VIOLATION: Arch: {self.arch.name} -> Level: {self.name}: spatial iterations used: {self.factors.fullProduct()} VS available instances (mesh): {self.mesh}"
         return ""
 
     def __str__(self):
@@ -697,30 +732,39 @@ Constructor arguments:
 class ComputeLevel(SpatialLevel):
     def __init__(self, name, mesh, compute_energy, cycles, dim : str = None, dims : list[str] = None, leakage_energy = 0, area = None, factors = None, tile_sizes = None, factors_constraints = None):
         self.name = name
-        assert mesh == 1 or (dim and not dims) or (dims and not dim), f"Level: {name}: when mesh ({mesh}) is > 1, exactly one of dim ({dim}) or dims ({dims}) must be specified."
-        self.dims = ([dim] if dim else dims) if dim or dims else []
-        self.dataflow = self.dims
-        assert all([dim in ['M', 'K', 'N'] for dim in self.dataflow]), f"Level: {name}: accepted names for dimensions are solely M, K and N, provided ones were {self.dataflow}."
-        assert mesh > 0, f"Level: {name}: a zero or negative size ({mesh}) does not make sense."
+        self.dim = dim
+        self.dims = dims
         self.mesh = mesh # for a systolic array, this is the length of the operand buffers
-        assert compute_energy >= 0, f"Level: {name}: a negative compute energy ({compute_energy}) does not mean anything (unless you watched too much Gundam and discovered Minovsky particles...)."
         self.compute_energy = compute_energy
-        assert leakage_energy >= 0, f"Level: {name}: a negative leakage energy ({leakage_energy}) does not mean anything (unless you watched too much Gundam 00 and discovered GN particles...)."
         self.leakage_energy = leakage_energy
-        assert not area or area >= 0, f"Level: {name}: a negative area ({area}) does not mean anything."
         self.area = area
-        assert cycles >= 0 # a negative number of clock-cycles per MAC does not mean anything
         self.cycles = cycles # clock cycles used per element in the inner dimension (latency of one MAC)
         self.factors = factors if factors else Factors()
         self.tile_sizes = tile_sizes if tile_sizes else Shape(1, 1, 1)
         self.factors_constraints = factors_constraints if factors_constraints else {}
-        assert all([constr[0] in self.dataflow and constr[1:] in ['', '>=', '<='] for constr in self.factors_constraints.keys()]), f"Level: {name}: all keys within factor constraints ({list(self.factors_constraints.keys())}) must be a dimension of the dataflow ({self.dataflow}) and in the form 'dim', 'dim<=', or 'dim>='."
-        assert all([sum(constr[0] == dim for constr in self.factors_constraints.keys()) <= 1 for dim in self.dataflow]), f"Level: {name}: each dimension must occur at most once in constraints ({list(self.factors_constraints.keys())}), regardless of the use of '>=' or '<='."
-        assert all([value > 0 for value in self.factors_constraints.values()]), f"Level: {name}: all constraints ({self.factors_constraints}) must have a value strictly > 0."
 
         # STATISTICS:
         self.instances = 1 # this are the used/active instances
         self.temporal_iterations = 0
+
+    """
+    Sets up a pointer back to the whole architecture.
+    Ultimates the initialization of the level and validates its attributes.
+    """
+    def initArch(self, arch : Arch):
+        self.arch = arch
+        assert self.mesh == 1 or (self.dim and not self.dims) or (self.dims and not self.dim), f"Arch: {self.arch.name} -> Level: {self.name}: when mesh ({self.mesh}) is > 1, exactly one of dim ({self.dim}) or dims ({self.dims}) must be specified."
+        self.dims = ([self.dim] if self.dim else self.dims) if self.dim or self.dims else []
+        self.dataflow = self.dims
+        assert all([dim in ['M', 'K', 'N'] for dim in self.dataflow]), f"Arch: {self.arch.name} -> Level: {self.name}: accepted names for dimensions are solely M, K and N, provided ones were {self.dataflow}."
+        assert self.mesh > 0, f"Arch: {self.arch.name} -> Level: {self.name}: a zero or negative size ({self.mesh}) does not make sense."
+        assert self.compute_energy >= 0, f"Arch: {self.arch.name} -> Level: {self.name}: a negative compute energy ({self.compute_energy}) does not mean anything (unless you watched too much Gundam and discovered Minovsky particles...)."
+        assert self.leakage_energy >= 0, f"Arch: {self.arch.name} -> Level: {self.name}: a negative leakage energy ({self.leakage_energy}) does not mean anything (unless you watched too much Gundam 00 and discovered GN particles...)."
+        assert not self.area or self.area >= 0, f"Arch: {self.arch.name} -> Level: {self.name}: a negative area ({self.area}) does not mean anything."
+        assert self.cycles >= 0 # a negative number of clock-cycles per MAC does not mean anything
+        assert all([constr[0] in self.dataflow and constr[1:] in ['', '>=', '<='] for constr in self.factors_constraints.keys()]), f"Arch: {self.arch.name} -> Level: {self.name}: all keys within factor constraints ({list(self.factors_constraints.keys())}) must be a dimension of the dataflow ({self.dataflow}) and in the form 'dim', 'dim<=', or 'dim>='."
+        assert all([sum(constr[0] == dim for constr in self.factors_constraints.keys()) <= 1 for dim in self.dataflow]), f"Arch: {self.arch.name} -> Level: {self.name}: each dimension must occur at most once in constraints ({list(self.factors_constraints.keys())}), regardless of the use of '>=' or '<='."
+        assert all([value > 0 for value in self.factors_constraints.values()]), f"Arch: {self.arch.name} -> Level: {self.name}: all constraints ({self.factors_constraints}) must have a value strictly > 0."
 
     """
     Returns the clock cycles required by this compute level to perform ALL its
@@ -761,7 +805,7 @@ class ComputeLevel(SpatialLevel):
         if not super().checkConstraints():
             return super().logConstraintsViolation()
         elif not self.checkConstraints():
-            return f"CONSTRAINTS VIOLATION: level {self.name}, concurrent MACs used: {self.factors.fullProduct()} VS concurrent MACs available: {self.mesh}"
+            return f"CONSTRAINTS VIOLATION: Arch: {self.arch.name} -> Level: {self.name}: concurrent MACs used: {self.factors.fullProduct()} VS concurrent MACs available: {self.mesh}"
         return ""
 
     def __str__(self):
