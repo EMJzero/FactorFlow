@@ -77,15 +77,16 @@ def help_arch(supported_archs):
     print("Alternatively, provide a \"path/to/a/file.py\" where a variable \"arch\" is defined. An example of such a file is provided under \"architectures/example_arch.py\".")
 
 def help_comp(supported_comps):
-    print("The second argument should be a valid computation name or a triplet of integers specifying the three dimension of a GEMM.\nValid computation names are the following:")
+    print("The second argument should be a valid computation name, otherwise arguments two-to-four or two-to-six can be a triplet or sextuple of positive integers specifying the three or six dimensions of a GEMM (in order: M, K, N) or convolution (in order: M, P, Q, C, R, S) respectively.\nValid computation names are the following:")
     for name, comp in supported_comps.items():
-        print(f"- {name} -> ", f"M: {comp.M}, K: {comp.K}, N: {comp.N}")
-    print("Alternatively, arguments two to four can be positive integers representing the three dimensions of a GEMM, in order: M, K, and N.")
+        print(f"- {name} ->", ", ".join(f"{k}: {v}" for k, v in comp.items()))
+    print("Alternatively, provide a \"path/to/a/file.py\" where the variables \"coupling\" and \"comp\" are defined. An example of such a file is provided under \"architectures/example_comp.py\". Be wary that the coupling must be compatible with the one used for the selected architecture.")
 
 
 # DEFAULT SPECIFICATION:
 
 comp = comp_BERT_large['KQV']
+coupling = gemm_coupling
 bias_read = False # True if bias is not 0 - outputs are read even the first time
 
 arch = arch_eyeriss
@@ -103,6 +104,7 @@ if __name__ == "__main__":
         from architectures.architectures_hw_data import *
         supported_archs_accelergy = {"gemmini": get_arch_gemmini_hw_data, "eyeriss": get_arch_eyeriss_hw_data, "simba": get_arch_simba_hw_data, "tpu": get_arch_tpu_hw_data}
     supported_comps = comp_BERT_large | comp_maestro_blas
+    supported_couplings = {k: gemm_coupling for k in supported_comps.keys()}
     
     if options["help"]:
         print("------------ HELP ------------")
@@ -118,7 +120,7 @@ if __name__ == "__main__":
         if not (len(sys.argv) >= 2 and (sys.argv[1] in supported_archs or os.path.exists(sys.argv[1]) and sys.argv[1][-3:] == '.py')):
             help_arch(supported_archs)
             #sys.exit(1)
-            print("WARNING: no architecture provided, defaulting to \"eyeriss\"...\n")
+            print("WARNING: no architecture provided, defaulting to \"eyeriss\"...")
         if len(sys.argv) >= 2:
             if sys.argv[1] in supported_archs:
                 if options["accelergy-data"]:
@@ -136,16 +138,34 @@ if __name__ == "__main__":
                 print("Architecture:", sys.argv[1], "-> arch")
             sys.argv.pop(1)
         
-        if not ((len(sys.argv) >= 2 and sys.argv[1] in supported_comps) or (len(sys.argv) >= 4 and all([d.isdigit() and d[0] != '-' for d in sys.argv[1:4]]))):
+        if not ((len(sys.argv) >= 2 and (sys.argv[1] in supported_comps or os.path.exists(sys.argv[1]) and sys.argv[1][-3:] == '.py')) or (len(sys.argv) == 4 and all([d.isdigit() and d[0] != '-' for d in sys.argv[1:4]])) or (len(sys.argv) >= 7 and all([d.isdigit() and d[0] != '-' for d in sys.argv[1:7]]))):
             help_comp(supported_comps)
-            print("WARNING: no computation provided, defaulting to \"KQV\"...\n")
+            print("WARNING: no computation provided, defaulting to GEMM: \"KQV\"...")
             #sys.exit(1)
         if len(sys.argv) == 2:
-            comp = supported_comps[sys.argv[1]]
-            print("Computation:", sys.argv[1])
+            if sys.argv[1] in supported_comps:
+                comp = supported_comps[sys.argv[1]]
+                coupling = supported_couplings[sys.argv[1]]
+                print("Computation:", sys.argv[1]+":", comp)
+                print("Coupling:", coupling)
+            elif sys.argv[1][-3:] == '.py':
+                comp_file = importlib.util.spec_from_file_location("user_comp", sys.argv[1])
+                comp_module = importlib.util.module_from_spec(comp_file)
+                sys.modules["user_comp"] = comp_module
+                comp_file.loader.exec_module(comp_module)
+                comp = getattr(comp_module, "comp")
+                coupling = getattr(comp_module, "coupling")
+                print("Computation:", sys.argv[1], "-> comp:", comp)
+                print("Coupling:", sys.argv[1], "-> coupling:", coupling)
         elif len(sys.argv) > 2:
-            comp = Shape(int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3]))
+            if len(sys.argv) == 4:
+                comp = Shape(M = int(sys.argv[1]), K = int(sys.argv[2]), N = int(sys.argv[3]))
+                coupling = gemm_coupling
+            elif len(sys.argv) >= 7:
+                comp = Shape(M = int(sys.argv[1]), P = int(sys.argv[2]), Q = int(sys.argv[3]), C = int(sys.argv[4]), R = int(sys.argv[5]), S = int(sys.argv[6]))
+                coupling = conv_coupling
             print("Computation:", comp)
+            print("Coupling:", coupling)
     
     bias_read = options["bias"]
     print("Bias present:", bias_read)
@@ -172,15 +192,16 @@ if __name__ == "__main__":
                 print(f"Now running FactorFlow on arch: {arch_name} and comp: {comp_name}...")
                 if current_arch_copy.fitConstraintsToComp(current_comp, comp_name):
                     continue
-                edp, mops, energy, latency, utilization, end_time, _ = run_engine(current_arch_copy, current_comp, bias_read, verbose = False)
+                edp, mops, energy, latency, utilization, end_time, _ = run_engine(current_arch_copy, current_comp, gemm_coupling, bias_read, verbose = False)
                 table.add_row([arch_name, comp_name, f"{edp:.3e}", f"{mops[0]+mops[1]:.0f}", f"{latency:.3e}", f"{energy:.3e}", f"{utilization:.3e}", f"{end_time:.3f}"] + extra_constant_columns_values)
         print(table)
         
     elif options["gen-tests"]:
         #Here changing settings does not propagate to processes, which reimport and reset settings.py
         #Settings.forcedSettingsUpdate(arch)
-        arch.fitConstraintsToComp(comp, enforce=True)
-        edp, mops, energy, latency, utilization, _, arch = run_engine(arch, comp, bias_read, verbose = True)
+        arch.checkCouplingCompatibility(coupling, comp, verbose = True)
+        arch.fitConstraintsToComp(comp, enforce = True)
+        edp, mops, energy, latency, utilization, _, arch = run_engine(arch, comp, coupling, bias_read, verbose = True)
         from test import generateTestMOPs, generateTestLatency
         print("\nGenerated tests:")
         generateTestMOPs(arch)
@@ -189,5 +210,6 @@ if __name__ == "__main__":
     else:
         #Here changing settings does not propagate to processes, which reimport and reset settings.py
         #Settings.forcedSettingsUpdate(arch)
-        arch.fitConstraintsToComp(comp, enforce=True)
-        run_engine(arch, comp, bias_read, verbose = True)
+        arch.checkCouplingCompatibility(coupling, comp, verbose = True)
+        arch.fitConstraintsToComp(comp, enforce = True)
+        run_engine(arch, comp, coupling, bias_read, verbose = True)

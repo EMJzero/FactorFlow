@@ -1,4 +1,21 @@
-from factors import Shape
+from factors import Shape, Coupling
+
+# DIMENSIONS and COUPLING for GEMMS:
+# M: Weight/Out rows
+# K: Inner dimension, Weight cols/In rows
+# N: In/Out cols
+gemm_coupling = Coupling(['M', 'K', 'N'], ['K', 'N'], ['M', 'K'], ['M', 'N'])
+
+# DIMENSIONS and COUPLING for CONVOLUTIONS:
+# M: Filter num/Out depth
+# P: Out height
+# Q: Out width
+# C: Filter/Input depth
+# R: Filter height
+# S: Filter width
+# => P+R-1: Input height
+# => Q+S-1: Input width
+conv_coupling = Coupling(['M', 'P', 'Q', 'C', 'R', 'S'], ['C', ['P', 'R'], ['Q', 'S']], ['M', 'C', 'R', 'S'], ['M', 'P', 'Q'])
 
 """
 Generates computation instances for each GEMM of a BERT Transformer

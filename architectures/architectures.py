@@ -1,3 +1,4 @@
+from computations import gemm_coupling, conv_coupling
 from levels import *
 from arch import *
 
@@ -72,7 +73,7 @@ arch_gemmini = Arch([
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )], name="Gemmini")
+    )], coupling=gemm_coupling, name="Gemmini")
 
 
 # >>> TRUE GEMMINI <<<
@@ -136,7 +137,7 @@ arch_true_gemmini = Arch([
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )], name="True Gemmini")
+    )], coupling=gemm_coupling, name="True Gemmini")
 
 
 # >>> EYERISS <<<
@@ -210,7 +211,7 @@ arch_eyeriss = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )], name="Eyeriss")
+    )], coupling=gemm_coupling, name="Eyeriss")
 
 
 # >>> SIMBA <<<
@@ -299,7 +300,7 @@ arch_simba = Arch([
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )], name="Simba")
+    )], coupling=gemm_coupling, name="Simba")
 
 
 # >>>  TPU  <<<
@@ -391,7 +392,7 @@ arch_tpu = Arch([
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )], name="TPUv1")
+    )], coupling=gemm_coupling, name="TPUv1")
 
 
 # >>>  NVDLA  <<<

@@ -2,6 +2,7 @@ from __future__ import annotations
 from copy import deepcopy
 
 from settings import *
+from factors import *
 from levels import *
 from utils import *
 
@@ -10,11 +11,13 @@ Class wrapping a list of levels into an architecture.
 
 Constructor arguments:
 - levels: the list of levels for the architecture
+- coupling: dimensions and dimension-operand coupling
 - name: the name for the architecture
 """
 class Arch(list):
-    def __init__(self, levels : list[Level], name : str ="<unnamed architecture>"):
+    def __init__(self, levels : list[Level], coupling : Coupling, name : str ="<unnamed architecture>"):
         self.name : str = name
+        self.coupling : Coupling = coupling
         
         super().__init__(levels)
         
@@ -24,7 +27,7 @@ class Arch(list):
         assert isinstance(self[-1], ComputeLevel), f"Arch: {self.name}: the innermost (idx len-1) level must be a compute level ('ComputeLevel' instance), {type(self[-1]).__name__} provided."
         assert not any(map(lambda l : isinstance(l, ComputeLevel), self[:-1])), f"Arch: {self.name}: no other compute levels admitted apart from the innermost one."
         assert not any(constr[1:] == '<=' for constr in self[0].factors_constraints.keys()), f"Arch: {self.name}: the outermost (idx 0) level's constraints ({self[0].factors_constraints}) must never be of the '<=' kind."
-        
+
         for level in self:
             level.initArch(self)
 
@@ -42,14 +45,24 @@ class Arch(list):
             self[i].dataflow = mapping[i].dataflow
             self[i].factors = mapping[i].factors
             self[i].tile_sizes = mapping[i].tile_sizes
-            
+
+    """
+    Checks if the provided coupling is compatible with the architecture's.
+    Updates the provided computation with its missing dimensions if needed.
+    """
+    def checkCouplingCompatibility(self, coupling : Coupling, comp : Shape, verbose : bool = False):
+        assert self.coupling.isCompatible(coupling), f"The coupling ({coupling}) is not compatible with arch {self.name}'s coupling ({self.coupling})."
+        if verbose and not self.coupling.isSubcoupling(coupling):
+            print(f"WARNING: the used coupling ({coupling}) is not a subcoupling of arch {self.name}'s coupling ({self.coupling}), but is still compatible.")
+        comp.fitToCoupling(coupling)
+
     """
     Checks factors allocation constraints. Returns True if a violation is found.
     """
     def findConstraintsViolation(self, verbose = True):
         violation = False
         for level in self:
-            for dim in ['M', 'K', 'N']:
+            for dim in self.coupling.dims:
                 if dim not in level.dataflow and len(level.factors[dim]) != 0:
                     if verbose: print(f"Arch: {self.name} -> Level: {level.name}: dimension {dim} was not in dataflow, but still received some iterations ({dim}: {level.factors.dimProduct(dim)}) due to constraints.")
                     violation = True
@@ -113,7 +126,7 @@ class Arch(list):
     """
     def initFactors(self, comp):
         # initialize with all factors on first level, all tile sizes of 1!
-        self[0].factors = Factors(M = prime_factors(comp.M), K = prime_factors(comp.K), N = prime_factors(comp.N))
+        self[0].factors = Factors({dim: prime_factors(comp[dim]) for dim in self.coupling.dims})
 
     """
     This function must start from arch having all factors on its first level,
@@ -132,13 +145,9 @@ class Arch(list):
             for k in level.factors_constraints.keys():
                 assert k[0] in level.dataflow, f"Arch: {self.name} -> Level: {level.name}: cannot enforce constraint on dimension {k[0]} that is not in dataflow {level.dataflow}."
             # initialize only == and >= constraints, leave <= set to 1
-            constr_factors = Factors(
-                M = prime_factors(level.factors_constraints['M']) if 'M' in level.factors_constraints else (prime_factors(level.factors_constraints['M>=']) if 'M>=' in level.factors_constraints else {}),
-                K = prime_factors(level.factors_constraints['K']) if 'K' in level.factors_constraints else (prime_factors(level.factors_constraints['K>=']) if 'K>=' in level.factors_constraints else {}),
-                N = prime_factors(level.factors_constraints['N']) if 'N' in level.factors_constraints else (prime_factors(level.factors_constraints['N>=']) if 'N>=' in level.factors_constraints else {}),
-                )
+            constr_factors = Factors({dim: (prime_factors(level.factors_constraints[dim]) if dim in level.factors_constraints else (prime_factors(level.factors_constraints[f'{dim}>=']) if f'{dim}>=' in level.factors_constraints else {})) for dim in self.coupling.dims})
             if self[0].factors.isSubset(constr_factors) or allow_padding:
-                for dim in ['M', 'K', 'N']:
+                for dim in self.coupling.dims:
                     dim_size = self[0].factors.dimProduct(dim)
                     constraint = constr_factors.dimProduct(dim)
                     if dim_size%constraint == 0:
@@ -223,7 +232,7 @@ class Arch(list):
     def resetTilesAndFactors(self):
         for level in self:
             level.factors.clear()
-            for dim in ['M', 'K', 'N']:
+            for dim in self.coupling.dims:
                 level.tile_sizes[dim] = 1
 
     """
@@ -259,7 +268,7 @@ class Arch(list):
     """
     def fitConstraintsToComp(self, comp, comp_name = None, enforce = False):
         failed = False
-        for dim in ['M', 'K', 'N']:
+        for dim in self.coupling.dims:
             total_constraint = 1
             for level in self:
                 # only == and >= constraints may be unsatisfiable at this point, since <= ones are forbidden on the

@@ -10,6 +10,7 @@ from factors import *
 from levels import *
 from prints import *
 from utils import *
+from arch import *
 
 
 """
@@ -57,19 +58,24 @@ def updateStats(arch, bias_read):
             writes = in_writes + w_writes + out_writes
             WMOPs += level.WMOPs(reads, writes)
             temporal_iterations *= level.factors.fullProduct()
-            acc_out_reads_factors *= level.factors.dimProduct('K')
+            acc_out_reads_factors *= math.prod(level.factors.dimProduct(dim) for dim in level.dataflow if dim not in level.arch.coupling.flat_out_coupling)
         elif isinstance(level, FanoutLevel):
             spatial_iterations *= level.factors.fullProduct()
-            # spatial multicast of an operand occurs if the fanout is along a dimension not relative
-            # to such operand hence, the operand is read once, but written once per instance
+            # spatial multicast of an operand occurs if the fanout is along a dimension not coupled to such operand,
+            # hence, the operand is read once, but written once per instance (modeled by last_XX_reads)
             for dim in level.dataflow:
                 iterations = level.factors.dimProduct(dim)
-                if dim == 'M':
+                if dim not in arch.coupling.flat_in_coupling:
                     if not level.spatial_multicast_support: # we don't have spatial multicast capabilities, increment retroactively the reads on the above level
                         if i > 0:
                             arch[i-1].in_reads *= iterations
                     last_in_reads *= iterations
-                if dim == 'K':
+                if dim not in arch.coupling.flat_w_coupling:
+                    if not level.spatial_multicast_support: # we don't have spatial multicast capabilities, increment retroactively the reads on the above level
+                        if i > 0:
+                            arch[i-1].w_reads *= iterations
+                    last_w_reads *= iterations
+                if dim not in arch.coupling.flat_out_coupling:
                     if not level.spatial_multicast_support: # we don't have spatial multicast capabilities, increment retroactively the reads on the above level
                         if i > 0: # no need to account for bias_read here, as the first read is skipped by all instances of the fanout
                             arch[i-1].out_reads = (arch[i-1].out_reads - arch[i-1].last_out_writes)*iterations + arch[i-1].last_out_writes
@@ -79,11 +85,6 @@ def updateStats(arch, bias_read):
                             arch[i-1].out_writes = (arch[i-1].out_writes - arch[i-1].last_out_reads)*iterations + arch[i-1].last_out_reads
                         pass
                     last_out_writes *= iterations
-                if dim == 'N':
-                    if not level.spatial_multicast_support: # we don't have spatial multicast capabilities, increment retroactively the reads on the above level
-                        if i > 0:
-                            arch[i-1].w_reads *= iterations
-                    last_w_reads *= iterations
         elif isinstance(level, ComputeLevel):
             # TODO: remove cost of first output accumulate if bias_read is False!
             # => not needed because the cost of the add is << than the multiply!
@@ -247,7 +248,7 @@ def fanoutMaximization(arch, comp, bias_read, verbose = False):
     if verbose: print("\nStarting fanout maximization:\n")
     if Settings.ONLY_MAXIMIZE_ONE_FANOUT_DIM:
         if Settings.PADDED_MAPPINGS:
-            for dim in ['M', 'K', 'N']:
+            for dim in arch.coupling.dims:
                 total_mesh = math.prod([level.mesh for level in arch if isinstance(level, SpatialLevel) and level.dataflow[0] == dim])
                 mesh_factors = [f for level in arch if isinstance(level, SpatialLevel) and level.dataflow[0] == dim for f in prime_factors_list(level.mesh)]
                 dim_size = arch[0].factors.dimProduct(dim)
@@ -511,7 +512,7 @@ def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, threads_count = 1,
     current_perms = [0 for _ in targets]
     # optimization: If the difference between the next permutation and the current one involves solely dimensions which had in the previous best mapping a factor of 1, skip the permutation
     # TODO: could be improved further by looking at the whole history of swapped dimensions
-    factors_at_one = [{'M': False, 'K': False, 'N': False} for _ in targets]
+    factors_at_one = [{dim: False for dim in arch.coupling.dims} for _ in targets]
     best_perm, best_arch, best_wart = current_perms.copy(), None, 0
     tried_perms = 0
     #skipped_perms_total = 0
@@ -586,9 +587,9 @@ def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, threads_count = 1,
 """
 Mapper entry point.
 """
-def run_engine(arch, comp, bias_read, verbose = False):
+def run_engine(arch : Arch, comp : Shape, coupling : Coupling, bias_read : bool, verbose : bool = False):
     start_time = time.time()
-
+    
     if Settings.MULTITHREADED:
         manager = multiprocessing.Manager()
         return_list = manager.list([None]*Settings.THREADS_COUNT)
@@ -606,26 +607,26 @@ def run_engine(arch, comp, bias_read, verbose = False):
         arch, wart, _ = optimizeDataflows(arch, comp, bias_read, verbose = Settings.VERBOSE)
     
     end_time = time.time() - start_time
-
+    
     edp = EDP(arch, bias_read, True)
     mops = MOPs(arch)
     energy = Energy(arch, True)
     latency = Latency(arch)
     utilization = arch.spatialUtilization()
-
+    
     if verbose:
         print(f"\nFinished in: {end_time:.3f}s")
-
+        
         print(f"\nBest mapping found with:\n\tWart: {wart:.3e}\n\tEDP: {edp:.3e} (J*cycle)\n\tEnergy: {energy:.3e} (uJ)\n\tLatency: {latency:.3e} (cc)")
         printFactors(arch)
-
+        
         print("\nFinal MOPs per memory level:")
-        printMOPsNew(arch)
+        printMOPs(arch)
         print("\nFinal Latency per level:")
-        printLatencyNew(arch)
-    
+        printLatency(arch)
+        
         if Settings.PADDED_MAPPINGS:
             print("")
             printPadding(arch, comp)
-
+    
     return edp, mops, energy, latency, utilization, end_time, arch

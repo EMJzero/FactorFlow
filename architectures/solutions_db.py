@@ -1,4 +1,5 @@
 from architectures.architectures import WS, OS, IS
+from computations import gemm_coupling, conv_coupling
 from levels import *
 from arch import *
 
@@ -64,7 +65,7 @@ arch_gemmini_timeloop = Arch([
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY FF:
 # Comp: bert large KQV
@@ -124,7 +125,7 @@ arch_gemmini_factorflow_1 = Arch([
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY FF:
 # Comp: bert large KQV
@@ -184,7 +185,7 @@ arch_gemmini_factorflow_2 = Arch([
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 
 # >>> EYERISS <<<
@@ -256,7 +257,7 @@ arch_eyeriss_timeloop = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY TIMELOOP EXHAUSTIVE:
 # Comp: maestro BLAS 4
@@ -340,7 +341,7 @@ arch_eyeriss_timeloop_ex_1 = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY TIMELOOP EXHAUSTIVE:
 # Comp: bert large KQV
@@ -424,7 +425,7 @@ arch_eyeriss_timeloop_ex_2 = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY FF:
 # Comp: bert large KQV
@@ -493,7 +494,7 @@ arch_eyeriss_factorflow_1 = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 
 # >>> SIMBA <<<
@@ -580,7 +581,7 @@ arch_simba_timeloop = Arch([
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY FF:
 # Comp: bert large KQV
@@ -664,7 +665,7 @@ arch_simba_factorflow_1 = Arch([
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 
 # >>> TPU <<<
@@ -747,7 +748,7 @@ arch_tpu_factorflow_1 = Arch([
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY TIMELOOP EXHAUSTIVE:
 # Comp: maestro BLAS 6
@@ -845,4 +846,4 @@ arch_tpu_timeloop_ex = Arch([
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
