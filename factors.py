@@ -1,65 +1,165 @@
+from __future__ import annotations
+
 from functools import reduce
-from enum import Enum
+from math import prod
+
+from utils import *
 
 """
-Possible dataflows for GEMMs.
-They can be recognized according to the inner-most loop,
-ignoring those with a single iteration:
-- innermost N -> WS
-- innermost K -> OS
-- innermost M -> IS
+Coupling defines the relationship between the dimensions and the tensors
+(operands) involved in a compute kernel. Tensors are 3: inputs, weights,
+and outputs. The kernel iterates once entirely over each dimension, the
+binding determins which operands are affected by such iterations. E.g.:
+
+dims = ['x', 'y', 'z', ...]
+# let the kernel be
+for x in [0:12]:
+  for y in [0:36]:
+    for z in [0:16]:
+      ...
+        Out[<out_coupling>] += W[<w_coupling>] * In[<in_coupling>]
+
+# where a coupling is expanded as
+w_coupling = ['X', 'Y']
+W[<w_coupling>] -> W[X][Y]
+
+Coupling lists directly indicate which dimensions index which tensor, the
+order is irrelevant, but maintained for readability.
+A round of nested lists is allowed in coupling. The outer list indicates
+independently indicized operand dimensions, the inner one indicates
+indices that affect the same operand dimension. E.g.:
+
+w_coupling = ['X', ['Y', 'Z']]
+# implies an indexing like
+W[x][y + z]
+
+NOTE: this resembles a "product of sums" notation.
+NOTE: inner lists of one element are equivalent to the element by itself,
+      for instance [['X'], ['Y', 'Z']] is the same as ['X', ['Y', 'Z']].
+      For practical reasons, every coupling in Coupling is converted to
+      the first of the two forms, strictly becoming a list of lists with,
+      eventually, a single element.
+
+Consequences of such sums of indices:
+- if Y and Z are the two innermost iterated dimensions on a memory level and
+  the inner one of them has only 2 iterations, then one read/write every two
+  reuses the same operand tile as the one before it. If the sum involves 3 or
+  more dimensions, nothing changes, reuse occurs when at least two satisfy
+  the above condition.
+- when a spatial level involves the spatial multicast or reduction of 2 or more
+  dimensions involved in the same sum of indices for some operand, then
+  read/written tiles amount to the sum of the iterations on the two dimensions
+  (minus 1 per sum), rather than their product, as many tiles are reused.
+- the same as above holds when computing the size of a tile, where the tile
+  size of dimensions involved in a sum must be first added together (minus 1
+  per sum) and only then multiplied with others (this is a true product of sums).
+
+Constructor arguments:
+- dims: list of dimensions used in (iterated in) the kernel
+- in/w/out_coupling: list of dimensions indexing each operand
 """
-class Dataflow(Enum):
-    WS = 0
-    OS = 1
-    IS = 2
+class Coupling:
+    def __init__(self, dims : list[str], in_coupling : list[str], w_coupling : list[str], out_coupling : list[str]):
+        assert all(dims.count(dim) == 1 for dim in dims), f"Invalid coupling: dims ({dims}) must not contain duplicates."
+        assert is_two_levels_list(in_coupling) and is_two_levels_list(w_coupling) and is_two_levels_list(out_coupling), f"Invalid coupling: in_coupling ({in_coupling}), w_coupling ({w_coupling}), and out_coupling ({out_coupling}) must be one or two level lists, no more."
+        
+        self.dims = dims
+        # TODO: implement a more elegant solution by redefining __iter__ for a two levels list, alternatively, make these sets!
+        # TODO: (verify this once more -> good old %flat_out_coupling in the search bar) looking at how these are used in levels.py, making them sets seems the best option!
+        self.flat_in_coupling = flatten_two_levels_list(in_coupling)
+        self.flat_w_coupling = flatten_two_levels_list(w_coupling)
+        self.flat_out_coupling = flatten_two_levels_list(out_coupling)
+        
+        # uncoupled dims are permitted, if there is a reason to model the whole kernel running multiple times
+        assert all(dim in dims for dim in self.flat_in_coupling), f"Invalid coupling: in_coupling ({in_coupling}) must be a subset of dims ({dims})."
+        assert all(dim in dims for dim in self.flat_w_coupling), f"Invalid coupling: w_coupling ({w_coupling}) must be a subset of dims ({dims})."
+        assert all(dim in dims for dim in self.flat_out_coupling), f"Invalid coupling: out_coupling ({out_coupling}) must be a subset of dims ({dims})."
+        assert all(self.flat_in_coupling.count(dim) == 1 for dim in self.flat_in_coupling), f"Invalid coupling: in_coupling ({in_coupling}) must not use a dimension more than once, not even between sublists."
+        assert all(self.flat_w_coupling.count(dim) == 1 for dim in self.flat_w_coupling), f"Invalid coupling: w_coupling ({w_coupling}) must not use a dimension more than once, not even between sublists."
+        assert all(self.flat_out_coupling.count(dim) == 1 for dim in self.flat_out_coupling), f"Invalid coupling: out_coupling ({out_coupling}) must not use a dimension more than once, not even between sublists."
+        
+        self.in_coupling = list(map(lambda x : x if isinstance(x, list) else [x], in_coupling))
+        self.w_coupling = list(map(lambda x : x if isinstance(x, list) else [x], w_coupling))
+        self.out_coupling = list(map(lambda x : x if isinstance(x, list) else [x], out_coupling))
+    
+    """
+    If True, the current and provided coupling are compatible with the same
+    architectural constraints and mappings. However, 'coupling' does not
+    necessarily model a subset of the kernels modeled by the current coupling.
+    """
+    def isCompatible(self, coupling: Coupling):
+        return (all(dim in self.dims for dim in coupling.dims) and
+                all(dim in self.flat_in_coupling for dim in coupling.flat_in_coupling) and
+                all(dim in self.flat_w_coupling for dim in coupling.flat_w_coupling) and
+                all(dim in self.flat_out_coupling for dim in coupling.flat_out_coupling))
+    
+    """
+    If True, the provided coupling is equivalent to the current one without some
+    dimensions (that is the same as those being of size 1). Therefore, 'coupling'
+    can model a subset of the kernels modeled by the current coupling.
+    """
+    def isSubcoupling(self, coupling : Coupling):
+        return (self.isCompatible(coupling) and
+                all(dim in self.in_coupling for dim in coupling.in_coupling) and
+                all(dim in self.w_coupling for dim in coupling.w_coupling) and
+                all(dim in self.out_coupling for dim in coupling.out_coupling))
+        
+    def __str__(self):
+        return "{" + f"dims: {self.dims}, in_coupling: {self.in_coupling}, w_coupling: {self.w_coupling}, out_coupling: {self.out_coupling}" + "}"
 
 """
-Shape of the Matrix Multiplication in the form Out = W*In.
-Dimensions are:
-- M = W and Out's height
-- K = Inner dimension, W's width and In's height
-- N = In and Out's width
+Shape of a kernel in the form Out = W x In.
+Where 'x' is a MAC-based linear algebra operation.
+In other words, this class models the size of the kernel's dimensions.
 """
-class Shape():
-    def __init__(self, M, K, N):
-        self.M = M # Weight/Out rows
-        self.K = K # Inner dimension, Weight cols/In rows
-        self.N = N # In/Out cols
+class Shape(dict[str, int]):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
-    def mem_footprint(self):
-        return self.M*self.K + self.K*self.N + self.M*self.N
+    def mem_footprint(self, coupling : Coupling):
+        return (prod(map(lambda dim_sum : sum(self[dim] for dim in dim_sum) - len(dim_sum) + 1, coupling.in_coupling)) +
+                prod(map(lambda dim_sum : sum(self[dim] for dim in dim_sum) - len(dim_sum) + 1, coupling.w_coupling)) +
+                prod(map(lambda dim_sum : sum(self[dim] for dim in dim_sum) - len(dim_sum) + 1, coupling.out_coupling)))
 
     def FLOPs(self):
-        return 2*self.M*self.K*self.N
+        return 2*prod(self.values())
 
-    def __getitem__(self, key):
-        return getattr(self, key)
-
-    def __setitem__(self, key, value):
-        setattr(self, key, value)
+    def fitToCoupling(self, coupling : Coupling):
+        for dim in coupling.dims:
+            if dim not in self:
+                self[dim] = 1
 
     def __str__(self):
-        return f"{{M: {self.M}, K: {self.K}, N: {self.N}}}"
+        return "{" + ", ".join(f"{k}: {v}" for k, v in self.items()) + "}"
 
 """
 Factors constituting the number of iterations unfolding over all
 dimensions of any level of the architecture.
 
-All dimensions are represented by a dictionary, which associates
-to every prime factor (key) the number of times it occurs (value)
-over that dimension.
+All dimensions are represented by the outer dictionary, which
+associates to every prime factor (key) the number of times it
+occurs (value) over that dimension.
+
+Constructor:
+- if a list of dimensions is provided, the class is initialized
+  with no factors assigned to each of them.
+- if a dictionary is provided, that is the instance's initial content,
+  and shall be in the form "{dim: {prime_factor: arity, ...}, ...}".
+- if arbitrary arguments are provided, each of them becomes a dimension
+  and its value shall be a prime_factor->arity dictionary as above.
 """
-class Factors():
-    def __init__(self, M = None, K = None, N = None):
-        self.M = M if M else {}
-        self.K = K if K else {}
-        self.N = N if N else {}
-        self._dim_products = {
-            'M': reduce(lambda tot, f_a : tot*(f_a[0]**f_a[1]), self.M.items(), 1),
-            'K': reduce(lambda tot, f_a : tot*(f_a[0]**f_a[1]), self.K.items(), 1),
-            'N': reduce(lambda tot, f_a : tot*(f_a[0]**f_a[1]), self.N.items(), 1)
-            }
+class Factors(dict[str, dict[int, int]]):
+    def __init__(self, iterable : list[str] | dict[str, dict[int, int]] = None, *args, **kwargs):
+        if isinstance(iterable, list):
+            super().__init__()
+            for dim in iterable:
+                self[dim] = {}
+        elif isinstance(iterable, dict):
+            super().__init__(iterable)
+        else:
+            super().__init__(*args, **kwargs)
+        
+        self._dim_products = {k: reduce(lambda tot, f_a : tot*(f_a[0]**f_a[1]), v.items(), 1) for k, v in self.items()}
 
     """
     Add "amount" instances of the provided factor to those of
@@ -96,13 +196,13 @@ class Factors():
 
     """Total number of iterations across all three dimensions."""
     def fullProduct(self):
-        return self._dim_products['M']*self._dim_products['K']*self._dim_products['N']
+        return prod(self._dim_products.values())
 
     """
     Recomputes the correct values for the dimProducts as of the current
     factors. Must be called any time factors are updated directly, without
     going through the addFactor and removeFactor methods.
-    
+
     Pass dimensions as an array of dimensions to only reset indicated ones.
     """
     def resetDimProducts(self, dimensions = None):
@@ -112,7 +212,7 @@ class Factors():
             for f, v in self[dim].items():
                 res *= f**v
             self._dim_products[dim] = res
-    
+
     """
     Checks whether "subset" has less or the same occurencies of prime
     factors along each dimension (independently) as this instance.
@@ -120,15 +220,10 @@ class Factors():
     of one along any of the three dimensions.
     """
     def isSubset(self, subset):
-        for k, v in subset.M.items():
-            if k not in self.M or v > self.M[k]:
-                return False
-        for k, v in subset.K.items():
-            if k not in self.K or v > self.K[k]:
-                return False
-        for k, v in subset.N.items():
-            if k not in self.N or v > self.N[k]:
-                return False
+        for dim in subset.keys():
+            for k, v in subset[dim].items():
+                if k not in self[dim] or v > self[dim][k]:
+                    return False
         return True
 
     """
@@ -138,10 +233,10 @@ class Factors():
     (It is assumed that a level always stores all data for the
     iterations unfolding over it)
     """
-    def mem_footprint(self, tile_sizes, in_bp = 1, w_bp = 1, out_bp = 1):
-        return (self.dimProduct('M')*self.dimProduct('K')*w_bp*tile_sizes.M*tile_sizes.K +
-                self.dimProduct('K')*self.dimProduct('N')*in_bp*tile_sizes.K*tile_sizes.N +
-                self.dimProduct('M')*self.dimProduct('N')*out_bp*tile_sizes.M*tile_sizes.N)
+    def mem_footprint(self, tile_sizes, coupling : Coupling, in_bp = 1, w_bp = 1, out_bp = 1):
+        return (reduce(lambda tot, dim : tot*tile_sizes[dim]*self._dim_products[dim], coupling.flat_in_coupling, 1)*in_bp +
+                reduce(lambda tot, dim : tot*tile_sizes[dim]*self._dim_products[dim], coupling.flat_w_coupling, 1)*w_bp +
+                reduce(lambda tot, dim : tot*tile_sizes[dim]*self._dim_products[dim], coupling.flat_out_coupling, 1)*out_bp)
 
     """
     Returns the factors present on the specified dimension as a list rather
@@ -154,16 +249,9 @@ class Factors():
     Reset this "Factors" instance to no factors along any dimension.
     """
     def clear(self):
-        self.M.clear()
-        self.K.clear()
-        self.N.clear()
-        self._dim_products = {'M': 1, 'K': 1, 'N': 1}
-
-    def __getitem__(self, key):
-        return getattr(self, key)
-
-    def __setitem__(self, key, value):
-        setattr(self, key, value)
+        for k in self.keys():
+            self[k].clear()
+            self._dim_products[k] = 1
 
     def __str__(self):
-        return f"{{M: {self.M}, K: {self.K}, N: {self.N}}}"
+        return "{" + ", ".join(f"{k}: {v}" for k, v in self.items()) + "}"

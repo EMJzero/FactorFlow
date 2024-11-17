@@ -1,4 +1,5 @@
 from architectures.architectures import WS, OS, IS
+from computations import gemm_coupling
 from levels import *
 from arch import *
 
@@ -68,7 +69,7 @@ arch_gemmini_cosa_kqv = Arch([
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY CoSA:
 # Comp: bert large KTQ
@@ -128,7 +129,7 @@ arch_gemmini_cosa_ktq = Arch([
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY CoSA:
 # Comp: bert large VScores
@@ -188,7 +189,7 @@ arch_gemmini_cosa_vscores = Arch([
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY CoSA:
 # Comp: bert large FF1
@@ -248,7 +249,7 @@ arch_gemmini_cosa_ff1 = Arch([
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY CoSA:
 # Comp: MAESTRO-BLAS 1
@@ -308,7 +309,7 @@ arch_gemmini_cosa_mb1 = Arch([
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY CoSA:
 # Comp: MAESTRO-BLAS 2
@@ -368,7 +369,7 @@ arch_gemmini_cosa_mb2 = Arch([
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY CoSA:
 # Comp: MAESTRO-BLAS 3
@@ -428,7 +429,7 @@ arch_gemmini_cosa_mb3 = Arch([
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY CoSA:
 # Comp: MAESTRO-BLAS 4
@@ -488,7 +489,7 @@ arch_gemmini_cosa_mb4 = Arch([
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY CoSA:
 # Comp: MAESTRO-BLAS 5
@@ -548,7 +549,7 @@ arch_gemmini_cosa_mb5 = Arch([
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY CoSA:
 # Comp: MAESTRO-BLAS 6
@@ -608,7 +609,7 @@ arch_gemmini_cosa_mb6 = Arch([
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 
 # >>> EYERISS <<<
@@ -680,7 +681,7 @@ arch_eyeriss_cosa_kqv = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY CoSA:
 # Comp: bert large KTQ
@@ -749,7 +750,7 @@ arch_eyeriss_cosa_ktq = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY CoSA:
 # Comp: bert large VScores
@@ -818,7 +819,7 @@ arch_eyeriss_cosa_vscores = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY CoSA:
 # Comp: bert large FF1
@@ -887,7 +888,7 @@ arch_eyeriss_cosa_ff1 = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY CoSA:
 # Comp: MAESTRO-BLAS 1
@@ -956,7 +957,7 @@ arch_eyeriss_cosa_mb1 = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY CoSA:
 # Comp: MAESTRO-BLAS 2
@@ -1025,7 +1026,7 @@ arch_eyeriss_cosa_mb2 = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY CoSA:
 # Comp: MAESTRO-BLAS 3
@@ -1094,7 +1095,7 @@ arch_eyeriss_cosa_mb3 = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY CoSA:
 # Comp: MAESTRO-BLAS 4
@@ -1163,7 +1164,7 @@ arch_eyeriss_cosa_mb4 = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY CoSA:
 # Comp: MAESTRO-BLAS 5
@@ -1232,7 +1233,7 @@ arch_eyeriss_cosa_mb5 = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY CoSA:
 # Comp: MAESTRO-BLAS 6
@@ -1301,7 +1302,7 @@ arch_eyeriss_cosa_mb6 = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 
 # >>> SIMBA <<<
@@ -1388,7 +1389,7 @@ arch_simba_cosa_kqv = Arch([
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY CoSA:
 # Comp: bert large KTQ
@@ -1472,7 +1473,7 @@ arch_simba_cosa_ktq = Arch([
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY CoSA:
 # Comp: bert large VScores
@@ -1556,7 +1557,7 @@ arch_simba_cosa_vscores = Arch([
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY CoSA:
 # Comp: bert large FF1
@@ -1640,7 +1641,7 @@ arch_simba_cosa_ff1 = Arch([
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY CoSA:
 # Comp: MAESTRO-BLAS 1
@@ -1724,7 +1725,7 @@ arch_simba_cosa_mb1 = Arch([
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY CoSA:
 # Comp: MAESTRO-BLAS 2
@@ -1808,7 +1809,7 @@ arch_simba_cosa_mb2 = Arch([
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY CoSA:
 # Comp: MAESTRO-BLAS 3
@@ -1892,7 +1893,7 @@ arch_simba_cosa_mb3 = Arch([
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY CoSA:
 # Comp: MAESTRO-BLAS 4
@@ -1976,7 +1977,7 @@ arch_simba_cosa_mb4 = Arch([
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY CoSA:
 # Comp: MAESTRO-BLAS 5
@@ -2060,7 +2061,7 @@ arch_simba_cosa_mb5 = Arch([
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY CoSA:
 # Comp: MAESTRO-BLAS 6
@@ -2144,7 +2145,7 @@ arch_simba_cosa_mb6 = Arch([
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 
 # >>> TPUv1 <<<
@@ -2218,7 +2219,7 @@ arch_tpu_cosa_kqv = Arch([
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY CoSA:
 # Comp: bert large KTQ
@@ -2289,7 +2290,7 @@ arch_tpu_cosa_ktq = Arch([
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY CoSA:
 # Comp: bert large VScores
@@ -2360,7 +2361,7 @@ arch_tpu_cosa_vscores = Arch([
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY CoSA:
 # Comp: bert large FF1
@@ -2431,7 +2432,7 @@ arch_tpu_cosa_ff1 = Arch([
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY CoSA:
 # Comp: MAESTRO-BLAS 1
@@ -2502,7 +2503,7 @@ arch_tpu_cosa_mb1 = Arch([
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY CoSA:
 # Comp: MAESTRO-BLAS 2
@@ -2573,7 +2574,7 @@ arch_tpu_cosa_mb2 = Arch([
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY CoSA:
 # Comp: MAESTRO-BLAS 3
@@ -2644,7 +2645,7 @@ arch_tpu_cosa_mb3 = Arch([
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY CoSA:
 # Comp: MAESTRO-BLAS 4
@@ -2715,7 +2716,7 @@ arch_tpu_cosa_mb4 = Arch([
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY CoSA:
 # Comp: MAESTRO-BLAS 5
@@ -2786,7 +2787,7 @@ arch_tpu_cosa_mb5 = Arch([
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY CoSA:
 # Comp: MAESTRO-BLAS 6
@@ -2857,4 +2858,4 @@ arch_tpu_cosa_mb6 = Arch([
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)

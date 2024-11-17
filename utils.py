@@ -1,8 +1,6 @@
 from itertools import chain, combinations, permutations
 import math
 
-from levels import *
-
 # >>> Miscellaneus functions working with primes and iterables/arrays (snake_cased)
 
 """
@@ -135,3 +133,15 @@ def largest_product_less_than(arr, target):
                 best_subarray = comb
 
     return list(best_subarray), min_defect
+
+"""
+Flattens a list by up to two levels of nesting.
+"""
+def flatten_two_levels_list(lst):
+    return [subitem for item in lst for subitem in (item if isinstance(item, list) else [item])]
+
+"""
+Checks if a list has at most two levels of nesting.
+"""
+def is_two_levels_list(lst):
+    return all(not (isinstance(item, list) and any(isinstance(subitem, list) for subitem in item)) for item in lst)
