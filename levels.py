@@ -20,9 +20,17 @@ class LevelCore:
     # Use the entries of "dataflow" to access "factors", so that you only
     # see the factors over which you are actually supposed to iterate!
     dataflow: None # order of the loops | e.g. ['M', 'K', 'N']
-    # NOTE: tile sizes are updated in "moveFactor".
     factors: None # iterations done for the dimensions at this lever
     tile_sizes: None # indicate the size of a tile used in the level BELOW
+    # NOTE: tile sizes are, in other words, the number of elements jumped
+    #       by one iteration at this level an any dimension
+    # NOTE: another interpretation is that tile sizes are the amount by
+    #       which inner levels will move along a dimension
+    # NOTE: finally, tile sizes can be seen as the coefficient to be applied
+    #       to a level's index along the respective dimension
+    # NOTE: tile sizes in fanout levels represent the size of each tile
+    #       stored in an instance below them
+    # NOTE: tile sizes are updated in "moveFactor"
     
     def __init__(self, dataflow, factors, tile_sizes):
         self.dataflow = dataflow
@@ -372,40 +380,84 @@ class MemLevel(Level):
         # stationarity calculation for inputs
         in_reads = in_bp
         if in_reads:
-            # elements per tile - size of the tiles moved between this level and the one below; for summed indices, their tile_sizes must be added (with a -1 per sum), and them multiplied with the others
-            in_reads = prod(map(lambda dim_sum : sum(self.tile_sizes[dim] for dim in dim_sum) - len(dim_sum) + 1, self.arch.coupling.in_coupling))
             i = len(actual_dataflow) - 1
+            innermost_dim_sum = None
             if not self.next_is_compute:
-                while i >= 0 and (actual_dataflow[i] not in self.arch.coupling.flat_in_coupling): # skip contigous innermost orthogonal dimensions (determining stationarity)
+                # skip contigous innermost orthogonal dimensions (determining stationarity)
+                while i >= 0 and (actual_dataflow[i] not in self.arch.coupling.flat_in_coupling):
+                    print(f"{self.name} input skipping: ", actual_dataflow[i])
                     i -= 1
-            # try handling the innermost actual iteration by itself to manage a potential sum of indices: for a pair of innermost consecutive summed indices, if the inner one has 2 iterations, one is read/write is not needed
-            if i > 0 and self.factors.dimProduct(actual_dataflow[i]) == 2 and any(actual_dataflow[i] in dim_sum and actual_dataflow[i-1] in dim_sum for dim_sum in self.arch.coupling.in_coupling):
-                i -= 1
-            for dim in actual_dataflow[:i+1]: # accumulate the remaining iterations
+                # reuse the halo left by the innermost iterated dimension on the iterations on dimensions part of a sum of indices with it
+                innermost_dim_sum = next((dim_sum for dim_sum in self.arch.coupling.in_coupling if actual_dataflow[i] in dim_sum and len(dim_sum) > 1), None)
+                if innermost_dim_sum:
+                    
+                    # WARNING: this ignores potential reuse in the case in which R is iterated immediately around P, and part of the input can be reuse on inner levels!!! That may not be supported by HW tho...
+                    # WARNING: fix according to this logic the fanouts as well, if needed!
+                    # TODO: make this thing a function and use flatCouplingByOperand more!
+                    
+                    # CLUE: each instance following this level, has a different part of the previously-read input elements, so some may need to be re-read to be sent to the right PE!
+                    # -->> Nope, since neither P nor R is in the fanouts... -->> Moreover, the tile sizes already cover this case, reading all required rows of the input!
+                    
+                    # CLUE: you are not moving around tiles by their own tile size, but only by part of it!
+                    
+                    # CLUE: the result is the same when Q and C are the innermost iterated dimension on the GlobalBuffer...
+                    
+                    # QUESTION: what could be causing more reads than even the case of no skip or innermost dim_sum?
+                    # -> it does not have to do with fanouts and what is below the GB...
+                    
+                    # ONE STEP FORWARD: when A SINGLE spatial instance is used, and all spatial iterations are moved on InRegister, THE RESULTS COINCIDE! Therefore something is happening when fanouts are in use!
+                    # => Removing just Q or just S from fanouts does not change anything, only removing BOTH changes things! (M can be left there with no issue) (note that Q and S are in the same dim_sum)
+                    # ===>>> Focus on solving the problem for the 1D case, with just P and R, if R undergoes a fanout! Assume something symmetric for commodity, like tileR=tileS=2 or 4
+                    # CONCLUSIONS:
+                    # 1) if the next level is a fanout level (if there is a chain of fanouts, consider them all) and it has any of the dim in innermost_dim_sum among its dimensions with more than one iteration,
+                    #    then this reuse (this IF case here) must be skipped, since the halo that would be reuse is stored in the wrong instance, which cannot reuse it, and is more efficient to re-read the
+                    #    data rather than move it beween instances or flip the order with which instances are indexed (oh dear, this last option may be worth it if it can be cheaply implemented)!
+                    #    => This caused the 20x error!
+                    # 2) HERE IS WHERE THE 2.4 COME FROM, RATHER THAN 8+3-1=10 (tileQ+tileS-1) it is 8*3=24 (tileQ*tileS), so, simply, dimension that get unfolded spatially, get their iterations
+                    #    multiplied, rather than summed, during the dim_sum's tile size calculation! But why is that? That is, if there is no multicast support!
+                    #    WRONG FIX: if any dimension in a dim_sum is part of any fanout in a potential chain of fanouts following this level, then the dim_sum goes from sum to product!
+                    #    FIX: if a dimension in a dim_sum is part of any fanout in a potential chain of fanouts following this level, then ONLY THAT DIM is multiplied by the rest of the sum of the dim_sum!
+                    #    => each instance wants its part of the tile, which depends on the sum of Q and S, indicizing said tile, this result occurs if each instance reads its part of the tile on its own,
+                    #       therefore we get a read for <spatial-iteration>*(dim_sum of the other dimensions not in the fanout)*remaining_tile_sizes.
+                    #    => if the NoC has multicast capabilities, THIS should not occur...
+                    
+                    # example for the P (innermost) and R dimensions of a convolution: total_in_reads_along_PR = iterP * tileP + tileR - 1 + (all other tileDIM for DIM in dim_sum of P, each - 1)
+                    # on the first iteration, you send down the sum of tile sizes for the sum of indices, then at each iteration you fill up only your tile size worth of new elements
+                    in_reads *= (self.factors.dimProduct(actual_dataflow[i]) - 1)*self.tile_sizes[actual_dataflow[i]] + sum(self.tile_sizes[dim] for dim in innermost_dim_sum) - len(innermost_dim_sum) + 1
+                    print(f"{self.name} input tile elements along {actual_dataflow[i]}: ", in_reads)
+                    i -= 1
+            # elements per tile - size of the tiles moved between this level and the one below; for summed indices, their tile_sizes must be added (with a -1 per sum), and them multiplied with the others
+            in_reads *= prod(sum(self.tile_sizes[dim] for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in self.arch.coupling.in_coupling if dim_sum is not innermost_dim_sum)
+            print(f"{self.name} final input tile elements:", in_reads)
+            # accumulate the remaining iterations
+            for dim in actual_dataflow[:i+1]:
                 in_reads *= self.factors.dimProduct(dim)
+        
         # stationarity calculation for weights
         w_reads = w_bp
         if w_reads:
-            w_reads = prod(map(lambda dim_sum : sum(self.tile_sizes[dim] for dim in dim_sum) - len(dim_sum) + 1, self.arch.coupling.w_coupling))
+            w_reads = prod(sum(self.tile_sizes[dim] for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in self.arch.coupling.w_coupling)
             i = len(actual_dataflow) - 1
             if not self.next_is_compute:
                 while i >= 0 and (actual_dataflow[i] not in self.arch.coupling.flat_w_coupling):
                     i -= 1
-            if i > 0 and self.factors.dimProduct(actual_dataflow[i]) == 2 and any(actual_dataflow[i] in dim_sum and actual_dataflow[i-1] in dim_sum for dim_sum in self.arch.coupling.w_coupling):
-                i -= 1
+            # TODO: replicate here the code for innermost_dim_sum
+            #if i > 0 and self.factors.dimProduct(actual_dataflow[i]) == 2 and any(actual_dataflow[i] in dim_sum and actual_dataflow[i-1] in dim_sum for dim_sum in self.arch.coupling.w_coupling):
+            #    i -= 1
             for dim in actual_dataflow[:i+1]:
                 w_reads *= self.factors.dimProduct(dim)
         # stationarity calculation for outputs
         out_reads = out_bp
         out_reads_factors = out_bp # this collects the factors along dimensions orthogonal to the output, returned to handle the presence/absence of the bias
         if out_reads:
-            out_reads = prod(map(lambda dim_sum : sum(self.tile_sizes[dim] for dim in dim_sum) - len(dim_sum) + 1, self.arch.coupling.out_coupling))
+            out_reads = prod(sum(self.tile_sizes[dim] for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in self.arch.coupling.out_coupling)
             i = len(actual_dataflow) - 1
             if not self.next_is_compute:
                 while i >= 0 and (actual_dataflow[i] not in self.arch.coupling.flat_out_coupling):
                     i -= 1
-            if i > 0 and self.factors.dimProduct(actual_dataflow[i]) == 2 and any(actual_dataflow[i] in dim_sum and actual_dataflow[i-1] in dim_sum for dim_sum in self.arch.coupling.out_coupling):
-                i -= 1
+            # TODO: replicate here the code for innermost_dim_sum
+            #if i > 0 and self.factors.dimProduct(actual_dataflow[i]) == 2 and any(actual_dataflow[i] in dim_sum and actual_dataflow[i-1] in dim_sum for dim_sum in self.arch.coupling.out_coupling):
+            #    i -= 1
             for dim in actual_dataflow[:i+1]:
                 out_reads *= self.factors.dimProduct(dim)
                 if dim not in self.arch.coupling.flat_out_coupling:
@@ -417,105 +469,117 @@ class MemLevel(Level):
         if not ignore_bypasses:
             for operand, levels in self.next_levels_with_bypass.items():
                 if levels != None:
+                    # 'level' is the level immediately above the one that stores the bypassed operand after the self level
                     in_between, level = levels[:-1], levels[-1]
                     in_reads_bp, w_reads_bp, out_reads_bp, out_writes_bp, out_reads_bp_factors = level.MOPs(operand == 'in', operand == 'w', operand == 'out', True)
                     # bulid the inner-most dataflow, by piling one against the other all non-1 loops, then look at which is the innermost dimension, that is the one that matters!
                     # TL;DR: consider the dataflow only w.r.t. the innermost loop, ignoring those with 1 iteration!
-                    if any(level.factors.dimProduct(dim) > 1 for dim in level.dataflow): # at least a loop not at one implies that this level has a dataflow
-                        stationarity_to_address = False
-                    else:
-                        stationarity_to_address = True
+                    stationarity_to_address = not any(level.factors.dimProduct(dim) > 1 and dim in self.arch.coupling.flatCouplingByOperand(operand) for dim in level.dataflow)
                     for in_btwn in in_between[::-1]:
                         if isinstance(in_btwn, MemLevel):
-                            if stationarity_to_address:
-                                # all inner loops were 1s, deal with the dataflow now!
-                                # ignore loops at one
-                                actual_dataflow_bp = list(filter(lambda dim : in_btwn.factors.dimProduct(dim) > 1, in_btwn.dataflow))
-                                if len(actual_dataflow_bp) > 0:
-                                    stationarity_to_address = False
-                                # stationarity calculation for inputs
-                                if in_reads_bp:
+                            # ignore loops at one
+                            actual_dataflow_bp = list(filter(lambda dim : in_btwn.factors.dimProduct(dim) > 1, in_btwn.dataflow))
+                            in_btwn_factors_full = in_btwn.factors.fullProduct()
+                            # all inner loops were 1s or orthogonal, deal with the dataflow now!
+                            if in_reads_bp:
+                                if stationarity_to_address:
                                     i = len(actual_dataflow_bp) - 1
                                     while i >= 0 and (actual_dataflow_bp[i] not in self.arch.coupling.flat_in_coupling):
                                         i -= 1
-                                    if i > 0 and in_btwn.factors.dimProduct(actual_dataflow_bp[i]) == 2 and any(actual_dataflow_bp[i] in dim_sum and actual_dataflow_bp[i-1] in dim_sum for dim_sum in self.arch.coupling.in_coupling):
+                                    #if i > 0 and in_btwn.factors.dimProduct(actual_dataflow_bp[i]) == 2 and any(actual_dataflow_bp[i] in dim_sum and actual_dataflow_bp[i-1] in dim_sum for dim_sum in self.arch.coupling.in_coupling):
+                                    #    i -= 1
+                                    stationarity_to_address = i < 0 # postpone stationarity evaluation since not input-coupled dimension is iterated here
+                                    
+                                    innermost_dim_sum = next((dim_sum for dim_sum in self.arch.coupling.in_coupling if actual_dataflow_bp[i] in dim_sum and len(dim_sum) > 1), None)
+                                    if innermost_dim_sum:
+                                        
+                                        # WARNING: this ignores potential reuse in the case in which R is iterated immediately around P, and part of the input can be reuse on inner levels!!! That may not be supported by HW tho...
+                                        
+                                        # before updating the tile size, remove from the original one the component relative to the dimension involved in the sum of indices
+                                        in_reads_bp //= sum(in_btwn.tile_sizes[dim] for dim in innermost_dim_sum) - len(innermost_dim_sum) + 1
+                                        in_reads_bp *= (in_btwn.factors.dimProduct(actual_dataflow_bp[i]) - 1)*in_btwn.tile_sizes[actual_dataflow_bp[i]] + sum(in_btwn.tile_sizes[dim] for dim in innermost_dim_sum) - len(innermost_dim_sum) + 1
                                         i -= 1
+                                    
                                     for dim in actual_dataflow_bp[:i+1]:
                                         in_reads_bp *= in_btwn.factors.dimProduct(dim)
-                                # stationarity calculation for weights
-                                if w_reads_bp:
+                                else:
+                                    # dataflow already handled among inner loops
+                                    in_reads_bp = in_btwn_factors_full*in_reads_bp
+                            if w_reads_bp:
+                                if stationarity_to_address:
                                     i = len(actual_dataflow_bp) - 1
                                     while i >= 0 and (actual_dataflow_bp[i] not in self.arch.coupling.flat_w_coupling):
                                         i -= 1
-                                    if i > 0 and in_btwn.factors.dimProduct(actual_dataflow_bp[i]) == 2 and any(actual_dataflow_bp[i] in dim_sum and actual_dataflow_bp[i-1] in dim_sum for dim_sum in self.arch.coupling.w_coupling):
-                                        i -= 1
+                                    #if i > 0 and in_btwn.factors.dimProduct(actual_dataflow_bp[i]) == 2 and any(actual_dataflow_bp[i] in dim_sum and actual_dataflow_bp[i-1] in dim_sum for dim_sum in self.arch.coupling.w_coupling):
+                                    #    i -= 1
+                                    stationarity_to_address = i < 0
                                     for dim in actual_dataflow_bp[:i+1]:
                                         w_reads_bp *= in_btwn.factors.dimProduct(dim)
-                                # stationarity calculation for outputs
-                                if out_reads_bp:
+                                else:
+                                    w_reads_bp = in_btwn_factors_full*w_reads_bp
+                            if out_reads_bp:
+                                if stationarity_to_address:
                                     i = len(actual_dataflow_bp) - 1
                                     while i >= 0 and (actual_dataflow_bp[i] not in self.arch.coupling.flat_out_coupling):
                                         i -= 1
-                                    if i > 0 and in_btwn.factors.dimProduct(actual_dataflow_bp[i]) == 2 and any(actual_dataflow_bp[i] in dim_sum and actual_dataflow_bp[i-1] in dim_sum for dim_sum in self.arch.coupling.out_coupling):
-                                        i -= 1
+                                    #if i > 0 and in_btwn.factors.dimProduct(actual_dataflow_bp[i]) == 2 and any(actual_dataflow_bp[i] in dim_sum and actual_dataflow_bp[i-1] in dim_sum for dim_sum in self.arch.coupling.out_coupling):
+                                    #    i -= 1
+                                    stationarity_to_address = i < 0
                                     for dim in actual_dataflow_bp[:i+1]:
                                         out_reads_bp *= in_btwn.factors.dimProduct(dim)
                                         out_writes_bp *= in_btwn.factors.dimProduct(dim)
                                         if dim not in self.arch.coupling.flat_out_coupling:
                                             out_reads_bp_factors *= in_btwn.factors.dimProduct(dim)
-                            else:
-                                # dataflow already handled among inner loops
-                                in_btwn_factors_full = in_btwn.factors.fullProduct()
-                                w_reads_bp = in_btwn_factors_full*w_reads_bp
-                                in_reads_bp = in_btwn_factors_full*in_reads_bp
-                                out_reads_bp = in_btwn_factors_full*out_reads_bp
-                                out_writes_bp = in_btwn_factors_full*out_writes_bp
-                                out_reads_bp_factors *= prod(in_btwn.factors.dimProduct(dim) for dim in in_btwn.dataflow if dim not in self.arch.coupling.flat_out_coupling)
+                                else:
+                                    out_reads_bp = in_btwn_factors_full*out_reads_bp
+                                    out_writes_bp = in_btwn_factors_full*out_writes_bp
+                                    out_reads_bp_factors *= prod(in_btwn.factors.dimProduct(dim) for dim in in_btwn.dataflow if dim not in self.arch.coupling.flat_out_coupling)
                         else:
                             in_reads_bp, w_reads_bp, out_reads_bp, out_writes_bp = in_btwn.mulByDim(in_reads_bp, w_reads_bp, out_reads_bp, out_writes_bp)
                             # do not update out_reads_bp_factors here, because in it go only iterations of which the first one is skipped,
                             # while in a fanout all fanned-out copies of the inner loop behave the same, there isn't a first different spatial iteration or anything
                         #print("IN BETWEEN BYPASS:\n", f"{in_btwn.name}:{chr(9) * (2 - len(in_btwn.name)//8)}{in_reads_bp} In_R, {w_reads_bp} W_R, {out_reads_bp} Our_R, {in_reads_bp + w_reads_bp + out_reads_bp} Tot_R, {out_writes_bp} Out_W, {out_reads_bp_factors} Out_R_Fac")
-                    # consider the dataflow only among the three innermost loops, unless all loops seen until now were 1s
-                    if stationarity_to_address:
-                        # all inner loops were 1s, deal with the dataflow now!
-                        if in_reads_bp:
+                    factors_full = self.factors.fullProduct()
+                    if in_reads_bp:
+                        if stationarity_to_address:
+                        # all inner loops were 1s or orthogonal, deal with the dataflow now!
                             i = len(actual_dataflow) - 1
                             while i >= 0 and (actual_dataflow[i] not in self.arch.coupling.flat_in_coupling):
                                 i -= 1
-                            if i > 0 and self.factors.dimProduct(actual_dataflow[i]) == 2 and any(actual_dataflow[i] in dim_sum and actual_dataflow[i-1] in dim_sum for dim_sum in self.arch.coupling.in_coupling):
-                                i -= 1
+                            #if i > 0 and self.factors.dimProduct(actual_dataflow[i]) == 2 and any(actual_dataflow[i] in dim_sum and actual_dataflow[i-1] in dim_sum for dim_sum in self.arch.coupling.in_coupling):
+                            #    i -= 1
                             for dim in actual_dataflow[:i+1]:
                                 in_reads_bp *= self.factors.dimProduct(dim)
-                        # stationarity calculation for weights
-                        if w_reads_bp:
+                        else:
+                            # dataflow handled among inner loops
+                            in_reads_bp = factors_full*in_reads_bp
+                    if w_reads_bp:
+                        if stationarity_to_address:
                             i = len(actual_dataflow) - 1
                             while i >= 0 and (actual_dataflow[i] not in self.arch.coupling.flat_w_coupling):
                                 i -= 1
-                            if i > 0 and self.factors.dimProduct(actual_dataflow[i]) == 2 and any(actual_dataflow[i] in dim_sum and actual_dataflow[i-1] in dim_sum for dim_sum in self.arch.coupling.w_coupling):
-                                i -= 1
+                            #if i > 0 and self.factors.dimProduct(actual_dataflow[i]) == 2 and any(actual_dataflow[i] in dim_sum and actual_dataflow[i-1] in dim_sum for dim_sum in self.arch.coupling.w_coupling):
+                            #    i -= 1
                             for dim in actual_dataflow[:i+1]:
                                 w_reads_bp *= self.factors.dimProduct(dim)
-                        # stationarity calculation for outputs
-                        if out_reads_bp:
+                        else:
+                            w_reads_bp = factors_full*w_reads_bp
+                    if out_reads_bp:
+                        if stationarity_to_address:
                             i = len(actual_dataflow) - 1
                             while i >= 0 and (actual_dataflow[i] not in self.arch.coupling.flat_out_coupling):
                                 i -= 1
-                            if i > 0 and self.factors.dimProduct(actual_dataflow[i]) == 2 and any(actual_dataflow[i] in dim_sum and actual_dataflow[i-1] in dim_sum for dim_sum in self.arch.coupling.out_coupling):
-                                i -= 1
+                            #if i > 0 and self.factors.dimProduct(actual_dataflow[i]) == 2 and any(actual_dataflow[i] in dim_sum and actual_dataflow[i-1] in dim_sum for dim_sum in self.arch.coupling.out_coupling):
+                            #    i -= 1
                             for dim in actual_dataflow[:i+1]:
                                 out_reads_bp *= self.factors.dimProduct(dim)
                                 out_writes_bp *= self.factors.dimProduct(dim)
                                 if dim not in self.arch.coupling.flat_out_coupling:
                                     out_reads_bp_factors *= self.factors.dimProduct(dim)
-                    else:
-                        # dataflow handled among inner loops
-                        factors_full = self.factors.fullProduct()
-                        w_reads_bp = factors_full*w_reads_bp
-                        in_reads_bp = factors_full*in_reads_bp
-                        out_reads_bp = factors_full*out_reads_bp
-                        out_writes_bp = factors_full*out_writes_bp
-                        out_reads_bp_factors *= prod(self.factors.dimProduct(dim) for dim in self.dataflow if dim not in self.arch.coupling.flat_out_coupling)
+                        else:
+                            out_reads_bp = factors_full*out_reads_bp
+                            out_writes_bp = factors_full*out_writes_bp
+                            out_reads_bp_factors *= prod(self.factors.dimProduct(dim) for dim in self.dataflow if dim not in self.arch.coupling.flat_out_coupling)
                     #print(f"BYPASS ({operand}):\n", f"{self.name}->{level.name}:{chr(9) * (3 - (len(self.name)+len(level.name))//8)}{in_reads_bp} In_R, {w_reads_bp} W_R, {out_reads_bp} Our_R, {in_reads_bp + w_reads_bp + out_reads_bp} Tot_R, {out_writes_bp} Out_W, {out_reads_bp_factors} Out_R_Fac")
                     in_reads += in_reads_bp
                     w_reads += w_reads_bp
@@ -652,13 +716,19 @@ class FanoutLevel(SpatialLevel):
 
     """
     Let inputs be the amount of operations occuring on a level below this fanout,
-    this method returns the amount of operations the seen above the fanout, accounting
-    for spatial multicast and spatial reduction support of operands!
+    this method returns the amount of operations seen from above the fanout,
+    accounting for spatial multicast and spatial reduction support for operands.
     """
+    # here you receive the reads/writes done by an instance, and need to
+    # return the reads/writes that are needed for all instances.
     def mulByDim(self, in_reads, w_reads, out_reads, out_writes):
-        in_reads *= prod(map(lambda dim_sum : sum(self.factors.dimProduct(dim) for dim in dim_sum) - len(dim_sum) + 1, self.arch.coupling.in_coupling))
-        w_reads *= prod(map(lambda dim_sum : sum(self.factors.dimProduct(dim) for dim in dim_sum) - len(dim_sum) + 1, self.arch.coupling.w_coupling))
-        out_reads *= prod(map(lambda dim_sum : sum(self.factors.dimProduct(dim) for dim in dim_sum) - len(dim_sum) + 1, self.arch.coupling.out_coupling))
+        
+        # TODO: fix me in case of no multicast/reduction support and dim_sum
+        # TODO NOTE: when you have the fanout for a dimension which is in a dim_sum, ADD to the below reads the dimension’s iterations * the dimension’s tile size as of the fanout level itself!
+        
+        in_reads *= prod(sum(self.factors.dimProduct(dim) for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in self.arch.coupling.in_coupling)
+        w_reads *= prod(sum(self.factors.dimProduct(dim) for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in self.arch.coupling.w_coupling)
+        out_reads *= prod(sum(self.factors.dimProduct(dim) for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in self.arch.coupling.out_coupling)
         out_writes = out_reads
         if not self.spatial_multicast_support:
             in_reads *= prod(self.factors.dimProduct(dim) for dim in self.dataflow if dim not in self.arch.coupling.flat_in_coupling)
@@ -705,7 +775,7 @@ class FanoutLevel(SpatialLevel):
 A Compute Level within the architecture, it is a placeholder for any processing
 element (PE) capable of multiply and accumulate (MAC).
 
-Note: iterations at this level are equivalent to requiring that a PE can, in the
+NOTE: iterations at this level are equivalent to requiring that a PE can, in the
 clock-cycles specified in "cycles", execute all such iterations. It is also assumed
 that the data required for all iterations done at this level is held within hardware
 registers whose energy cost is modeled by the "compute energy", together with the
@@ -714,6 +784,10 @@ of multiple concurrent (parallel or pipelined (chaining accumulation output)) MA
 Then intuitively, increasing the number of iterations done at this level linearly
 increases the required bandwidth of all memory levels feeding it, as they need to
 keep up with the concurrent MACs done here.
+
+NOTE: no value is kept stationary on a Compute Level, the values for each MAC
+operation are read every time. PE-level stationarity is realized by first
+Memory Level above compute.
 
 Constructor arguments:
 - name: the level's name

@@ -73,7 +73,7 @@ class Arch(list):
 
     """
     Moves a factor between the same dimension of two levels, transitioning
-    between adjacent mappings. it also updates tile sizes accordingly for all levels
+    between adjacent mappings. It also updates tile sizes accordingly for all levels
     between the affected ones.
 
     Returns False (and reverts changes) if the move violates any constraint.
