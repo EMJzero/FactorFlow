@@ -114,3 +114,49 @@ comp_maestro_blas = {
         N = 256
     )
 }
+
+"""
+Convolutions from the layers of VGG16. See:
+"Very Deep Convolutional Networks for Large-Scale Image Recognition"
+"""
+comp_vgg_16 = {
+    'L0': Shape(C = 3, M = 64, P = 224, Q = 224, R = 3, S = 3),
+    'L1': Shape(C = 64, M = 64, P = 224, Q = 224, R = 3, S = 3),
+    'L2': Shape(C = 64, M = 128, P = 112, Q = 112, R = 3, S = 3),
+    'L3': Shape(C = 128, M = 128, P = 112, Q = 112, R = 3, S = 3),
+    'L4': Shape(C = 128, M = 256, P = 56, Q = 56, R = 3, S = 3),
+    'L5': Shape(C = 256, M = 256, P = 56, Q = 56, R = 3, S = 3),
+    'L6': Shape(C = 256, M = 256, P = 56, Q = 56, R = 3, S = 3),
+    'L7': Shape(C = 256, M = 512, P = 28, Q = 28, R = 3, S = 3),
+    'L8': Shape(C = 512, M = 512, P = 28, Q = 28, R = 3, S = 3),
+    'L9': Shape(C = 512, M = 512, P = 28, Q = 28, R = 3, S = 3),
+    'L10': Shape(C = 512, M = 512, P = 14, Q = 14, R = 3, S = 3),
+    'L11': Shape(C = 512, M = 512, P = 14, Q = 14, R = 3, S = 3),
+    'L12': Shape(C = 512, M = 512, P = 14, Q = 14, R = 3, S = 3),
+    'L13': Shape(C = 25088, M = 4096, P = 1, Q = 1, R = 1, S = 1),
+    'L14': Shape(C = 4096, M = 4096, P = 1, Q = 1, R = 1, S = 1),
+    'L15': Shape(C = 4096, M = 1000, P = 1, Q = 1, R = 1, S = 1)
+}
+
+"""
+Convolutions from the layers of ResNet50.
+"""
+comp_vgg_16 = {
+    'L0': Shape(C = 3, M = 64, P = 224, Q = 224, R = 3, S = 3),
+    'L1': Shape(C = 64, M = 64, P = 224, Q = 224, R = 3, S = 3),
+    'L2': Shape(C = 64, M = 128, P = 112, Q = 112, R = 3, S = 3),
+    'L3': Shape(C = 128, M = 128, P = 112, Q = 112, R = 3, S = 3),
+    'L4': Shape(C = 128, M = 256, P = 56, Q = 56, R = 3, S = 3),
+    'L5': Shape(C = 256, M = 256, P = 56, Q = 56, R = 3, S = 3),
+    'L6': Shape(C = 256, M = 256, P = 56, Q = 56, R = 3, S = 3),
+    'L7': Shape(C = 256, M = 512, P = 28, Q = 28, R = 3, S = 3),
+    'L8': Shape(C = 512, M = 512, P = 28, Q = 28, R = 3, S = 3),
+    'L9': Shape(C = 512, M = 512, P = 28, Q = 28, R = 3, S = 3),
+    'L10': Shape(C = 512, M = 512, P = 14, Q = 14, R = 3, S = 3),
+    'L11': Shape(C = 512, M = 512, P = 14, Q = 14, R = 3, S = 3),
+    'L12': Shape(C = 512, M = 512, P = 14, Q = 14, R = 3, S = 3),
+    'L13': Shape(C = 25088, M = 4096, P = 1, Q = 1, R = 1, S = 1),
+    'L14': Shape(C = 4096, M = 4096, P = 1, Q = 1, R = 1, S = 1),
+    'L15': Shape(C = 4096, M = 1000, P = 1, Q = 1, R = 1, S = 1),
+    'L3+': Shape(C = 128, M = 128, P = 112, Q = 112, R = 9, S = 9)
+}

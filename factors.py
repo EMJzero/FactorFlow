@@ -40,20 +40,6 @@ NOTE: inner lists of one element are equivalent to the element by itself,
       the first of the two forms, strictly becoming a list of lists with,
       eventually, a single element.
 
-Consequences of such sums of indices:
-- if Y and Z are the two innermost iterated dimensions on a memory level and
-  the inner one of them has only 2 iterations, then one read/write every two
-  reuses the same operand tile as the one before it. If the sum involves 3 or
-  more dimensions, nothing changes, reuse occurs when at least two satisfy
-  the above condition.
-- when a spatial level involves the spatial multicast or reduction of 2 or more
-  dimensions involved in the same sum of indices for some operand, then
-  read/written tiles amount to the sum of the iterations on the two dimensions
-  (minus 1 per sum), rather than their product, as many tiles are reused.
-- the same as above holds when computing the size of a tile, where the tile
-  size of dimensions involved in a sum must be first added together (minus 1
-  per sum) and only then multiplied with others (this is a true product of sums).
-
 Constructor arguments:
 - dims: list of dimensions used in (iterated in) the kernel
 - in/w/out_coupling: list of dimensions indexing each operand
@@ -65,7 +51,7 @@ class Coupling:
         
         self.dims = dims
         # TODO: implement a more elegant solution by redefining __iter__ for a two levels list, alternatively, make these sets!
-        # TODO: (verify this once more -> good old %flat_out_coupling in the search bar) looking at how these are used in levels.py, making them sets seems the best option!
+        # TODO: (verify this once more -> good old %flat_out_coupling in the search bar) looking at how these are used in levels.py, making them sets seems the best option! Keep the uniqueness assert before the conversion to sets tho, or directly (also) accept a set as argument!
         self.flat_in_coupling = flatten_two_levels_list(in_coupling)
         self.flat_w_coupling = flatten_two_levels_list(w_coupling)
         self.flat_out_coupling = flatten_two_levels_list(out_coupling)
@@ -103,7 +89,21 @@ class Coupling:
                 all(dim in self.in_coupling for dim in coupling.in_coupling) and
                 all(dim in self.w_coupling for dim in coupling.w_coupling) and
                 all(dim in self.out_coupling for dim in coupling.out_coupling))
-        
+    
+    """
+    Returns the flat coupling list for the provided operand.
+    Valid operand names are: 'in', 'w', and 'out'.
+    """
+    def flatCouplingByOperand(self, operand):
+        if operand == 'in':
+            return self.flat_in_coupling
+        elif operand == 'w':
+            return self.flat_w_coupling
+        elif operand == 'out':
+            return self.flat_out_coupling
+        else:
+            raise Exception(f"Unrecognized operand ({operand}) in coupling.")
+    
     def __str__(self):
         return "{" + f"dims: {self.dims}, in_coupling: {self.in_coupling}, w_coupling: {self.w_coupling}, out_coupling: {self.out_coupling}" + "}"
 
@@ -117,9 +117,9 @@ class Shape(dict[str, int]):
         super().__init__(*args, **kwargs)
 
     def mem_footprint(self, coupling : Coupling):
-        return (prod(map(lambda dim_sum : sum(self[dim] for dim in dim_sum) - len(dim_sum) + 1, coupling.in_coupling)) +
-                prod(map(lambda dim_sum : sum(self[dim] for dim in dim_sum) - len(dim_sum) + 1, coupling.w_coupling)) +
-                prod(map(lambda dim_sum : sum(self[dim] for dim in dim_sum) - len(dim_sum) + 1, coupling.out_coupling)))
+        return (prod(sum(self[dim] for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in coupling.in_coupling) +
+                prod(sum(self[dim] for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in coupling.w_coupling) +
+                prod(sum(self[dim] for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in coupling.out_coupling))
 
     def FLOPs(self):
         return 2*prod(self.values())
@@ -234,9 +234,9 @@ class Factors(dict[str, dict[int, int]]):
     iterations unfolding over it)
     """
     def mem_footprint(self, tile_sizes, coupling : Coupling, in_bp = 1, w_bp = 1, out_bp = 1):
-        return (reduce(lambda tot, dim : tot*tile_sizes[dim]*self._dim_products[dim], coupling.flat_in_coupling, 1)*in_bp +
-                reduce(lambda tot, dim : tot*tile_sizes[dim]*self._dim_products[dim], coupling.flat_w_coupling, 1)*w_bp +
-                reduce(lambda tot, dim : tot*tile_sizes[dim]*self._dim_products[dim], coupling.flat_out_coupling, 1)*out_bp)
+        return (prod(sum(tile_sizes[dim]*self._dim_products[dim] for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in coupling.in_coupling)*in_bp +
+                prod(sum(tile_sizes[dim]*self._dim_products[dim] for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in coupling.w_coupling)*w_bp +
+                prod(sum(tile_sizes[dim]*self._dim_products[dim] for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in coupling.out_coupling)*out_bp)
 
     """
     Returns the factors present on the specified dimension as a list rather

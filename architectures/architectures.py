@@ -213,6 +213,71 @@ arch_eyeriss = Arch([
         factors_constraints = {'N': 1}
     )], coupling=gemm_coupling, name="Eyeriss")
 
+arch_eyeriss_conv = Arch([
+    MemLevel(
+        name = "DRAM",
+        dataflow_constraints = [],
+        size = 2**64-1, # number of entries
+        value_access_energy = 64.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_constraints = {},
+        bypasses = []
+    ),
+    MemLevel(
+        name = "GlobalBuffer",
+        dataflow_constraints = [],
+        size = 16384*8, # number of entries
+        value_access_energy = 2.02, # per operand (pJ)
+        bandwidth = 32, # operands per cycle (shared)
+        factors_constraints = {},
+        bypasses = ['w']
+    ),
+    FanoutLevel(
+        name = "SACols",
+        mesh = 14,
+        dims = ['Q', 'M'],
+        factors_constraints = {}
+    ),
+    FanoutLevel(
+        name = "SARows",
+        mesh = 12,
+        dims = ['S', 'C', 'M'],
+        factors_constraints = {}
+    ),
+    MemLevel(
+        name = "InRegister",
+        dataflow_constraints = ['S', 'R', 'Q', 'P', 'C', 'M'],
+        size = 12*2, # number of entries
+        value_access_energy = 0.69, # per operand (pJ)
+        bandwidth = 4, # operands per cycle (shared)
+        factors_constraints = {'M': 1, 'C': 1, 'P': 1, 'Q': 1, 'R': 1, 'S': 1},
+        bypasses = ['w', 'out']
+    ),
+    MemLevel(
+        name = "WRegister",
+        dataflow_constraints = ['R', 'C', 'S', 'Q', 'P', 'M'],
+        size = 192*2, # number of entries
+        value_access_energy = 1.97, # per operand (pJ)
+        bandwidth = 4, # operands per cycle (shared)
+        factors_constraints = {'M': 1, 'P': 1, 'Q': 1, 'S': 1},
+        bypasses = ['in', 'out']
+    ),
+    MemLevel(
+        name = "OutRegister",
+        dataflow_constraints = ['M', 'S', 'R', 'Q', 'P', 'C'],
+        size = 16*2, # number of entries
+        value_access_energy = 1.34, # per operand (pJ)
+        bandwidth = 4, # operands per cycle (shared)
+        factors_constraints = {'C': 1, 'P': 1, 'Q': 1, 'R': 1, 'S': 1},
+        bypasses = ['in', 'w']
+    ),
+    ComputeLevel(
+        name = "Compute",
+        mesh = 1,
+        compute_energy = 0.21, # per compute (pJ)
+        cycles = 1,
+    )], coupling=conv_coupling, name="Eyeriss (conv)")
+
 
 # >>> SIMBA <<<
 

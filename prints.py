@@ -78,12 +78,14 @@ def prettyPrint(obj):
 """
 Print to stdout a summary of the factors allocated to each dimension across the
 entire architecture. Dimensions order also reflects dataflows.
+If 'omitOnes' is True, dimension with a single iterations are omitted.
 """
-def printFactors(arch):
+def printFactors(arch, omitOnes = True):
     for level in arch:
         fac_str = f"{level.name} -> "
         for dim in level.dataflow:
-            fac_str += f"{dim}: {level.factors.dimProduct(dim)}, "
+            if not (level.factors.dimProduct(dim) == 1 and omitOnes):
+                fac_str += f"{dim}: {level.factors.dimProduct(dim)}, "
         print(fac_str[:-2])
 
 """

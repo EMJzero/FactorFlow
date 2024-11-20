@@ -63,6 +63,10 @@ def updateStats(arch, bias_read):
             spatial_iterations *= level.factors.fullProduct()
             # spatial multicast of an operand occurs if the fanout is along a dimension not coupled to such operand,
             # hence, the operand is read once, but written once per instance (modeled by last_XX_reads)
+            
+            # TODO: when updating retroactively above reads if fanout levels lack multicast (or reduction) you gotta add
+            # just the overlap between subsequent iterations (difference in tile sizes as of the fanout level)*(iterations - 1)
+            
             for dim in level.dataflow:
                 iterations = level.factors.dimProduct(dim)
                 if dim not in arch.coupling.flat_in_coupling:
