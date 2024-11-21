@@ -209,6 +209,21 @@ class Arch(list):
                     i += 1
 
     """
+    Sets up a pointers list from each MemLevel to the possible group of consecutive
+    spatial (fanouts and compute) levels which may follow it.
+    The "next_is_compute" is also set on the last memory level before compute.
+    """
+    def setupSpatialLevelPointers(self):
+        for i in range(len(self)):
+            level = self[i]
+            if isinstance(level, MemLevel):
+                j = i + 1
+                while j < len(self) and isinstance(self[j], SpatialLevel):
+                    j += 1
+                level.next_spatials = self[i+1:j]
+                level.next_is_compute = isinstance(self[j-1], ComputeLevel)
+
+    """
     Updates the count of ACTIVE instances throughout Mem- and Compute- Levels.
     An instance is ACTIVE if a FanoutLevel maps a spatial iteration to it.
     """

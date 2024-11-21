@@ -5,7 +5,9 @@
 - ~~decide whether to treat ComputeLevels as FanoutLevels or MemLevels in fanoutMaximization and optimizeDataflows!!!~~
 - could unify part of level constructors (like the constraints asserts)!
 - support for strides -> can only apply a stride to all but one of the dimensions in a sum of indices for an operand, the result is that each strided index for that operand will count as *stride itself when computing tile sizes and memory footprints, and the skip-read-in-indices-sum mechanic will apply not when innermost iterations are two, but when they are equal to the stride+1. Dimensions sizes themselves still correctly represents tensors, even when there is stride, BUT REMOVE FROM A DIMENSIONS'S PRIME FACTORS THE PRIME FACTORS OF THE STRIDE, because less iterations are needed when striding! Print the stride for each non-stride-1 dimension in printFactors, after the mapping! Add stride-dimensions among dimension names, then flag them as strides with a new class!
-- make the flat couplings into sets
+- make the flat couplings into sets -> NO NEED, lists are fine as long as they are short
+- initialize Factors in levels with only the level dataflow's dimensions, and update Factors to return as if at 1 any missing dimension
+
 
 ```python
 # >>>> THIS WAS LOCATED IN LEVEL.PY, LINE 122 <<<<

@@ -115,6 +115,7 @@ def randomFactorsInitializations(arch, comp):
     initFactors(arch, comp)
     enforceFactorsConstraints(arch)
     setupBypasses(arch)
+    arch.setupSpatialLevelPointers()
     updateInstances(arch)
     
     mems = list(filter(lambda l : isinstance(l, MemLevel), arch))
@@ -136,6 +137,7 @@ def randomFactorsInitializationsFast(arch, comp, random_moves = 10):
     arch.initFactors(comp)
     arch.enforceFactorsConstraints()
     arch.setupBypasses()
+    arch.setupSpatialLevelPointers()
     arch.updateInstances()
     
     mems = list(filter(lambda l : isinstance(l, MemLevel), arch))
@@ -171,6 +173,7 @@ def randomFactorsInitializationsSlow(arch, comp, random_moves = 10):
     arch.initFactors(comp)
     arch.enforceFactorsConstraints()
     arch.setupBypasses()
+    arch.setupSpatialLevelPointers()
     arch.updateInstances()
     
     def randomMoves(arch, n):

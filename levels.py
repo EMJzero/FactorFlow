@@ -22,6 +22,7 @@ class LevelCore:
     dataflow: None # order of the loops | e.g. ['M', 'K', 'N']
     factors: None # iterations done for the dimensions at this lever
     tile_sizes: None # indicate the size of a tile used in the level BELOW
+    # NOTE: also, this is the data sent inward at each iterations
     # NOTE: tile sizes are, in other words, the number of elements jumped
     #       by one iteration at this level an any dimension
     # NOTE: another interpretation is that tile sizes are the amount by
@@ -144,6 +145,8 @@ Constructor arguments:
 - bypasses: list of operands which should bypass this level (i.o.w. not be stored here),
             valid strings are 'in', 'w', and 'out'.
 - multiple_buffering: factor of multiple buffering employed by this level, must be >1
+- multiple_reuses: if True (default) both stationarity reuse (loops skip) and halo reuse can be
+                   leveraged at once. Otherwise only the one bound to the innermost loop is leveraged.
 - read_value_access_energy: energy required for reads accesses, if specified overrides value_access_energy
 - write_value_access_energy: energy required for write accesses, if specified overrides value_access_energy
   - Note: either both or none of read_value_access_energy and write_value_access_energy must be specified.
@@ -155,7 +158,7 @@ Constructor arguments:
   - Note: either both or none of read_bandwidth and write_bandwidth must be specified
 """
 class MemLevel(Level):
-    def __init__(self, name, size, value_access_energy = None, wordline_access_energy = None, word_bits = None, value_bits = None, leakage_energy = 0, area = None, bandwidth = None, dataflow = None, factors = None, tile_sizes = None, factors_constraints = None, dataflow_constraints = None, bypasses = None, multiple_buffering = 1,  read_value_access_energy = None, write_value_access_energy = None, read_wordline_access_energy = None, write_wordline_access_energy = None, read_bandwidth = None, write_bandwidth = None):
+    def __init__(self, name, size, value_access_energy = None, wordline_access_energy = None, word_bits = None, value_bits = None, leakage_energy = 0, area = None, bandwidth = None, dataflow = None, factors = None, tile_sizes = None, factors_constraints = None, dataflow_constraints = None, bypasses = None, multiple_buffering = 1, multiple_reuses = True, read_value_access_energy = None, write_value_access_energy = None, read_wordline_access_energy = None, write_wordline_access_energy = None, read_bandwidth = None, write_bandwidth = None):
         self.name = name
         self.dataflow = dataflow
         self.size = size
@@ -181,10 +184,15 @@ class MemLevel(Level):
         self.w_bp = 0 if (bypasses and 'w' in bypasses) else 1
         self.out_bp = 0 if (bypasses and 'out' in bypasses) else 1
         self.multiple_buffering = multiple_buffering
+        self.multiple_reuses = multiple_reuses
+
+        # POINTERS TO OTHER LEVELS:
+        self.next_is_compute = False # flag indicating if this is the last memory before the compute level (initialized in setupSpatialLevelPointers)
+        self.next_spatials = None # list of spatial levels following this one (can be empty, initialized in setupSpatialLevelPointers)
+        self.next_levels_with_bypass = {'in': None, 'w': None, 'out': None} # pointers to the next level storing an operand hereby bypassed (initialized in setupBypasses)
 
         # STATISTICS:
         self.instances = 1 # this are the used/active instances
-        self.next_is_compute = False
         self.temporal_iterations = 0
         self.in_reads = 0
         self.w_reads = 0
@@ -202,8 +210,6 @@ class MemLevel(Level):
         self.ideal_bandwidth_update = 0
         self.ideal_bandwidth_fill = 0
         self.ideal_bandwidth_drain = 0
-
-        self.next_levels_with_bypass = {'in': None, 'w': None, 'out': None}
 
     """
     Sets up a pointer back to the whole architecture.
@@ -383,12 +389,21 @@ class MemLevel(Level):
             i = len(actual_dataflow) - 1
             innermost_dim_sum = None
             if not self.next_is_compute:
+                skipped = False
                 # skip contigous innermost orthogonal dimensions (determining stationarity)
                 while i >= 0 and (actual_dataflow[i] not in self.arch.coupling.flat_in_coupling):
-                    print(f"{self.name} input skipping: ", actual_dataflow[i])
                     i -= 1
-                # reuse the halo left by the innermost iterated dimension on the iterations on dimensions part of a sum of indices with it
+                    skipped = True
+                # dimensions partaking in a sum of indices for the input operand together with the innermost iterated dimension
                 innermost_dim_sum = next((dim_sum for dim_sum in self.arch.coupling.in_coupling if actual_dataflow[i] in dim_sum and len(dim_sum) > 1), None)
+                # if any dimension in innermost_dim_sum is spatially unrolled after this level, no halo reuse can occur because the instance
+                # storing reusable data from the previous iteration differs from the instance which needs that data for the next iteration
+                # NOTE: halo reuse, when a sum of indices is involved, after reading the first tile, all subsequent ones are only read for the part not in common
+                # with the preceeding tile [here a tile is intended as deriving from the product of sum of tile sizes matching the product of sum in the coupling]
+                # TODO: think about how to consider memories with all iterations at 1. Should "next_spatials" cut through them and see fanouts beyond, or stop there as if the were used (this also has repercussions on bypass handling)?
+                if not all(all(sp_level.factors.dimProduct(dim) == 1 for dim in innermost_dim_sum) for sp_level in self.next_spatials) or (skipped and not self.multiple_reuses):
+                    innermost_dim_sum = None
+                # reuse the halo left by the innermost iterated dimension on the iterations on dimensions part of a sum of indices with it
                 if innermost_dim_sum:
                     
                     # WARNING: this ignores potential reuse in the case in which R is iterated immediately around P, and part of the input can be reuse on inner levels!!! That may not be supported by HW tho...
@@ -420,15 +435,27 @@ class MemLevel(Level):
                     #    => each instance wants its part of the tile, which depends on the sum of Q and S, indicizing said tile, this result occurs if each instance reads its part of the tile on its own,
                     #       therefore we get a read for <spatial-iteration>*(dim_sum of the other dimensions not in the fanout)*remaining_tile_sizes.
                     #    => if the NoC has multicast capabilities, THIS should not occur...
-                    
+                    #    => You don’t just commute the sum of tile sizes in a product! Multiply by the total spatially unrolled iterations along one of the dim_sum dimensions the reads, but still perform the
+                    #       sum along the dim_sum, but divide each tile_size by the total iterations on the fanout!
+                    # 3) In timeloop, if the stationarity condition triggers (the skip-if above), then the halo if (this IF case here) cannot trigger! This is the reason for the wrong DRAM input reads, since M
+                    #    was the innermost dimension, and its stationarity prevents halo reuse on P! According to timeloop's article, it seems that it indeed does only once check for stationarity OR halo reuse,
+                    #    and does not check subsequent cases...
+
                     # example for the P (innermost) and R dimensions of a convolution: total_in_reads_along_PR = iterP * tileP + tileR - 1 + (all other tileDIM for DIM in dim_sum of P, each - 1)
+
                     # on the first iteration, you send down the sum of tile sizes for the sum of indices, then at each iteration you fill up only your tile size worth of new elements
                     in_reads *= (self.factors.dimProduct(actual_dataflow[i]) - 1)*self.tile_sizes[actual_dataflow[i]] + sum(self.tile_sizes[dim] for dim in innermost_dim_sum) - len(innermost_dim_sum) + 1
-                    print(f"{self.name} input tile elements along {actual_dataflow[i]}: ", in_reads)
                     i -= 1
-            # elements per tile - size of the tiles moved between this level and the one below; for summed indices, their tile_sizes must be added (with a -1 per sum), and them multiplied with the others
-            in_reads *= prod(sum(self.tile_sizes[dim] for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in self.arch.coupling.in_coupling if dim_sum is not innermost_dim_sum)
-            print(f"{self.name} final input tile elements:", in_reads)
+            if not self.next_spatials:
+                in_reads *= prod(sum(self.tile_sizes[dim] for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in self.arch.coupling.in_coupling if dim_sum is not innermost_dim_sum)
+            else:
+                # total iterations per dimension in the following consecutive fanout levels
+                next_spatial_unroll = {dim: prod(level.factors.dimProduct(dim) for level in self.next_spatials if not level.selective_multicast_support) for dim in self.arch.coupling.dims} # for dim_sum in self.arch.coupling.in_coupling if len(dim_sum) > 1 for dim in dim_sim}
+                # elements per tile - size of the tiles moved between this level and the one below; for summed indices, their tile_sizes must be added (with a -1 per sum), and them multiplied with the others;
+                # however, if immediately following fanouts don't support the multicasting of only certain parts of tiles (selective multicast), shared between instances, each seeing a different step of the moving window, then
+                # the window required by each instance needs to be accessed independently, making the final tiles at this level contain duplicate elements for those which can't be multicasted.
+                # NOTE: moving window, the access patter deriving from a sum of indices, where the inner iterated one creates a window, which is slid forward by the outer iterated index
+                in_reads *= prod((sum(self.tile_sizes[dim]/next_spatial_unroll[dim] for dim in dim_sum) - len(dim_sum) + 1)*prod(next_spatial_unroll[dim] for dim in dim_sum) for dim_sum in self.arch.coupling.in_coupling if dim_sum is not innermost_dim_sum)
             # accumulate the remaining iterations
             for dim in actual_dataflow[:i+1]:
                 in_reads *= self.factors.dimProduct(dim)
@@ -491,6 +518,8 @@ class MemLevel(Level):
                                     stationarity_to_address = i < 0 # postpone stationarity evaluation since not input-coupled dimension is iterated here
                                     
                                     innermost_dim_sum = next((dim_sum for dim_sum in self.arch.coupling.in_coupling if actual_dataflow_bp[i] in dim_sum and len(dim_sum) > 1), None)
+                                    if not all(all(sp_level.factors.dimProduct(dim) == 1 for dim in innermost_dim_sum) for sp_level in in_btwn.next_spatials) or (i != len(actual_dataflow_bp) - 1 and not in_btwn.multiple_reuses):
+                                        innermost_dim_sum = None
                                     if innermost_dim_sum:
                                         
                                         # WARNING: this ignores potential reuse in the case in which R is iterated immediately around P, and part of the input can be reuse on inner levels!!! That may not be supported by HW tho...
@@ -634,6 +663,11 @@ Abstract class for a level introducing multiple spatial instances.
 class SpatialLevel(Level):
     dims: None
     mesh: None
+    spatial_multicast_support: None
+    spatial_reduction_support: None
+    selective_multicast_support: None
+    selective_reduction_support: None
+    power_gating_support: None
 
 
 """
@@ -654,8 +688,21 @@ Constructor arguments:
             fanout entry, which then forwards it to the second, and so on, just like
             the operands flowing in/out of a systolic array (or, like in a pipeline).
             This adds a warmup overhead to latency, but does not affect the total MOPs.
-- spatial_multicast_support: True (default) if this level supports spatial multicast
-- spatial_reduction_support: True (default) if this level supports spatial reduction
+- spatial_multicast_support: True (default) if this level supports spatial multicast.
+        By itself, this only allows the same identical tile of an operand to be sent
+        to each instance at once identically.
+- spatial_reduction_support: same as 'spatial_multicast_support' but for spatial reduction.
+- selective_multicast_support: enables sending parts of a read tile selectively to one
+        or more different instances. In other words, if enabled, all values required
+        by all instances are read once, with each instance receiving only the part of its
+        interest. When disabled, each instance [involved in the spatial unrolling of a
+        dimension present in a sum of indices] issues its own independent read for the
+        values it needs. Obviously, this is useful only when fanouts unfold spatially
+        dimensions involved in a sum of indices (e.g. those of the input tensor of a
+        convolution), it does not make a difference otherwise (e.g. on GEMMs).
+        Can only be True if 'spatial_multicast_support' is already True. Default is False.
+- selective_reduction_support: same as 'selective_multicast_support' but for reduction.
+        Can only be True if 'spatial_reduction_support' is already True. Default is False.
 - power_gating_support: True if instances immediately following this level can be
                         power-gated when not in use, saving leakage power.
 - factors: specifies the initial factors for this level, should not be normally
@@ -680,7 +727,7 @@ Constructor arguments:
 # Obviously, in case N < |dims| you need to change the "iterate permutations" step to actually permute spatial loops!!!
 # BETTER: make spatial_reduction_support and spatial_multicast_support be specified per-dimension!
 class FanoutLevel(SpatialLevel):
-    def __init__(self, name, mesh, dim : str = None, dims : list[str] = None, area = None, pe_to_pe = False, spatial_multicast_support = True, spatial_reduction_support = True, power_gating_support = False, factors = None, tile_sizes = None, factors_constraints = None):
+    def __init__(self, name, mesh, dim : str = None, dims : list[str] = None, area = None, pe_to_pe = False, spatial_multicast_support = True, spatial_reduction_support = True, selective_multicast_support = False, selective_reduction_support = False, power_gating_support = False, factors = None, tile_sizes = None, factors_constraints = None):
         self.name = name
         self.dim = dim
         self.dims =  dims
@@ -689,6 +736,8 @@ class FanoutLevel(SpatialLevel):
         self.pe_to_pe = pe_to_pe # True in all cases where the operand independent of "dim" (e.g.: in a GEMM, if dim = M, such operand is the input) is forwarded pe->pe rather than multicasted
         self.spatial_multicast_support = spatial_multicast_support
         self.spatial_reduction_support = spatial_reduction_support
+        self.selective_multicast_support = selective_multicast_support
+        self.selective_reduction_support = selective_reduction_support
         self.power_gating_support = power_gating_support
         self.factors = factors
         self.tile_sizes = tile_sizes
@@ -707,7 +756,9 @@ class FanoutLevel(SpatialLevel):
         assert all([dim in arch.coupling.dims for dim in self.dataflow]), f"Arch: {arch.name} -> Level: {self.name}: accepted names for dimensions are solely M, K and N, provided ones were {self.dataflow}."
         assert self.mesh > 0, f"Arch: {arch.name} -> Level: {self.name}: a spatial fanout must have a mesh ({self.mesh}) of at least 1."
         assert not self.area or self.area >= 0, f"Arch: {arch.name} -> Level: {self.name}: a negative area ({self.area}) does not mean anything."
-        assert not self.pe_to_pe or (self.spatial_multicast_support and self.spatial_reduction_support), f"Arch: {arch.name} -> Level: {self.name}: pe-to-pe forwarding is a form of spatial multicast or reduction, which must then both be supported to use it."
+        assert not self.pe_to_pe or (self.spatial_multicast_support and self.spatial_reduction_support), f"Arch: {arch.name} -> Level: {self.name}: pe-to-pe ({self.pe_to_pe}) forwarding is a form of spatial multicast ({self.spatial_multicast_support}) or reduction ({self.spatial_reduction_support}), which must then both be supported to enable it."
+        assert not self.selective_multicast_support or self.spatial_multicast_support, f"Arch: {arch.name} -> Level: {self.name}: selective multicast ({self.selective_multicast_support}) is a form of spatial multicast ({self.spatial_multicast_support}), which must then be supported to enable it."
+        assert not self.selective_reduction_support or self.spatial_reduction_support, f"Arch: {arch.name} -> Level: {self.name}: selective reduction ({self.selective_reduction_support}) is a form of spatial reduction ({self.spatial_reduction_support}), which must then be supported to enable it."
         self.factors = self.factors if self.factors else Factors(arch.coupling.dims)
         self.tile_sizes = self.tile_sizes if self.tile_sizes else Shape({dim: 1 for dim in arch.coupling.dims})
         assert all([constr[0] in self.dataflow and constr[1:] in ['', '>=', '<='] for constr in self.factors_constraints.keys()]), f"Arch: {arch.name} -> Level: {self.name}: all keys within factor constraints ({list(self.factors_constraints.keys())}) must be a dimension of the dataflow ({self.dataflow}) and in the form 'dim', 'dim<=', or 'dim>='."
@@ -722,14 +773,21 @@ class FanoutLevel(SpatialLevel):
     # here you receive the reads/writes done by an instance, and need to
     # return the reads/writes that are needed for all instances.
     def mulByDim(self, in_reads, w_reads, out_reads, out_writes):
+        if self.selective_multicast_support:
+            in_reads *= prod(sum(self.factors.dimProduct(dim) for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in self.arch.coupling.in_coupling)
+            w_reads *= prod(sum(self.factors.dimProduct(dim) for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in self.arch.coupling.w_coupling)
+        else:
+            in_reads *= prod(self.factors.dimProduct(dim) for dim_sum in self.arch.coupling.in_coupling for dim in dim_sum)
+            w_reads *= prod(self.factors.dimProduct(dim) for dim_sum in self.arch.coupling.w_coupling for dim in dim_sum)
+        if self.selective_reduction_support:
+            coupling_product_of_sums = prod(sum(self.factors.dimProduct(dim) for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in self.arch.coupling.out_coupling)
+            out_reads *= coupling_product_of_sums
+            out_writes *= coupling_product_of_sums
+        else:
+            coupling_product = prod(self.factors.dimProduct(dim) for dim_sum in self.arch.coupling.out_coupling for dim in dim_sum)
+            out_reads *= coupling_product
+            out_writes *= coupling_product
         
-        # TODO: fix me in case of no multicast/reduction support and dim_sum
-        # TODO NOTE: when you have the fanout for a dimension which is in a dim_sum, ADD to the below reads the dimension’s iterations * the dimension’s tile size as of the fanout level itself!
-        
-        in_reads *= prod(sum(self.factors.dimProduct(dim) for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in self.arch.coupling.in_coupling)
-        w_reads *= prod(sum(self.factors.dimProduct(dim) for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in self.arch.coupling.w_coupling)
-        out_reads *= prod(sum(self.factors.dimProduct(dim) for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in self.arch.coupling.out_coupling)
-        out_writes = out_reads
         if not self.spatial_multicast_support:
             in_reads *= prod(self.factors.dimProduct(dim) for dim in self.dataflow if dim not in self.arch.coupling.flat_in_coupling)
             w_reads *= prod(self.factors.dimProduct(dim) for dim in self.dataflow if dim not in self.arch.coupling.flat_w_coupling)
@@ -785,9 +843,14 @@ Then intuitively, increasing the number of iterations done at this level linearl
 increases the required bandwidth of all memory levels feeding it, as they need to
 keep up with the concurrent MACs done here.
 
-NOTE: no value is kept stationary on a Compute Level, the values for each MAC
-operation are read every time. PE-level stationarity is realized by first
-Memory Level above compute.
+NOTE: no value is kept stationary on a ComputeLevel, the values for each MAC
+operation are read/written every time. PE-level stationarity is realized by the
+first Memory Level above compute.
+NOTE: values that partake in multiple MAC operations performed concurrently in the
+iterations of the ComputeLevel are read/written once per MAC.
+TODO: move the multicast/reduction and selective_multicast/selective_reduction
+to the SpatialLevel and make them available on ComputeLevel too. Then make the
+above NOTEs conditional on the True or False of those properties too!
 
 Constructor arguments:
 - name: the level's name
@@ -828,6 +891,10 @@ class ComputeLevel(SpatialLevel):
         self.compute_energy = compute_energy
         self.leakage_energy = leakage_energy
         self.area = area
+        self.spatial_multicast_support = False
+        self.spatial_reduction_support = False
+        self.selective_multicast_support = False
+        self.selective_reduction_support = False
         self.cycles = cycles # clock cycles used per element in the inner dimension (latency of one MAC)
         self.factors = factors
         self.tile_sizes = tile_sizes

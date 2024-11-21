@@ -141,7 +141,7 @@ comp_vgg_16 = {
 """
 Convolutions from the layers of ResNet50.
 """
-comp_vgg_16 = {
+comp_resnet_50 = {
     'L0': Shape(C = 3, M = 64, P = 224, Q = 224, R = 3, S = 3),
     'L1': Shape(C = 64, M = 64, P = 224, Q = 224, R = 3, S = 3),
     'L2': Shape(C = 64, M = 128, P = 112, Q = 112, R = 3, S = 3),
