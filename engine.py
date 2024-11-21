@@ -63,10 +63,7 @@ def updateStats(arch, bias_read):
             spatial_iterations *= level.factors.fullProduct()
             # spatial multicast of an operand occurs if the fanout is along a dimension not coupled to such operand,
             # hence, the operand is read once, but written once per instance (modeled by last_XX_reads)
-            
-            # TODO: when updating retroactively above reads if fanout levels lack multicast (or reduction) you gotta add
-            # just the overlap between subsequent iterations (difference in tile sizes as of the fanout level)*(iterations - 1)
-            
+            # TODO: the retroactive update can be moved in MemLevel.MOPs, leaving here only the *iterations
             for dim in level.dataflow:
                 iterations = level.factors.dimProduct(dim)
                 if dim not in arch.coupling.flat_in_coupling:
@@ -96,7 +93,7 @@ def updateStats(arch, bias_read):
             WMOPs += level.computeCost(temporal_iterations*spatial_iterations)
             # compute is meant to be the innermost level
             break
-
+    
     # Latency:
     max_latency = 0
     cc_per_tile = arch[len(arch)-1].latency()
@@ -142,7 +139,7 @@ def updateStats(arch, bias_read):
         elif isinstance(level, FanoutLevel) and level.pe_to_pe:
             # pe-to-pe forwarding implies that the SA operates as a PIPELINE, which has overall latency equal to that of an operation but a warmup dependent on the mesh size
             previous_fanout_pe_to_pe_warmup = level.mesh - 1
-
+    
     # Active instances, leakage, and final latency:
     temporal_iterations = 1
     active_instances = 1
@@ -163,7 +160,7 @@ def updateStats(arch, bias_read):
             max_latency = max(max_latency, level.latency()*temporal_iterations)
             WMOPs += level.Leakage(level.latency())*active_instances
             break
-
+    
     return WMOPs, max_latency
 
 """
@@ -354,24 +351,26 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
     constraints_check = [level.checkConstraints() for level in arch]
     assert all(constraints_check), f"Ill-posed constraints:\n{arch[constraints_check.index(False)].logConstraintsViolation()}"
     if not already_initialized:
+        # TODO: could be anticipated in optimizeDataflows...
         arch.setupBypasses()
+        arch.setupSpatialLevelPointers()
         arch.updateInstances()
     assert arch.checkDataflowConstraints(), f"Arch: {arch.name}: dataflow constraints violation."
-
+    
     if verbose: print(f"Initial condition (Wart: {Wart(arch, comp, bias_read):.3e}):")
     if verbose: printFactors(arch)
-
-    # never re-visit the same mapping
-    already_seen = [arch.hashFromFactors()]
-
+    
     # maximize fanout dimensions
     if not already_initialized:
         fanoutMaximization(arch, comp, bias_read, verbose)
     else:
         if verbose: print("\nSkipping fanout maximization...\n")
     
+    # never re-visit the same mapping
+    already_seen = [arch.hashFromFactors()]
+    
     if verbose: print("\nStarting FactorFlow tiling optimization:\n")
-
+    
     # one-factor-steps greedy optimization
     best_wart = Wart(arch, comp, bias_read)
     
@@ -381,20 +380,20 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
             if target_src_level_idx and target_dim and target_factor and (target_src_level_idx != src_level_idx or target_dim != dim or target_factor != factor):
                 continue
             #print("Initial proposal: ", src_level_idx, dim, factor)
-
+            
             # go back to the first valid source
             while src_level_idx >= 0 and dim in arch[src_level_idx].factors_constraints:
                 src_level_idx -= 1
             if src_level_idx < 0 or factor not in arch[src_level_idx].factors[dim]:
                 continue
-
+            
             # pick the factor from the highest level that you can
             #new_src = src_level_idx - 1
             #while new_src >= 0 and factor in arch[new_src].factors[dim]:
             #    if dim not in arch[new_src].factors_constraints:
             #        src_level_idx = new_src
             #    new_src -= 1
-
+            
             for dst_level_idx in range(len(arch)):
                 if dst_level_idx != src_level_idx and dim not in arch[dst_level_idx].factors_constraints and dim in arch[dst_level_idx].dataflow and (not Settings.FREEZE_SA or not isinstance(arch[dst_level_idx], SpatialLevel)):
                     #print(src_level_idx, dst_level_idx, dim, factor)
@@ -437,7 +436,7 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
             for i in range(multisteps):
                 assert arch.moveFactor(best_choice[5*i + 0], best_choice[5*i + 1], best_choice[5*i + 2], best_choice[5*i + 3], best_choice[5*i + 4], skip_src_constraints = Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and i < multisteps - 1) # best choice is an invalid mapping
             best_wart = choices[best_choice]
-
+    
     arch.updateInstances()
     updateStats(arch, bias_read)
     if verbose: print(f"Final condition:\nWart: {best_wart}\nEDP: {EDP(arch, bias_read, True):.3e} (J*cycle)")
