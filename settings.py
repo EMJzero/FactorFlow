@@ -50,7 +50,9 @@ class Settings():
     UTILIZATION_IN_WART = True
     # If True, drain reads will be assumed at zero energy cost for all levels, this is equivalent to
     # assuming that the last write bypasses the target level, going upward, and directly writes in the
-    # above level, thus negating the need for a read to drain.
+    # above level, thus negating the need for a read to drain. As a result, drains also don't contribute
+    # to the final latency and level stalls anymore.
+    # NOTE: setting this to True is required to match Timeloop's results exactly.
     FREE_DRAINS = False
     # If True, GEMM dimensions might get padded to reach the least larger-than-current size which can
     # be allocated to the entirety of a fanout's instances.
