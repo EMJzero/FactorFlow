@@ -150,6 +150,8 @@ def printMOPs(arch, per_instance = False):
 """
 Print to stdout a summary of the latency, bandwidth and stalls across the levels
 in the architecture, broken down per operation. A few notes:
+- reported bandwidths are in values/cycle, where a value has the bitwidth
+  (value_bits) specified on the level.
 - R is short for READS, while W for WRITES.
 - RD is short for READ & DRAIN (the two Buffet read operations), while FU for
   FILL & UPDATE (the two Buffet write operations).

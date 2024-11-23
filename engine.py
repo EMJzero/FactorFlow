@@ -119,13 +119,13 @@ def updateStats(arch, bias_read):
             #ideal_bandwidth_fill = (level.getFill()/scaling)/(cc_per_tile*level.factors.dimProduct(level.dataflow[1])*level.factors.dimProduct(level.dataflow[2])*outermost_available_iterations)
             #ideal_bandwidth_drain = (level.getDrain()/scaling)/(cc_per_tile*level.factors.dimProduct(level.dataflow[1])*level.factors.dimProduct(level.dataflow[2])*outermost_available_iterations)
             ideal_bandwidth_fill = (level.getFill()/scaling)/(cc_per_tile*level.factors.fullProduct())
-            ideal_bandwidth_drain = (level.getDrain()/scaling)/(cc_per_tile*level.factors.fullProduct())
+            ideal_bandwidth_drain = (level.getDrain()/scaling)/(cc_per_tile*level.factors.fullProduct()) if not Settings.FREE_DRAINS else 0
             # bandwidth is statically divided between reads and writes
             # NOTE: warmup cycles cannot be used to compensate for a lack of bandiwidth at regime
             if ideal_bandwidth_read + ideal_bandwidth_drain <= level.read_bandwidth:
                 latency_read_drain = cc_per_tile*level.factors.fullProduct() + previous_fanout_pe_to_pe_warmup*cc_per_tile
             else:
-                latency_read_drain = ((level.getRead() + level.getDrain())/scaling)*(1/level.read_bandwidth)
+                latency_read_drain = ((level.getRead() + level.getDrain())/scaling)*(1/level.read_bandwidth) if not Settings.FREE_DRAINS else (level.getRead()/scaling)*(1/level.read_bandwidth)
             if ideal_bandwidth_fill + ideal_bandwidth_update <= level.write_bandwidth:
                 latency_fill_update = cc_per_tile*level.factors.fullProduct() + previous_fanout_pe_to_pe_warmup*cc_per_tile
             else:

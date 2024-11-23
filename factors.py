@@ -52,6 +52,7 @@ class Coupling:
         self.dims = dims
         # TODO: implement a more elegant solution by redefining __iter__ for a two levels list, alternatively, make these sets!
         # TODO: (verify this once more -> good old %flat_out_coupling in the search bar) looking at how these are used in levels.py, making them sets seems the best option! Keep the uniqueness assert before the conversion to sets tho, or directly (also) accept a set as argument!
+        # => Nevermind, as long as lists are short, this is fine...
         self.flat_in_coupling = flatten_two_levels_list(in_coupling)
         self.flat_w_coupling = flatten_two_levels_list(w_coupling)
         self.flat_out_coupling = flatten_two_levels_list(out_coupling)
@@ -67,6 +68,16 @@ class Coupling:
         self.in_coupling = list(map(lambda x : x if isinstance(x, list) else [x], in_coupling))
         self.w_coupling = list(map(lambda x : x if isinstance(x, list) else [x], w_coupling))
         self.out_coupling = list(map(lambda x : x if isinstance(x, list) else [x], out_coupling))
+        
+        # Effects of strides:
+        # - update the memoryFootprint, isCompatible, isSubcoupling
+        # - DO NOT change the total iterations, strides only change the size of operands -> same iterations, over more elements, since each iterations moves by more than 1
+        # - produce a WARNING (an assert is better) if a stride is placed on an element not part of a dim_sum
+        # - produce a WARNING (an assert is better) if a stride is placed on a dim_sum's element and the stride is larger than the sum of the sizes of the other dimensions times their strides
+        # - in the prod(sum()) for tile sizes, multiply each tile_size by its stride, then pass the sum's result in count_non_multiples(sum(...), [strides involved in the sum]) to avoid accessing skipped lines
+        # ====>>> SIMPLER SOLUTION: REMOVE ANY COMMON FACTOR BETWEEN STRIDES, MAKE THEM CO-PRIME brefore computing reads/writes and multiplying tile sizes, but we still need the count_non_multiples!
+        # - in case of P or R (or S or Q) innermost iteration (full column/row read once), multiply again the tile_size by stride, but you have reuse more or less depending on how the tail of each tile overlaps
+        #   with the next one's strided part... THIS IS THE ONLY TRICKY CASE!
     
     """
     If True, the current and provided coupling are compatible with the same
@@ -116,7 +127,7 @@ class Shape(dict[str, int]):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def mem_footprint(self, coupling : Coupling):
+    def memFootprint(self, coupling : Coupling):
         return (prod(sum(self[dim] for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in coupling.in_coupling) +
                 prod(sum(self[dim] for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in coupling.w_coupling) +
                 prod(sum(self[dim] for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in coupling.out_coupling))
@@ -233,7 +244,7 @@ class Factors(dict[str, dict[int, int]]):
     (It is assumed that a level always stores all data for the
     iterations unfolding over it)
     """
-    def mem_footprint(self, tile_sizes, coupling : Coupling, in_bp = 1, w_bp = 1, out_bp = 1):
+    def memFootprint(self, tile_sizes, coupling : Coupling, in_bp = 1, w_bp = 1, out_bp = 1):
         return (prod(sum(tile_sizes[dim]*self._dim_products[dim] for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in coupling.in_coupling)*in_bp +
                 prod(sum(tile_sizes[dim]*self._dim_products[dim] for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in coupling.w_coupling)*w_bp +
                 prod(sum(tile_sizes[dim]*self._dim_products[dim] for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in coupling.out_coupling)*out_bp)

@@ -64,3 +64,23 @@
 #
 # DANGER: you need LATENCY for the energy leakage, therefore move this calculation in the third loop over the architecture!!!
 ```
+
+```python
+# CONCLUSIONS for MemLevel.MOPs with arbitrary Couplings:
+# 1) if the next level is a fanout level (if there is a chain of fanouts, consider them all) and it has any of the dim in innermost_dim_sum among its dimensions with more than one iteration,
+#    then this reuse (this IF case here) must be skipped, since the halo that would be reuse is stored in the wrong instance, which cannot reuse it, and is more efficient to re-read the
+#    data rather than move it beween instances or flip the order with which instances are indexed (oh dear, this last option may be worth it if it can be cheaply implemented)!
+#    => This caused the 20x error!
+# 2) HERE IS WHERE THE 2.4 COME FROM, RATHER THAN 8+3-1=10 (tileQ+tileS-1) it is 8*3=24 (tileQ*tileS), so, simply, dimension that get unfolded spatially, get their iterations
+#    multiplied, rather than summed, during the dim_sum's tile size calculation! But why is that? That is, if there is no multicast support!
+#    WRONG FIX: if any dimension in a dim_sum is part of any fanout in a potential chain of fanouts following this level, then the dim_sum goes from sum to product!
+#    FIX: if a dimension in a dim_sum is part of any fanout in a potential chain of fanouts following this level, then ONLY THAT DIM is multiplied by the rest of the sum of the dim_sum!
+#    => each instance wants its part of the tile, which depends on the sum of Q and S, indicizing said tile, this result occurs if each instance reads its part of the tile on its own,
+#       therefore we get a read for <spatial-iteration>*(dim_sum of the other dimensions not in the fanout)*remaining_tile_sizes.
+#    => if the NoC has multicast capabilities, THIS should not occur...
+#    => You don’t just commute the sum of tile sizes in a product! Multiply by the total spatially unrolled iterations along one of the dim_sum dimensions the reads, but still perform the
+#       sum along the dim_sum, but divide each tile_size by the total iterations on the fanout!
+# 3) In timeloop, if the stationarity condition triggers (the skip-if above), then the halo if (this IF case here) cannot trigger! This is the reason for the wrong DRAM input reads, since M
+#    was the innermost dimension, and its stationarity prevents halo reuse on P! According to timeloop's article, it seems that it indeed does only once check for stationarity OR halo reuse,
+#    and does not check subsequent cases...
+```
