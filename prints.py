@@ -23,8 +23,11 @@ def prettyFormatDict(dictionary, level = 0):
 Prints to stdout the provided object in a nicely formatted way.
 Explicitly supported objects are: classes, iterables, dictionaries, and atomics.
 Any other object should also work reasonably well.
+
+Any attribute or key appearing in 'omit_fields' will not be printed.
 """
-def prettyPrint(obj):
+def prettyPrint(obj, omit_fields = None):
+    omit_fields = omit_fields if omit_fields else []
     seen = set()
     res = ""
     
@@ -33,8 +36,9 @@ def prettyPrint(obj):
         
         if isinstance(obj, dict):
             for key, value in obj.items():
-                res += f"{' ' * (indent + 4)}{key}:\n"
-                pp(value, indent + 4)
+                if key not in omit_fields:
+                    res += f"{' ' * (indent + 4)}{key}:\n"
+                    pp(value, indent + 4)
             if len(obj) == 0:
                 res += f"{' ' * (indent + 4)}<empty>\n"
             return
@@ -56,7 +60,7 @@ def prettyPrint(obj):
             seen.add(id(obj))
             res += f"{' ' * indent * keep_first_indend}{obj.__class__.__name__}({name}):\n"
             for attr, value in obj.__dict__.items():
-                if attr.startswith('_'):
+                if attr.startswith('_') or attr in omit_fields:
                     continue
                 if hasattr(value, "__dict__"):
                     res += f"{' ' * (indent + 4)}{attr}:\n"
@@ -214,4 +218,4 @@ def printAreaPerLevel(arch):
 Shorthand to invoke prettyPrint on an architecture.
 """
 def printArch(arch):
-    prettyPrint(arch[::-1])
+    prettyPrint(arch[::-1], ['arch'])
