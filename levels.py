@@ -772,19 +772,41 @@ class FanoutLevel(SpatialLevel):
     # return the reads/writes that are needed for all instances.
     def mulByDim(self, in_reads, w_reads, out_reads, out_writes):
         if self.selective_multicast_support:
-            in_reads *= prod(sum(self.factors.dimProduct(dim) for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in self.arch.coupling.in_coupling)
-            w_reads *= prod(sum(self.factors.dimProduct(dim) for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in self.arch.coupling.w_coupling)
+            for dim_sum in self.arch.coupling.in_coupling:
+                if len(dim_sum) > 1:
+                    tiles_sum = sum(self.tile_sizes[dim] for dim in dim_sum) - len(dim_sum) + 1
+                    in_reads //= tiles_sum
+                    in_reads *= sum((self.factors.dimProduct(dim) - 1)*self.tile_sizes[dim] for dim in dim_sum) + tiles_sum
+                else:
+                    in_reads *= self.factors.dimProduct(dim_sum[0])
+            for dim_sum in self.arch.coupling.w_coupling:
+                if len(dim_sum) > 1:
+                    tiles_sum = sum(self.tile_sizes[dim] for dim in dim_sum) - len(dim_sum) + 1
+                    w_reads //= tiles_sum
+                    w_reads *= sum((self.factors.dimProduct(dim) - 1)*self.tile_sizes[dim] for dim in dim_sum) + tiles_sum
+                else:
+                    w_reads *= self.factors.dimProduct(dim_sum[0])
+            for dim_sum in self.arch.coupling.out_coupling:
+                if len(dim_sum) > 1:
+                    tiles_sum = sum(self.tile_sizes[dim] for dim in dim_sum) - len(dim_sum) + 1
+                    out_reads //= tiles_sum
+                    out_reads *= sum((self.factors.dimProduct(dim) - 1)*self.tile_sizes[dim] for dim in dim_sum) + tiles_sum
+                else:
+                    out_reads *= self.factors.dimProduct(dim_sum[0])
         else:
-            in_reads *= prod(self.factors.dimProduct(dim) for dim_sum in self.arch.coupling.in_coupling for dim in dim_sum)
-            w_reads *= prod(self.factors.dimProduct(dim) for dim_sum in self.arch.coupling.w_coupling for dim in dim_sum)
+            in_reads *= prod(self.factors.dimProduct(dim) for dim in self.arch.coupling.flat_in_coupling)
+            w_reads *= prod(self.factors.dimProduct(dim) for dim in self.arch.coupling.flat_w_coupling)
+            out_reads *= prod(self.factors.dimProduct(dim) for dim in self.arch.coupling.flat_out_coupling)
         if self.selective_reduction_support:
-            coupling_product_of_sums = prod(sum(self.factors.dimProduct(dim) for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in self.arch.coupling.out_coupling)
-            out_reads *= coupling_product_of_sums
-            out_writes *= coupling_product_of_sums
+            for dim_sum in self.arch.coupling.out_coupling:
+                if len(dim_sum) > 1:
+                    tiles_sum = sum(self.tile_sizes[dim] for dim in dim_sum) - len(dim_sum) + 1
+                    out_writes //= tiles_sum
+                    out_writes *= sum((self.factors.dimProduct(dim) - 1)*self.tile_sizes[dim] for dim in dim_sum) + tiles_sum
+                else:
+                    out_writes *= self.factors.dimProduct(dim_sum[0])
         else:
-            coupling_product = prod(self.factors.dimProduct(dim) for dim_sum in self.arch.coupling.out_coupling for dim in dim_sum)
-            out_reads *= coupling_product
-            out_writes *= coupling_product
+            out_writes *= prod(self.factors.dimProduct(dim) for dim in self.arch.coupling.flat_out_coupling)
         
         if not self.spatial_multicast_support:
             in_reads *= prod(self.factors.dimProduct(dim) for dim in self.dataflow if dim not in self.arch.coupling.flat_in_coupling)

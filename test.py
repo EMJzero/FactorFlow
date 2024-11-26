@@ -1595,6 +1595,418 @@ correct_latency_eyeriss_conv_input_bypass = [{
         "ideal_bandwidth_drain": 0.1111111111111111
     }]
 
+correct_mops_simba_conv_timeloop_1 = [{
+        "in_reads": 10506240,
+        "w_reads": 297271296.0,
+        "out_reads": 3211264,
+        "in_writes": 0,
+        "w_writes": 0,
+        "out_writes": 4816896,
+        "last_out_reads": 0,
+        "last_out_writes": 0
+    },{
+        "in_reads": 30965760.0,
+        "w_reads": 0,
+        "out_reads": 118816768,
+        "in_writes": 10506240,
+        "w_writes": 0,
+        "out_writes": 118816768,
+        "last_out_reads": 3211264,
+        "last_out_writes": 4816896
+    },{
+        "in_reads": 8323596288.0,
+        "w_reads": 0,
+        "out_reads": 0,
+        "in_writes": 123863040.0,
+        "w_writes": 0,
+        "out_writes": 0,
+        "last_out_reads": 0,
+        "last_out_writes": 0
+    },{
+        "in_reads": 0,
+        "w_reads": 2378170368.0,
+        "out_reads": 0,
+        "in_writes": 0,
+        "w_writes": 297271296.0,
+        "out_writes": 0,
+        "last_out_reads": 0,
+        "last_out_writes": 0
+    },{
+        "in_reads": 0,
+        "w_reads": 0,
+        "out_reads": 8792440832.0,
+        "in_writes": 0,
+        "w_writes": 0,
+        "out_writes": 8779595776.0,
+        "last_out_reads": 455999488,
+        "last_out_writes": 475267072
+    },{
+        "in_reads": 0,
+        "w_reads": 16647192576.0,
+        "out_reads": 0,
+        "in_writes": 0,
+        "w_writes": 2378170368.0,
+        "out_writes": 0,
+        "last_out_reads": 0,
+        "last_out_writes": 0
+    }]
+
+correct_latency_simba_conv_timeloop_1 = [{
+        "latency_read_drain": 260112384,
+        "latency_fill_update": 260112384,
+        "cc_per_tile": 387072,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 1.1955939783320735,
+        "ideal_bandwidth_update": 0.018518518518518517,
+        "ideal_bandwidth_fill": 0.0,
+        "ideal_bandwidth_drain": 0.0
+    },{
+        "latency_read_drain": 260112384,
+        "latency_fill_update": 260112384,
+        "cc_per_tile": 193536,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 0.5573192239858906,
+        "ideal_bandwidth_update": 0.4444444444444444,
+        "ideal_bandwidth_fill": 0.052736835474930716,
+        "ideal_bandwidth_drain": 0.018518518518518517
+    },{
+        "latency_read_drain": 260112384,
+        "latency_fill_update": 260112384,
+        "cc_per_tile": 126,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 2.0,
+        "ideal_bandwidth_update": 0.0,
+        "ideal_bandwidth_fill": 0.02976190476190476,
+        "ideal_bandwidth_drain": 0.0
+    },{
+        "latency_read_drain": 260112384,
+        "latency_fill_update": 260112384,
+        "cc_per_tile": 63,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 0.2857142857142857,
+        "ideal_bandwidth_update": 0.0,
+        "ideal_bandwidth_fill": 0.03571428571428571,
+        "ideal_bandwidth_drain": 0.0
+    },{
+        "latency_read_drain": 260112384,
+        "latency_fill_update": 260112384,
+        "cc_per_tile": 1,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 0.9992283950617283,
+        "ideal_bandwidth_update": 1.0,
+        "ideal_bandwidth_fill": 0.05478395061728395,
+        "ideal_bandwidth_drain": 0.05709876543209877
+    },{
+        "latency_read_drain": 260112384,
+        "latency_fill_update": 260112384,
+        "cc_per_tile": 1,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 1.0,
+        "ideal_bandwidth_update": 0.0,
+        "ideal_bandwidth_fill": 0.14285714285714285,
+        "ideal_bandwidth_drain": 0.0
+    }]
+
+correct_mops_simba_conv_timeloop_2 = [{
+        "in_reads": 14254080,
+        "w_reads": 1179648.0,
+        "out_reads": 0,
+        "in_writes": 0,
+        "w_writes": 0,
+        "out_writes": 802816,
+        "last_out_reads": 0,
+        "last_out_writes": 0
+    },{
+        "in_reads": 14254080.0,
+        "w_reads": 0,
+        "out_reads": 102760448,
+        "in_writes": 14254080,
+        "w_writes": 0,
+        "out_writes": 102760448,
+        "last_out_reads": 0,
+        "last_out_writes": 802816
+    },{
+        "in_reads": 924844032.0,
+        "w_reads": 0,
+        "out_reads": 0,
+        "in_writes": 114032640.0,
+        "w_writes": 0,
+        "out_writes": 0,
+        "last_out_reads": 0,
+        "last_out_writes": 0
+    },{
+        "in_reads": 0,
+        "w_reads": 264241152.0,
+        "out_reads": 0,
+        "in_writes": 0,
+        "w_writes": 1179648.0,
+        "out_writes": 0,
+        "last_out_reads": 0,
+        "last_out_writes": 0
+    },{
+        "in_reads": 0,
+        "w_reads": 0,
+        "out_reads": 1951645696.0,
+        "in_writes": 0,
+        "w_writes": 0,
+        "out_writes": 1951645696.0,
+        "last_out_reads": 101957632,
+        "last_out_writes": 102760448
+    },{
+        "in_reads": 0,
+        "w_reads": 1849688064.0,
+        "out_reads": 0,
+        "in_writes": 0,
+        "w_writes": 264241152.0,
+        "out_writes": 0,
+        "last_out_reads": 0,
+        "last_out_writes": 0
+    }]
+
+correct_latency_simba_conv_timeloop_2 = [{
+        "latency_read_drain": 115605504,
+        "latency_fill_update": 115605504,
+        "cc_per_tile": 112896,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 0.13350340136054423,
+        "ideal_bandwidth_update": 0.006944444444444444,
+        "ideal_bandwidth_fill": 0.0,
+        "ideal_bandwidth_drain": 0.0
+    },{
+        "latency_read_drain": 115605504,
+        "latency_fill_update": 115605504,
+        "cc_per_tile": 56448,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 1.0052437641723355,
+        "ideal_bandwidth_update": 0.8888888888888888,
+        "ideal_bandwidth_fill": 0.12329931972789115,
+        "ideal_bandwidth_drain": 0.006944444444444444
+    },{
+        "latency_read_drain": 115605504,
+        "latency_fill_update": 115605504,
+        "cc_per_tile": 1008,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 1.0,
+        "ideal_bandwidth_update": 0.0,
+        "ideal_bandwidth_fill": 0.12329931972789115,
+        "ideal_bandwidth_drain": 0.0
+    },{
+        "latency_read_drain": 115605504,
+        "latency_fill_update": 115605504,
+        "cc_per_tile": 126,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 0.14285714285714285,
+        "ideal_bandwidth_update": 0.0,
+        "ideal_bandwidth_fill": 0.0006377551020408164,
+        "ideal_bandwidth_drain": 0.0
+    },{
+        "latency_read_drain": 115605504,
+        "latency_fill_update": 115605504,
+        "cc_per_tile": 7,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 0.9995659722222222,
+        "ideal_bandwidth_update": 1.0,
+        "ideal_bandwidth_fill": 0.055121527777777776,
+        "ideal_bandwidth_drain": 0.05555555555555555
+    },{
+        "latency_read_drain": 115605504,
+        "latency_fill_update": 115605504,
+        "cc_per_tile": 1,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 1.0,
+        "ideal_bandwidth_update": 0.0,
+        "ideal_bandwidth_fill": 0.14285714285714285,
+        "ideal_bandwidth_drain": 0.0
+    }]
+
+correct_mops_tpu_conv_timeloop_1 = [{
+        "in_reads": 861184,
+        "w_reads": 0,
+        "out_reads": 0.0,
+        "in_writes": 0,
+        "w_writes": 0,
+        "out_writes": 802816.0,
+        "last_out_reads": 0,
+        "last_out_writes": 0
+    },{
+        "in_reads": 0,
+        "w_reads": 589824,
+        "out_reads": 0,
+        "in_writes": 0,
+        "w_writes": 0,
+        "out_writes": 0,
+        "last_out_reads": 0,
+        "last_out_writes": 0
+    },{
+        "in_reads": 7225344.0,
+        "w_reads": 0,
+        "out_reads": 0,
+        "in_writes": 861184,
+        "w_writes": 0,
+        "out_writes": 0,
+        "last_out_reads": 0,
+        "last_out_writes": 0
+    },{
+        "in_reads": 0,
+        "w_reads": 589824.0,
+        "out_reads": 0,
+        "in_writes": 0,
+        "w_writes": 589824,
+        "out_writes": 0,
+        "last_out_reads": 0,
+        "last_out_writes": 0
+    },{
+        "in_reads": 0,
+        "w_reads": 0,
+        "out_reads": 7225344.0,
+        "in_writes": 0,
+        "w_writes": 0,
+        "out_writes": 7225344.0,
+        "last_out_reads": 0.0,
+        "last_out_writes": 802816.0
+    },{
+        "in_reads": 0,
+        "w_reads": 1849688064.0,
+        "out_reads": 0,
+        "in_writes": 0,
+        "w_writes": 589824.0,
+        "out_writes": 0,
+        "last_out_reads": 0,
+        "last_out_writes": 0
+    }]
+
+correct_latency_tpu_conv_timeloop_1 = [{
+        "latency_read_drain": 451584.0,
+        "latency_fill_update": 451584.0,
+        "cc_per_tile": 451584.0,
+        "stall_cycles": 0.0,
+        "ideal_bandwidth_read": 1.90702947845805,
+        "ideal_bandwidth_update": 1.7777777777777777,
+        "ideal_bandwidth_fill": 0.0,
+        "ideal_bandwidth_drain": 0.0
+    },{
+        "latency_read_drain": 451584.0,
+        "latency_fill_update": 451584.0,
+        "cc_per_tile": 451584.0,
+        "stall_cycles": 0.0,
+        "ideal_bandwidth_read": 1.3061224489795917,
+        "ideal_bandwidth_update": 0.0,
+        "ideal_bandwidth_fill": 0.0,
+        "ideal_bandwidth_drain": 0.0
+    },{
+        "latency_read_drain": 451584.0,
+        "latency_fill_update": 147456.0,
+        "cc_per_tile": 49152.0,
+        "stall_cycles": 304128.0,
+        "ideal_bandwidth_read": 49.0,
+        "ideal_bandwidth_update": 0.0,
+        "ideal_bandwidth_fill": 5.840277777777778,
+        "ideal_bandwidth_drain": 0.0
+    },{
+        "latency_read_drain": 147456.0,
+        "latency_fill_update": 147456.0,
+        "cc_per_tile": 9408,
+        "stall_cycles": 119232.0,
+        "ideal_bandwidth_read": 20.897959183673468,
+        "ideal_bandwidth_update": 0.0,
+        "ideal_bandwidth_fill": 20.897959183673468,
+        "ideal_bandwidth_drain": 0.0
+    },{
+        "latency_read_drain": 28224,
+        "latency_fill_update": 28224,
+        "cc_per_tile": 56,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 0.8888888888888888,
+        "ideal_bandwidth_update": 1.0,
+        "ideal_bandwidth_fill": 0.0,
+        "ideal_bandwidth_drain": 0.1111111111111111
+    },{
+        "latency_read_drain": 28224,
+        "latency_fill_update": 28224,
+        "cc_per_tile": 1,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 1.0,
+        "ideal_bandwidth_update": 0.0,
+        "ideal_bandwidth_fill": 0.00031887755102040814,
+        "ideal_bandwidth_drain": 0.0
+    }]
+
+correct_mops_gemmini_conv_timeloop_1 = [{
+        "in_reads": 23224320,
+        "w_reads": 9289728,
+        "out_reads": 0.0,
+        "in_writes": 0,
+        "w_writes": 0,
+        "out_writes": 1605632.0,
+        "last_out_reads": 0,
+        "last_out_writes": 0
+    },{
+        "in_reads": 1040449536.0,
+        "w_reads": 9289728.0,
+        "out_reads": 0,
+        "in_writes": 23224320,
+        "w_writes": 9289728,
+        "out_writes": 0,
+        "last_out_reads": 0,
+        "last_out_writes": 0
+    },{
+        "in_reads": 0,
+        "w_reads": 0,
+        "out_reads": 1040449536.0,
+        "in_writes": 0,
+        "w_writes": 0,
+        "out_writes": 1040449536.0,
+        "last_out_reads": 0.0,
+        "last_out_writes": 1605632.0
+    },{
+        "in_reads": 0,
+        "w_reads": 16647192576.0,
+        "out_reads": 0,
+        "in_writes": 0,
+        "w_writes": 9289728.0,
+        "out_writes": 0,
+        "last_out_reads": 0,
+        "last_out_writes": 0
+    }]
+
+correct_latency_gemmini_conv_timeloop_1 = [{
+        "latency_read_drain": 65608704.0,
+        "latency_fill_update": 65608704.0,
+        "cc_per_tile": 32544.0,
+        "stall_cycles": 0.0,
+        "ideal_bandwidth_read": 0.49557522123893805,
+        "ideal_bandwidth_update": 0.024472850431552496,
+        "ideal_bandwidth_fill": 0.0,
+        "ideal_bandwidth_drain": 0.0
+    },{
+        "latency_read_drain": 65608704.0,
+        "latency_fill_update": 65028096,
+        "cc_per_tile": 10752,
+        "stall_cycles": 580608.0,
+        "ideal_bandwidth_read": 16.142857142857142,
+        "ideal_bandwidth_update": 0.0,
+        "ideal_bandwidth_fill": 0.5,
+        "ideal_bandwidth_drain": 0.0
+    },{
+        "latency_read_drain": 65028096,
+        "latency_fill_update": 65028096,
+        "cc_per_tile": 896,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 0.9984567901234568,
+        "ideal_bandwidth_update": 1.0,
+        "ideal_bandwidth_fill": 0.0,
+        "ideal_bandwidth_drain": 0.0015432098765432098
+    },{
+        "latency_read_drain": 65028096,
+        "latency_fill_update": 65028096,
+        "cc_per_tile": 1,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 1.0,
+        "ideal_bandwidth_update": 0.0,
+        "ideal_bandwidth_fill": 0.0005580357142857143,
+        "ideal_bandwidth_drain": 0.0
+    }]
+
 # TESTS:
 
 tests = [
@@ -1754,6 +2166,34 @@ tests = [
         "arch": arch_eyeriss_conv_input_bypass,
         "correct_mops": correct_mops_eyeriss_conv_input_bypass,
         "correct_latency": correct_latency_eyeriss_conv_input_bypass
+    }, {
+        "name": "simba_conv_timeloop_1",
+        "comp": Shape(C = 128, M = 128, P = 112, Q = 112, R = 9, S = 9),
+        "bias_read": False,
+        "arch": arch_simba_conv_timeloop_1,
+        "correct_mops": correct_mops_simba_conv_timeloop_1,
+        "correct_latency": correct_latency_simba_conv_timeloop_1
+    }, {
+        "name": "simba_conv_timeloop_2",
+        "comp": Shape(C = 256, M = 256, P = 56, Q = 56, R = 3, S = 3),
+        "bias_read": False,
+        "arch": arch_simba_conv_timeloop_2,
+        "correct_mops": correct_mops_simba_conv_timeloop_2,
+        "correct_latency": correct_latency_simba_conv_timeloop_2
+    }, {
+        "name": "tpu_conv_timeloop_1",
+        "comp": Shape(C = 256, M = 256, P = 56, Q = 56, R = 3, S = 3),
+        "bias_read": False,
+        "arch": arch_tpu_conv_timeloop_1,
+        "correct_mops": correct_mops_tpu_conv_timeloop_1,
+        "correct_latency": correct_latency_tpu_conv_timeloop_1
+    }, {
+        "name": "gemmini_conv_timeloop_1",
+        "comp": Shape(C = 128, M = 128, P = 112, Q = 112, R = 9, S = 9),
+        "bias_read": False,
+        "arch": arch_gemmini_conv_timeloop_1,
+        "correct_mops": correct_mops_gemmini_conv_timeloop_1,
+        "correct_latency": correct_latency_gemmini_conv_timeloop_1
     }
 ]
 
