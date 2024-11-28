@@ -225,7 +225,7 @@ if __name__ == "__main__":
         arch = arch_tpu
     
     #Here changing settings is fine, there are no processes
-    Settings.forcedSettingsUpdate(arch, False)
+    forcedSettingsUpdate(arch, False)
     
     last_print_time = time.monotonic()
     

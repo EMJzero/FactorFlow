@@ -1,5 +1,5 @@
 from architectures.architectures import WS, OS, IS
-from computations import gemm_coupling, conv_coupling
+from computations import gemm_coupling, conv_coupling, conv_coupling_with_stride
 from levels import *
 from arch import *
 
@@ -188,7 +188,7 @@ arch_gemmini_factorflow_2 = Arch([
     )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY TIMELOOP:
-# Comp: ResNet50 L3+
+# Comp: VGG16 L3+
 arch_gemmini_conv_timeloop_1 = Arch([
     MemLevel(
         name = "DRAM",
@@ -696,7 +696,7 @@ arch_eyeriss_conv_timeloop_2 = Arch([
     )], coupling=conv_coupling)
 
 # SOLUTION GIVEN BY TIMELOOP:
-# Comp: ResNet50 L3+
+# Comp: VGG16 L3+
 arch_eyeriss_conv_timeloop_3 = Arch([
     MemLevel(
         name = "DRAM",
@@ -763,7 +763,7 @@ arch_eyeriss_conv_timeloop_3 = Arch([
     )], coupling=conv_coupling)
 
 # CUSTOM TEST FOR ADDITIONAL REUSE OPPORTUNITIES:
-# Comp: ResNet50 L3+
+# Comp: VGG16 L3+
 arch_eyeriss_conv_additional_reuse = Arch([
     MemLevel(
         name = "DRAM",
@@ -836,7 +836,7 @@ arch_eyeriss_conv_additional_reuse = Arch([
     )], coupling=conv_coupling)
 
 # CUSTOM TEST FOR INPUT BYPASS:
-# Comp: ResNet50 L3+
+# Comp: VGG16 L3+
 arch_eyeriss_conv_input_bypass = Arch([
     MemLevel(
         name = "DRAM",
@@ -903,6 +903,140 @@ arch_eyeriss_conv_input_bypass = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
     )], coupling=conv_coupling)
+
+# SOLUTION GIVEN BY TIMELOOP:
+# Comp: ResNet18 L1+
+arch_eyeriss_conv_timeloop_stride_1 = Arch([
+    MemLevel(
+        name = "DRAM",
+        dataflow_constraints = ['Q', 'P', 'C', 'M', 'R', 'S'],
+        size = 2**64-1, # number of entries
+        value_access_energy = 64.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_constraints = {'Q': 8, 'P': 2, 'C': 16},
+        bypasses = []
+    ),
+    MemLevel(
+        name = "GlobalBuffer",
+        dataflow_constraints = ['M', 'C', 'P', 'Q', 'R', 'S'],
+        size = 16384*8, # number of entries
+        value_access_energy = 2.02, # per operand (pJ)
+        bandwidth = 32, # operands per cycle (shared)
+        factors_constraints = {'M': 16, 'C': 16, 'P': 28},
+        bypasses = ['w']
+    ),
+    FanoutLevel(
+        name = "SACols",
+        mesh = 14,
+        dims = ['Q', 'M'],
+        factors_constraints = {'Q': 7, 'M': 2}
+    ),
+    FanoutLevel(
+        name = "SARows",
+        mesh = 12,
+        dims = ['S', 'C', 'M'],
+        factors_constraints = {'M': 4, 'S': 3}
+    ),
+    MemLevel(
+        name = "InRegister",
+        dataflow_constraints = ['M', 'C', 'P', 'Q', 'R', 'S'],
+        size = 12*2, # number of entries
+        value_access_energy = 0.69, # per operand (pJ)
+        bandwidth = 4, # operands per cycle (shared)
+        factors_constraints = {'M': 1, 'C': 1, 'P': 1, 'Q': 1, 'R': 1, 'S': 1},
+        bypasses = ['w', 'out']
+    ),
+    MemLevel(
+        name = "WRegister",
+        dataflow_constraints = ['M', 'P', 'Q', 'S', 'C', 'R'],
+        size = 192*2, # number of entries
+        value_access_energy = 1.97, # per operand (pJ)
+        bandwidth = 4, # operands per cycle (shared)
+        factors_constraints = {'M': 1, 'P': 1, 'Q': 1, 'S': 1, 'C': 1, 'R': 3},
+        bypasses = ['in', 'out']
+    ),
+    MemLevel(
+        name = "OutRegister",
+        dataflow_constraints = ['C', 'P', 'Q', 'R', 'S', 'M'],
+        size = 16*2, # number of entries
+        value_access_energy = 1.34, # per operand (pJ)
+        bandwidth = 4, # operands per cycle (shared)
+        factors_constraints = {'C': 1, 'P': 1, 'Q': 1, 'R': 1, 'S': 1, 'M': 2},
+        bypasses = ['in', 'w']
+    ),
+    ComputeLevel(
+        name = "Compute",
+        mesh = 1,
+        compute_energy = 0.21, # per compute (pJ)
+        cycles = 1,
+    )], coupling=conv_coupling_with_stride)
+
+# SOLUTION GIVEN BY TIMELOOP:
+# Comp: ResNet18 L3+
+arch_eyeriss_conv_timeloop_stride_2 = Arch([
+    MemLevel(
+        name = "DRAM",
+        dataflow_constraints = ['Q', 'C', 'M', 'P', 'R', 'S'],
+        size = 2**64-1, # number of entries
+        value_access_energy = 64.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_constraints = {'Q': 7, 'C': 16, 'M': 16},
+        bypasses = []
+    ),
+    MemLevel(
+        name = "GlobalBuffer",
+        dataflow_constraints = ['S', 'M', 'C', 'Q', 'P', 'R'],
+        size = 16384*8, # number of entries
+        value_access_energy = 2.02, # per operand (pJ)
+        bandwidth = 32, # operands per cycle (shared)
+        factors_constraints = {'S': 3, 'M': 2, 'C': 4, 'Q': 2, 'P': 112},
+        bypasses = ['w']
+    ),
+    FanoutLevel(
+        name = "SACols",
+        mesh = 14,
+        dims = ['Q', 'M'],
+        factors_constraints = {'Q': 8}
+    ),
+    FanoutLevel(
+        name = "SARows",
+        mesh = 12,
+        dims = ['S', 'C', 'M'],
+        factors_constraints = {'M': 4, 'S': 3}
+    ),
+    MemLevel(
+        name = "InRegister",
+        dataflow_constraints = ['M', 'C', 'P', 'Q', 'R', 'S'],
+        size = 12*2, # number of entries
+        value_access_energy = 0.69, # per operand (pJ)
+        bandwidth = 4, # operands per cycle (shared)
+        factors_constraints = {'M': 1, 'C': 1, 'P': 1, 'Q': 1, 'R': 1, 'S': 1},
+        bypasses = ['w', 'out']
+    ),
+    MemLevel(
+        name = "WRegister",
+        dataflow_constraints = ['M', 'P', 'Q', 'S', 'R', 'C'],
+        size = 192*2, # number of entries
+        value_access_energy = 1.97, # per operand (pJ)
+        bandwidth = 4, # operands per cycle (shared)
+        factors_constraints = {'M': 1, 'P': 1, 'Q': 1, 'S': 1, 'R': 9, 'C': 2},
+        bypasses = ['in', 'out']
+    ),
+    MemLevel(
+        name = "OutRegister",
+        dataflow_constraints = ['C', 'P', 'Q', 'R', 'S', 'M'],
+        size = 16*2, # number of entries
+        value_access_energy = 1.34, # per operand (pJ)
+        bandwidth = 4, # operands per cycle (shared)
+        factors_constraints = {'C': 1, 'P': 1, 'Q': 1, 'R': 1, 'S': 1, 'M': 1},
+        bypasses = ['in', 'w']
+    ),
+    ComputeLevel(
+        name = "Compute",
+        mesh = 1,
+        compute_energy = 0.21, # per compute (pJ)
+        cycles = 1,
+    )], coupling=conv_coupling_with_stride)
 
 
 # >>> SIMBA <<<
@@ -1076,7 +1210,7 @@ arch_simba_factorflow_1 = Arch([
     )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY TIMELOOP:
-# Comp: ResNet50 L3+
+# Comp: VGG16 L3+
 arch_simba_conv_timeloop_1 = Arch([
     MemLevel(
         name = "DRAM",
@@ -1421,7 +1555,7 @@ arch_tpu_timeloop_ex = Arch([
     )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY TIMELOOP:
-# Comp: ResNet50 L3+
+# Comp: VGG16 L3+
 arch_tpu_conv_timeloop_1 = Arch([
     MemLevel(
         name = "DRAM",
