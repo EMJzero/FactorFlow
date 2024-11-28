@@ -460,7 +460,7 @@ The function is meant as the entry point for multiple processes or threads:
 """
 def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, threads_count = 1, return_list = None, verbose = False):
     #Here changing settings is fine, we are within a process
-    Settings.forcedSettingsUpdate(arch, False)
+    forcedSettingsUpdate(arch, False)
     
     if verbose and thread_idx <= 0: print("-------- optimizeDataflows --------")
     targets = list(filter(lambda l : isinstance(l, MemLevel) or (Settings.ONLY_MAXIMIZE_ONE_FANOUT_DIM and isinstance(l, SpatialLevel)), arch))
@@ -586,6 +586,31 @@ def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, threads_count = 1,
     
     if thread_idx == -1: return best_arch, best_wart, best_perm
     else: return_list[thread_idx] = (best_arch, best_wart, best_perm)
+
+"""
+Update settings:
+- initialize some depeding on runtime information.
+- set some to best target the provided architecture.
+"""
+def forcedSettingsUpdate(arch, verbose = True):
+    for level in arch:
+        if isinstance(level, SpatialLevel) and len(level.dims) >= 2:
+            Settings.FREEZE_SA = False
+            if verbose: print(f"INFO: forcefully updating setting FREEZE_SA to {Settings.FREEZE_SA}")
+            Settings.STEPS_TO_EXPLORE = max(2, Settings.STEPS_TO_EXPLORE)
+            if verbose: print(f"INFO: forcefully updating setting STEPS_TO_EXPLORE to {Settings.STEPS_TO_EXPLORE}")
+            Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC = True
+            if verbose: print(f"INFO: forcefully updating setting LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC to {Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC}")
+            Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP = True
+            if verbose: print(f"INFO: forcefully updating setting NO_CONSTRAINTS_CHECK_DURING_MULTISTEP to {Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP}")
+            if verbose: print(f"INFO: --> the cause of this is the presence of a Fanout level ({level.name}) with multiple mapped dimensions({level.dims}). Runtime might increase to a few seconds...")
+            break
+    if Settings.MULTITHREADED:
+        Settings.THREADS_COUNT = Settings.THREADS_COUNT if Settings.THREADS_COUNT else os.cpu_count()
+        if verbose: print(f"INFO: running multithreaded with THREADS_COUNT = {Settings.THREADS_COUNT}")
+    if not Settings.VERBOSE:
+        if verbose: print(f"INFO: VERBOSE output disabled, wait patiently...")
+    if verbose: print("")
 
 """
 Mapper entry point.

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from itertools import permutations
 from functools import reduce
 from math import prod
 
@@ -40,12 +41,21 @@ NOTE: inner lists of one element are equivalent to the element by itself,
       the first of the two forms, strictly becoming a list of lists with,
       eventually, a single element.
 
+Strides build on top of the nested list, whenever at least two indices sum
+up to indicize an operand, each index can be given a coefficient, a stride,
+which by default is 1. A stride is created by binding its name to a dimension:
+
+w_stride = {'Y': 'Ystride', 'Z': 'Zstride'}
+# continuing from above, imples an indexing like
+W[x][ystride*y + zstride*z]
+
 Constructor arguments:
 - dims: list of dimensions used in (iterated in) the kernel
 - in/w/out_coupling: list of dimensions indexing each operand
+- in/w/out_strides: dictionary binding stride constant names to dimensions
 """
 class Coupling:
-    def __init__(self, dims : list[str], in_coupling : list[str], w_coupling : list[str], out_coupling : list[str]):
+    def __init__(self, dims : list[str], in_coupling : list[str], w_coupling : list[str], out_coupling : list[str], in_strides : dict[str, str] = None, w_strides : dict[str, str] = None, out_strides : dict[str, str] = None):
         assert all(dims.count(dim) == 1 for dim in dims), f"Invalid coupling: dims ({dims}) must not contain duplicates."
         assert is_two_levels_list(in_coupling) and is_two_levels_list(w_coupling) and is_two_levels_list(out_coupling), f"Invalid coupling: in_coupling ({in_coupling}), w_coupling ({w_coupling}), and out_coupling ({out_coupling}) must be one or two level lists, no more."
         
@@ -56,7 +66,6 @@ class Coupling:
         self.flat_in_coupling = flatten_two_levels_list(in_coupling)
         self.flat_w_coupling = flatten_two_levels_list(w_coupling)
         self.flat_out_coupling = flatten_two_levels_list(out_coupling)
-        
         # uncoupled dims are permitted, if there is a reason to model the whole kernel running multiple times
         assert all(dim in dims for dim in self.flat_in_coupling), f"Invalid coupling: in_coupling ({in_coupling}) must be a subset of dims ({dims})."
         assert all(dim in dims for dim in self.flat_w_coupling), f"Invalid coupling: w_coupling ({w_coupling}) must be a subset of dims ({dims})."
@@ -69,26 +78,46 @@ class Coupling:
         self.w_coupling = list(map(lambda x : x if isinstance(x, list) else [x], w_coupling))
         self.out_coupling = list(map(lambda x : x if isinstance(x, list) else [x], out_coupling))
         
-        # Effects of strides:
-        # - update the memoryFootprint, isCompatible, isSubcoupling
-        # - DO NOT change the total iterations, strides only change the size of operands -> same iterations, over more elements, since each iterations moves by more than 1
-        # - produce a WARNING (an assert is better) if a stride is placed on an element not part of a dim_sum
-        # - produce a WARNING (an assert is better) if a stride is placed on a dim_sum's element and the stride is larger than the sum of the sizes of the other dimensions times their strides
-        # - in the prod(sum()) for tile sizes, multiply each tile_size by its stride, then pass the sum's result in count_non_multiples(sum(...), [strides involved in the sum]) to avoid accessing skipped lines
-        # ====>>> SIMPLER SOLUTION: REMOVE ANY COMMON FACTOR BETWEEN STRIDES, MAKE THEM CO-PRIME brefore computing reads/writes and multiplying tile sizes, but we still need the count_non_multiples!
-        # - in case of P or R (or S or Q) innermost iteration (full column/row read once), multiply again the tile_size by stride, but you have reuse more or less depending on how the tail of each tile overlaps
-        #   with the next one's strided part... THIS IS THE ONLY TRICKY CASE!
+        self.in_strides = in_strides if in_strides else {}
+        self.w_strides = w_strides if w_strides else {}
+        self.out_strides = out_strides if out_strides else {}
+        assert all(dim in self.dims for dim in self.in_strides.keys()), f"Invalid coupling: all keys assigned in in_strides {self.in_strides.keys()} must be dimensions of the coupling ({self.dims})."
+        assert all(dim in self.dims for dim in self.w_strides.keys()), f"Invalid coupling: all keys assigned for w_strides {self.w_strides.keys()} must be dimensions of the coupling ({self.dims})."
+        assert all(dim in self.dims for dim in self.out_strides.keys()), f"Invalid coupling: all keys assigned for out_strides {self.out_strides.keys()} must be dimensions of the coupling ({self.dims})."
+        assert all(dim not in self.dims for dim in self.in_strides.values()), f"Invalid coupling: all values assigned in in_strides {self.in_strides.values()} must not be dimensions of the coupling ({self.dims})."
+        assert all(dim not in self.dims for dim in self.w_strides.values()), f"Invalid coupling: all values assigned for w_strides {self.w_strides.values()} must not be dimensions of the coupling ({self.dims})."
+        assert all(dim not in self.dims for dim in self.out_strides.values()), f"Invalid coupling: all values assigned for out_strides {self.out_strides.values()} must not be dimensions of the coupling ({self.dims})."
+        assert all(any(dim in dim_sum for dim_sum in self.in_coupling if len(dim_sum) > 1) for dim in self.in_strides.keys()), f"Invalid coupling: all dimensions referenced in in_strides {self.in_strides.keys()} must be part of a sum of at least two indices on the input (thus pick among {list(reduce(lambda x, y : x+y, filter(lambda dim_sum : len(dim_sum) > 1, self.in_coupling), []))})"
+        assert all(any(dim in dim_sum for dim_sum in self.w_coupling if len(dim_sum) > 1) for dim in self.w_strides.keys()), f"Invalid coupling: all dimensions referenced in w_strides {self.w_strides.keys()} must be part of a sum of at least two indices on the weight (thus pick among {list(reduce(lambda x, y : x+y, filter(lambda dim_sum : len(dim_sum) > 1, self.w_coupling), []))})"
+        assert all(any(dim in dim_sum for dim_sum in self.out_coupling if len(dim_sum) > 1) for dim in self.out_strides.keys()), f"Invalid coupling: all dimensions referenced in out_strides {self.out_strides.keys()} must be part of a sum of at least two indices on the output (thus pick among {list(reduce(lambda x, y : x+y, filter(lambda dim_sum : len(dim_sum) > 1, self.out_coupling), []))})"
+        
+        if any(len(dim_sum) > 2 and any(dim in self.in_strides for dim in dim_sum) for dim_sum in self.in_coupling): print(f"WARNING: coupling {self} has strides applied to a sum of more than 2 indices on its input tensor ({filter(lambda dim_sum: len(dim_sum) > 2 and any(dim in self.in_strides for dim in dim_sum), self.in_coupling)}), as a result a less-efficient enumeration algorithm will be used to compute the distinct values originating by such strided sums instead of the exact expression for distinct values which is available only for strided sums of maximum 2 indices.")
+        if any(len(dim_sum) > 2 and any(dim in self.w_strides for dim in dim_sum) for dim_sum in self.w_coupling): print(f"WARNING: coupling {self} has strides applied to a sum of more than 2 indices on its weights tensor ({filter(lambda dim_sum: len(dim_sum) > 2 and any(dim in self.w_strides for dim in dim_sum), self.w_coupling)}), as a result a less-efficient enumeration algorithm will be used to compute the distinct values originating by such strided sums instead of the exact expression for distinct values which is available only for strided sums of maximum 2 indices.")
+        if any(len(dim_sum) > 2 and any(dim in self.out_strides for dim in dim_sum) for dim_sum in self.out_coupling): print(f"WARNING: coupling {self} has strides applied to a sum of more than 2 indices on its output tensor ({filter(lambda dim_sum: len(dim_sum) > 2 and any(dim in self.out_strides for dim in dim_sum), self.out_coupling)}), as a result a less-efficient enumeration algorithm will be used to compute the distinct values originating by such strided sums instead of the exact expression for distinct values which is available only for strided sums of maximum 2 indices.")
+
+    """
+    If True, the provided comp's is valid for the present coupling.
+    This means that all required dimensions are specified.
+    """
+    def isCompatibleComp(self, comp: Shape):
+        return (all(dim in comp for dim in self.dims) and
+                all(dim in comp for dim in self.in_strides.values()) and
+                all(dim in comp for dim in self.w_strides.values()) and
+                all(dim in comp for dim in self.out_strides.values()))
     
     """
     If True, the current and provided coupling are compatible with the same
     architectural constraints and mappings. However, 'coupling' does not
     necessarily model a subset of the kernels modeled by the current coupling.
     """
-    def isCompatible(self, coupling: Coupling):
+    def isCompatibleCoupling(self, coupling: Coupling):
         return (all(dim in self.dims for dim in coupling.dims) and
                 all(dim in self.flat_in_coupling for dim in coupling.flat_in_coupling) and
                 all(dim in self.flat_w_coupling for dim in coupling.flat_w_coupling) and
-                all(dim in self.flat_out_coupling for dim in coupling.flat_out_coupling))
+                all(dim in self.flat_out_coupling for dim in coupling.flat_out_coupling) and
+                all(dim in self.in_strides and self.in_strides[dim] == stride for dim, stride in coupling.in_strides.items()) and
+                all(dim in self.w_strides and self.w_strides[dim] == stride for dim, stride in coupling.w_strides.items()) and
+                all(dim in self.out_strides and self.out_strides[dim] == stride for dim, stride in coupling.out_strides.items()))
     
     """
     If True, the provided coupling is equivalent to the current one without some
@@ -96,10 +125,11 @@ class Coupling:
     can model a subset of the kernels modeled by the current coupling.
     """
     def isSubcoupling(self, coupling : Coupling):
-        return (self.isCompatible(coupling) and
-                all(dim in self.in_coupling for dim in coupling.in_coupling) and
-                all(dim in self.w_coupling for dim in coupling.w_coupling) and
-                all(dim in self.out_coupling for dim in coupling.out_coupling))
+        return (self.isCompatibleCoupling(coupling) and
+                len(self.in_coupling) == len(coupling.in_coupling) and len(self.w_coupling) == len(coupling.w_coupling) and len(self.out_coupling) == len(coupling.out_coupling) and
+                any(all(set(dim_sum) <= set(self_dim_sum) for dim_sum, self_dim_sum in zip(coupling.in_coupling, perm)) for perm in permutations(self.in_coupling, len(coupling.in_coupling))) and
+                any(all(set(dim_sum) <= set(self_dim_sum) for dim_sum, self_dim_sum in zip(coupling.w_coupling, perm)) for perm in permutations(self.w_coupling, len(coupling.w_coupling))) and
+                any(all(set(dim_sum) <= set(self_dim_sum) for dim_sum, self_dim_sum in zip(coupling.out_coupling, perm)) for perm in permutations(self.out_coupling, len(coupling.out_coupling))))
     
     """
     Returns the flat coupling list for the provided operand.
@@ -116,7 +146,7 @@ class Coupling:
             raise Exception(f"Unrecognized operand ({operand}) in coupling.")
     
     def __str__(self):
-        return "{" + f"dims: {self.dims}, in_coupling: {self.in_coupling}, w_coupling: {self.w_coupling}, out_coupling: {self.out_coupling}" + "}"
+        return "{" + f"dims: {self.dims}, in_coupling: {self.in_coupling}, w_coupling: {self.w_coupling}, out_coupling: {self.out_coupling}, in_strides: {self.in_strides}, w_strides: {self.w_strides}, out_strides: {self.out_strides}" + "}"
 
 """
 Shape of a kernel in the form Out = W x In.

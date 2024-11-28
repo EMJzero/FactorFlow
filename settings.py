@@ -1,4 +1,3 @@
-from levels import *
 import os
 
 class Settings():
@@ -62,6 +61,12 @@ class Settings():
     # If True, any padding applied due to PADDED_MAPPINGS will be logged.
     # NOTE: this is useless unless PADDED_MAPPINGS is True.
     VERBOSE_PADDED_MAPPINGS = PADDED_MAPPINGS and False
+    # If True, the 'distinct_values' method in 'utils.py' uses an approximated formula to compute the
+    # distinct values which can be produced by a linear combination like 'x_const*x+y_const*y'.
+    # The resulting count, and the following reads/writes counts might thus be overestimated.
+    # When this is False, the computation of 'distinct_values' MAY (depends on strides) become slower.
+    # NOTE: setting this to True is needed to match Timeloop, as it uses the same approximation.
+    OVERESTIMATE_DISTINCT_VALUES = False
 
     # If True, the exploration of permutations done in optimizeDataflows will run across multiple
     # threads (or better, processes, due to the GIL).
@@ -75,34 +80,7 @@ class Settings():
     # FactorFlow has been tested with commit 'd1d199e571e621ce11168efe1af2583dec0c2c49' of Accelergy.
     # NOTE: this is NOT required if you have installed Accelergy as a python package and can import it.
     ACCELERGY_PATH = "\\\\wsl.localhost/Ubuntu-22.04/home/zero/.local/lib/python3.10/site-packages"
-    
-    """
-    Update settings:
-    - initialize some depeding on runtime information.
-    - set some to best target the provided architecture.
-    """
-    @classmethod
-    def forcedSettingsUpdate(self, arch, verbose = True):
-        #return
-        for level in arch:
-            if isinstance(level, FanoutLevel) and len(level.dims) >= 2:
-                self.FREEZE_SA = False
-                if verbose: print(f"INFO: forcefully updating setting FREEZE_SA to {self.FREEZE_SA}")
-                self.STEPS_TO_EXPLORE = max(2, self.STEPS_TO_EXPLORE)
-                if verbose: print(f"INFO: forcefully updating setting STEPS_TO_EXPLORE to {self.STEPS_TO_EXPLORE}")
-                self.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC = True
-                if verbose: print(f"INFO: forcefully updating setting LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC to {self.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC}")
-                self.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP = True
-                if verbose: print(f"INFO: forcefully updating setting NO_CONSTRAINTS_CHECK_DURING_MULTISTEP to {self.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP}")
-                if verbose: print(f"INFO: --> the cause of this is the presence of a Fanout level ({level.name}) with multiple mapped dimensions({level.dims}). Runtime might increase to a few seconds...")
-                break
-        if self.MULTITHREADED:
-            self.THREADS_COUNT = self.THREADS_COUNT if self.THREADS_COUNT else os.cpu_count()
-            if verbose: print(f"INFO: running multithreaded with THREADS_COUNT = {self.THREADS_COUNT}")
-        if not self.VERBOSE:
-            if verbose: print(f"INFO: VERBOSE output disabled, wait patiently...")
-        if verbose: print("")
-        
+
     @classmethod
     def toString(self):
         res = "Settings("

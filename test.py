@@ -1,4 +1,5 @@
 from architectures.solutions_db import *
+from settings import *
 from factors import *
 from engine import *
 from utils import *
@@ -8,7 +9,11 @@ Runs a test by recomputing an architecture's statistics given a mapping in
 the form of a complete constraints set. The test passes iif all the newly
 evaluated statistics match those in "correct_data".
 """
-def runTest(arch, correct_data, comp, bias_read):
+def runTest(arch, correct_data, comp, bias_read, change_settings = None):
+    if change_settings:
+        backup = {key: getattr(Settings, key) for key in change_settings.keys()}
+        for key, value in change_settings.items():
+            setattr(Settings, key, value)
     arch.initFactors(comp)
     arch.enforceFactorsConstraints()
     assert arch.checkDataflowConstraints(), "Dataflow constraints violated."
@@ -25,6 +30,9 @@ def runTest(arch, correct_data, comp, bias_read):
             if not level[key] == correct_data_level[key]:
                 passed = False
                 print(f"{level.name}:{chr(9) * (2 - (len(level.name) + 1)//8)}Error on result: {key}\n\t\tExpected: {correct_data_level[key]}\n\t\tObtained: {level[key]}")
+    if change_settings:
+        for key, value in backup.items():
+            setattr(Settings, key, value)
     assert passed, "Test FAILED..."
 
 """
@@ -2007,6 +2015,194 @@ correct_latency_gemmini_conv_timeloop_1 = [{
         "ideal_bandwidth_drain": 0.0
     }]
 
+correct_mops_eyeriss_conv_timeloop_stride_1 = [{
+        "in_reads": 4108288,
+        "w_reads": 9437184,
+        "out_reads": 0,
+        "in_writes": 0,
+        "w_writes": 0,
+        "out_writes": 802816,
+        "last_out_reads": 0,
+        "last_out_writes": 0
+    },{
+        "in_reads": 81199104,
+        "w_reads": 0,
+        "out_reads": 205520896,
+        "in_writes": 4108288,
+        "w_writes": 0,
+        "out_writes": 205520896,
+        "last_out_reads": 0,
+        "last_out_writes": 802816
+    },{
+        "in_reads": 1849688064,
+        "w_reads": 0,
+        "out_reads": 0,
+        "in_writes": 649592832,
+        "w_writes": 0,
+        "out_writes": 0,
+        "last_out_reads": 0,
+        "last_out_writes": 0
+    },{
+        "in_reads": 0,
+        "w_reads": 1849688064,
+        "out_reads": 0,
+        "in_writes": 0,
+        "w_writes": 66060288,
+        "out_writes": 0,
+        "last_out_reads": 0,
+        "last_out_writes": 0
+    },{
+        "in_reads": 0,
+        "w_reads": 0,
+        "out_reads": 2463842304,
+        "in_writes": 0,
+        "w_writes": 0,
+        "out_writes": 2463842304,
+        "last_out_reads": 614154240,
+        "last_out_writes": 616562688
+    }]
+
+correct_latency_eyeriss_conv_timeloop_stride_1 = [{
+        "latency_read_drain": 17920000.0,
+        "latency_fill_update": 17920000.0,
+        "cc_per_tile": 70000.0,
+        "stall_cycles": 0.0,
+        "ideal_bandwidth_read": 0.7558857142857143,
+        "ideal_bandwidth_update": 0.0448,
+        "ideal_bandwidth_fill": 0.0,
+        "ideal_bandwidth_drain": 0.0
+    },{
+        "latency_read_drain": 17920000.0,
+        "latency_fill_update": 13101824.0,
+        "cc_per_tile": 6,
+        "stall_cycles": 6909952.0,
+        "ideal_bandwidth_read": 25.96875,
+        "ideal_bandwidth_update": 18.666666666666668,
+        "ideal_bandwidth_fill": 0.37313988095238093,
+        "ideal_bandwidth_drain": 0.07291666666666667
+    },{
+        "latency_read_drain": 11010048,
+        "latency_fill_update": 11010048,
+        "cc_per_tile": 6,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 1.0,
+        "ideal_bandwidth_update": 0.0,
+        "ideal_bandwidth_fill": 0.3511904761904762,
+        "ideal_bandwidth_drain": 0.0
+    },{
+        "latency_read_drain": 11010048,
+        "latency_fill_update": 11010048,
+        "cc_per_tile": 2,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 1.0,
+        "ideal_bandwidth_update": 0.0,
+        "ideal_bandwidth_fill": 0.03571428571428571,
+        "ideal_bandwidth_drain": 0.0
+    },{
+        "latency_read_drain": 11010048,
+        "latency_fill_update": 11010048,
+        "cc_per_tile": 1,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 0.9986979166666666,
+        "ideal_bandwidth_update": 1.0,
+        "ideal_bandwidth_fill": 0.33203125,
+        "ideal_bandwidth_drain": 0.3333333333333333
+    }]
+
+correct_mops_eyeriss_conv_timeloop_stride_2 = [{
+        "in_reads": 9139200,
+        "w_reads": 9289728,
+        "out_reads": 24084480,
+        "in_writes": 0,
+        "w_writes": 0,
+        "out_writes": 25690112,
+        "last_out_reads": 0,
+        "last_out_writes": 0
+    },{
+        "in_reads": 495452160,
+        "w_reads": 0,
+        "out_reads": 332365824,
+        "in_writes": 9139200,
+        "w_writes": 0,
+        "out_writes": 332365824,
+        "last_out_reads": 24084480,
+        "last_out_writes": 25690112
+    },{
+        "in_reads": 16647192576,
+        "w_reads": 0,
+        "out_reads": 0,
+        "in_writes": 1981808640,
+        "w_writes": 0,
+        "out_writes": 0,
+        "last_out_reads": 0,
+        "last_out_writes": 0
+    },{
+        "in_reads": 0,
+        "w_reads": 16647192576,
+        "out_reads": 0,
+        "in_writes": 0,
+        "w_writes": 74317824,
+        "out_writes": 0,
+        "last_out_reads": 0,
+        "last_out_writes": 0
+    },{
+        "in_reads": 0,
+        "w_reads": 0,
+        "out_reads": 17639473152,
+        "in_writes": 0,
+        "w_writes": 0,
+        "out_writes": 17567219712,
+        "last_out_reads": 920027136,
+        "last_out_writes": 997097472
+    }]
+
+correct_latency_eyeriss_conv_timeloop_stride_2 = [{
+        "latency_read_drain": 173408256,
+        "latency_fill_update": 173408256,
+        "cc_per_tile": 96768,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 0.24516369047619047,
+        "ideal_bandwidth_update": 0.14814814814814814,
+        "ideal_bandwidth_fill": 0.0,
+        "ideal_bandwidth_drain": 0.0
+    },{
+        "latency_read_drain": 173408256,
+        "latency_fill_update": 173408256,
+        "cc_per_tile": 18,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 4.625661375661376,
+        "ideal_bandwidth_update": 1.7777777777777777,
+        "ideal_bandwidth_fill": 0.19159226190476192,
+        "ideal_bandwidth_drain": 0.14814814814814814
+    },{
+        "latency_read_drain": 173408256,
+        "latency_fill_update": 173408256,
+        "cc_per_tile": 18,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 1.0,
+        "ideal_bandwidth_update": 0.0,
+        "ideal_bandwidth_fill": 0.11904761904761904,
+        "ideal_bandwidth_drain": 0.0
+    },{
+        "latency_read_drain": 173408256,
+        "latency_fill_update": 173408256,
+        "cc_per_tile": 1,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 1.0,
+        "ideal_bandwidth_update": 0.0,
+        "ideal_bandwidth_fill": 0.004464285714285715,
+        "ideal_bandwidth_drain": 0.0
+    },{
+        "latency_read_drain": 173408256,
+        "latency_fill_update": 173408256,
+        "cc_per_tile": 1,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 0.9997106481481481,
+        "ideal_bandwidth_update": 1.0,
+        "ideal_bandwidth_fill": 0.055266203703703706,
+        "ideal_bandwidth_drain": 0.059895833333333336
+    }]
+
 # TESTS:
 
 tests = [
@@ -2194,6 +2390,21 @@ tests = [
         "arch": arch_gemmini_conv_timeloop_1,
         "correct_mops": correct_mops_gemmini_conv_timeloop_1,
         "correct_latency": correct_latency_gemmini_conv_timeloop_1
+    }, {
+        "name": "eyeriss_conv_timeloop_stride_1",
+        "comp": Shape(C = 256, M = 256, P = 56, Q = 56, R = 3, S = 3, Pstride = 2, Qstride = 2, Rdilation = 3, Sdilation = 3),
+        "bias_read": False,
+        "arch": arch_eyeriss_conv_timeloop_stride_1,
+        "correct_mops": correct_mops_eyeriss_conv_timeloop_stride_1,
+        "correct_latency": correct_latency_eyeriss_conv_timeloop_stride_1
+    }, {
+        "name": "eyeriss_conv_timeloop__stride_2",
+        "comp": Shape(C = 128, M = 128, P = 112, Q = 112, R = 9, S = 9, Pstride = 1, Qstride = 4, Rdilation = 1, Sdilation = 3),
+        "bias_read": False,
+        "arch": arch_eyeriss_conv_timeloop_stride_2,
+        "correct_mops": correct_mops_eyeriss_conv_timeloop_stride_2,
+        "correct_latency": correct_latency_eyeriss_conv_timeloop_stride_2,
+        "change_settings": {"OVERESTIMATE_DISTINCT_VALUES": True}
     }
 ]
 
@@ -2203,5 +2414,5 @@ if __name__ == "__main__":
         print("Computation: ", end='')
         print(test['comp'])
         print(f"Bias read: {test['bias_read']}")
-        runTest(test['arch'], test['correct_mops'] + test['correct_latency'], test['comp'], test['bias_read'])
+        runTest(test['arch'], test['correct_mops'] + test['correct_latency'], test['comp'], test['bias_read'], test["change_settings"] if "change_settings" in test else None)
         print("PASSED!\n")

@@ -18,6 +18,7 @@ class Arch(list):
     def __init__(self, levels : list[Level], coupling : Coupling, name : str ="<unnamed architecture>"):
         self.name : str = name
         self.coupling : Coupling = coupling
+        self.stride_values : dict[str, int] = {}
         
         super().__init__(levels)
         
@@ -51,7 +52,8 @@ class Arch(list):
     Updates the provided computation with its missing dimensions if needed.
     """
     def checkCouplingCompatibility(self, coupling : Coupling, comp : Shape, verbose : bool = False):
-        assert self.coupling.isCompatible(coupling), f"The coupling ({coupling}) is not compatible with arch {self.name}'s coupling ({self.coupling})."
+        assert coupling.isCompatibleComp(comp), f"The provided computation ({comp}) is not compatible with the provided coupling ({coupling}), note that each dimension and stride of the latter must appear in the computation."
+        assert self.coupling.isCompatibleCoupling(coupling), f"The provided coupling ({coupling}) is not compatible with arch {self.name}'s coupling ({self.coupling})."
         if verbose and not self.coupling.isSubcoupling(coupling):
             print(f"WARNING: the used coupling ({coupling}) is not a subcoupling of arch {self.name}'s coupling ({self.coupling}), but is still compatible.")
         comp.fitToCoupling(coupling)
@@ -67,7 +69,7 @@ class Arch(list):
                     if verbose: print(f"Arch: {self.name} -> Level: {level.name}: dimension {dim} was not in dataflow, but still received some iterations ({dim}: {level.factors.dimProduct(dim)}) due to constraints.")
                     violation = True
                 if dim in level.factors_constraints and level.factors_constraints[dim] != level.factors.dimProduct(dim):
-                    if verbose: print(f"Arch: {self.name} -> Level: {level.name}: Constraint violation, desired was ({dim}: {level.factors_constraints[dim]}), obtained was ({dim}: {level.factors.dimProduct(dim)}).")
+                    if verbose: print(f"Arch: {self.name} -> Level: {level.name}: constraint violation, desired was ({dim}: {level.factors_constraints[dim]}), obtained was ({dim}: {level.factors.dimProduct(dim)}).")
                     violation = True
         return violation
 
@@ -105,7 +107,7 @@ class Arch(list):
                 self[i].tile_sizes[dimension] *= factor_to_amount
         elif src_level_idx > dst_level_idx:
             for i in range(dst_level_idx, src_level_idx):
-                self[i].tile_sizes[dimension] /= factor_to_amount
+                self[i].tile_sizes[dimension] //= factor_to_amount
         # check dst and all in between constraints
         constraints_check = [level.checkConstraints() for level in (self[src_level_idx:dst_level_idx+1] if src_level_idx < dst_level_idx else self[dst_level_idx:src_level_idx+1])]
         if not all(constraints_check) and not skip_dst_constraints:
@@ -113,7 +115,7 @@ class Arch(list):
             assert self[dst_level_idx].removeFactor(dimension, factor, amount) # something is broken, cannot undo the move
             if src_level_idx < dst_level_idx:
                 for i in range(src_level_idx, dst_level_idx):
-                    self[i].tile_sizes[dimension] /= factor_to_amount
+                    self[i].tile_sizes[dimension] //= factor_to_amount
             elif src_level_idx > dst_level_idx:
                 for i in range(dst_level_idx, src_level_idx):
                     self[i].tile_sizes[dimension] *= factor_to_amount
@@ -123,10 +125,12 @@ class Arch(list):
     """
     Initializes the architecture's mapping with all the computation's prime
     factors placed on the first level. This is the mapper's starting point.
+    Stride values are also imported from the computation.
     """
     def initFactors(self, comp):
         # initialize with all factors on first level, all tile sizes of 1!
         self[0].factors = Factors({dim: prime_factors(comp[dim]) for dim in self.coupling.dims})
+        self.stride_values = {dim: comp[dim] for dim in list(self.coupling.in_strides.values()) + list(self.coupling.w_strides.values()) + list(self.coupling.out_strides.values())}
 
     """
     This function must start from arch having all factors on its first level,
@@ -326,6 +330,24 @@ class Arch(list):
             if isinstance(level, SpatialLevel):
                 physical_instances *= level.mesh
         return area
+
+    """
+    Returns the current stride for a dimension indexing the input tensor.
+    """
+    def getInStride(self, dim):
+        return self.stride_values[self.coupling.in_strides[dim]] if dim in self.coupling.in_strides else 1
+
+    """
+    Returns the current stride for a dimension indexing the weights tensor.
+    """
+    def getWStride(self, dim):
+        return self.stride_values[self.coupling.w_strides[dim]] if dim in self.coupling.w_strides else 1
+
+    """
+    Returns the current stride for a dimension indexing the output tensor.
+    """
+    def getOutStride(self, dim):
+        return self.stride_values[self.coupling.out_strides[dim]] if dim in self.coupling.out_strides else 1
 
     def __repr__(self):
         return f"<object Arch: name: {self.name}, levels: {super().__repr__()}>"
