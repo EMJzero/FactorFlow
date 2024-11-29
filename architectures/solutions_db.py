@@ -1373,6 +1373,94 @@ arch_simba_conv_timeloop_2 = Arch([
         cycles = 1,
     )], coupling=conv_coupling)
 
+# SOLUTION GIVEN BY TIMELOOP:
+# Comp: ResNet18 L3+
+arch_simba_conv_timeloop_stride_1 = Arch([
+    MemLevel(
+        name = "DRAM",
+        dataflow_constraints = ['Q', 'P', 'M', 'C', 'S', 'R'],
+        size = 2**64-1, # number of entries
+        value_access_energy = 64.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_constraints = {'Q': 7, 'P': 8, 'M': 4, 'C': 8, 'S': 9},
+        multiple_reuses = False,
+        bypasses = []
+    ),
+    MemLevel(
+        name = "GlobalBuffer",
+        dataflow_constraints = ['C', 'M', 'Q', 'R', 'S', 'P'],
+        size = 65536, # number of entries
+        value_access_energy = 1.85, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_constraints = {'R': 3},
+        multiple_reuses = False,
+        bypasses = ['w']
+    ),
+    FanoutLevel(
+        name = "PEs",
+        mesh = 16,
+        dims = ['M', 'C'],
+        factors_constraints = {'M': 2, 'C': 2}
+    ),
+    MemLevel(
+        name = "PEInputBuffer",
+        dataflow_constraints = ['C', 'Q', 'P', 'S', 'M', 'R'],
+        size = 65536, # number of entries
+        value_access_energy = 30.26, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_constraints = {'C': 2},
+        multiple_reuses = False,
+        bypasses = ['w', 'out']
+    ),
+    FanoutLevel(
+        name = "DistributionBuffers",
+        mesh = 4,
+        dims = ['M'],
+        factors_constraints = {'M': 1}
+    ),
+    MemLevel(
+        name = "PEWeightBuffer",
+        dataflow_constraints = ['Q', 'P', 'M', 'C', 'S', 'R'],
+        size = 32768, # number of entries
+        value_access_energy = 15.16, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_constraints = {'Q': 2, 'P': 7, 'M': 8},
+        multiple_reuses = False,
+        bypasses = ['in', 'out']
+    ),
+    MemLevel(
+        name = "PEAccuBuffer",
+        dataflow_constraints = ['C', 'S', 'R', 'P', 'Q', 'M'],
+        size = 128, # number of entries
+        value_access_energy = 3.93, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_constraints = {'R': 3, 'M': 2},
+        multiple_reuses = False,
+        bypasses = ['in', 'w']
+    ),
+    FanoutLevel(
+        name = "RegMac",
+        mesh = 4,
+        dims = ['C'],
+        factors_constraints = {'C': 4}
+    ),
+    MemLevel(
+        name = "PEWeightRegs",
+        dataflow_constraints = ['Q', 'P', 'C', 'S', 'R', 'M'],
+        size = 1, # number of entries (64 in TL)
+        value_access_energy = 0.70, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_constraints = {'Q': 8, 'P': 2},
+        multiple_reuses = False,
+        bypasses = ['in', 'out']
+    ),
+    ComputeLevel(
+        name = "Compute",
+        mesh = 1,
+        compute_energy = 0.32, # per compute (pJ)
+        cycles = 1,
+    )], coupling=conv_coupling_with_stride)
+
 
 # >>> TPU <<<
 

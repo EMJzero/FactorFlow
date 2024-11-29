@@ -1,4 +1,4 @@
-from computations import gemm_coupling, conv_coupling
+from computations import gemm_coupling, conv_coupling, conv_coupling_with_stride
 from levels import *
 from arch import *
 
@@ -135,70 +135,7 @@ arch_gemmini_conv = Arch([
         mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
-    )], coupling=conv_coupling, name="Gemmini")
-
-# >>> TRUE GEMMINI <<<
-# TODO: UPDATE ME OR REMOVE ME!
-
-arch_true_gemmini = Arch([
-    MemLevel(
-        name = "DRAM",
-        dataflow_constraints = [], #['N', 'K', 'M'],
-        size = 2**64-1, # number of entries
-        value_access_energy = 64.00, # per operand/scalar access (pJ)
-        bandwidth = 8, # operands per cycle (shared)
-        factors_constraints = {},
-        bypasses = []
-    ),
-    MemLevel(
-        name = "Scratchpad",
-        dataflow_constraints = [], #WS,
-        size = 512*(2**10), # number of entries
-        value_access_energy = 3.47, # per operand (pJ)
-        bandwidth = 32, # operands per cycle (shared)
-        factors_constraints = {},
-        bypasses = ['out']
-    ),
-    FanoutLevel(
-        name = "SARows",
-        dim = WS[0],
-        mesh = 16,
-        pe_to_pe = True, 
-        factors_constraints = {'M': 16}
-    ),
-    MemLevel(
-        name = "Accumulator",
-        dataflow_constraints = [], #WS,
-        size = (256//4)*(2**10)//16, # number of entries (PER ONE INSTANCE!!) (remeber to account for operand size)
-        value_access_energy = 4.01, # per operand (pJ)
-        bandwidth = 8, # operands per cycle (shared)
-        factors_constraints = {'M': 1, 'K': 1, 'N': 16}, # the systolic array does a 16x16 matmul in this case
-        bypasses = ['in', 'w']
-    ),
-    FanoutLevel(
-        name = "SACols",
-        dim = WS[1],
-        mesh = 16,
-        pe_to_pe = True, 
-        factors_constraints = {'K': 16}
-    ),
-    MemLevel(
-        name = "Register",
-        dataflow_constraints = WS,
-        size = 1, # number of entries
-        value_access_energy = 0.01, # per operand (pJ)
-        bandwidth = 2, # operands per cycle (shared)
-        factors_constraints = {'M': 1, 'K': 1, 'N': 1},
-        bypasses = ['in', 'out']
-    ),
-    ComputeLevel(
-        name = "Compute",
-        dim = WS[2],
-        mesh = 1,
-        compute_energy = 0.28, # per compute (pJ)
-        cycles = 1,
-        factors_constraints = {'N': 1}
-    )], coupling=gemm_coupling, name="True Gemmini")
+    )], coupling=conv_coupling_with_stride, name="Gemmini")
 
 
 # >>> EYERISS <<<
@@ -337,7 +274,7 @@ arch_eyeriss_conv = Arch([
         mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
-    )], coupling=conv_coupling, name="Eyeriss (conv)")
+    )], coupling=conv_coupling_with_stride, name="Eyeriss (conv)")
 
 
 # >>> SIMBA <<<
@@ -506,7 +443,7 @@ arch_simba_conv = Arch([
         mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
-    )], coupling=conv_coupling, name="Simba")
+    )], coupling=conv_coupling_with_stride, name="Simba")
 
 
 # >>>  TPU  <<<
@@ -682,7 +619,7 @@ arch_tpu_conv = Arch([
         mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
-    )], coupling=conv_coupling, name="TPUv1")
+    )], coupling=conv_coupling_with_stride, name="TPUv1")
 
 
 # >>>  NVDLA  <<<

@@ -2203,6 +2203,118 @@ correct_latency_eyeriss_conv_timeloop_stride_2 = [{
         "ideal_bandwidth_drain": 0.059895833333333336
     }]
 
+correct_mops_simba_conv_timeloop_stride_1 = [{
+        "in_reads": 53616640,
+        "w_reads": 74317824,
+        "out_reads": 0,
+        "in_writes": 0,
+        "w_writes": 0,
+        "out_writes": 1605632,
+        "last_out_reads": 0,
+        "last_out_writes": 0
+    },{
+        "in_reads": 346300416,
+        "w_reads": 0,
+        "out_reads": 693633024,
+        "in_writes": 53616640,
+        "w_writes": 0,
+        "out_writes": 693633024,
+        "last_out_reads": 0,
+        "last_out_writes": 1605632
+    },{
+        "in_reads": 16647192576,
+        "w_reads": 0,
+        "out_reads": 0,
+        "in_writes": 692600832,
+        "w_writes": 0,
+        "out_writes": 0,
+        "last_out_reads": 0,
+        "last_out_writes": 0
+    },{
+        "in_reads": 0,
+        "w_reads": 1040449536,
+        "out_reads": 0,
+        "in_writes": 0,
+        "w_writes": 74317824,
+        "out_writes": 0,
+        "last_out_reads": 0,
+        "last_out_writes": 0
+    },{
+        "in_reads": 0,
+        "w_reads": 0,
+        "out_reads": 5545852928,
+        "in_writes": 0,
+        "w_writes": 0,
+        "out_writes": 5545852928,
+        "last_out_reads": 1384054784,
+        "last_out_writes": 1387266048
+    },{
+        "in_reads": 0,
+        "w_reads": 16647192576,
+        "out_reads": 0,
+        "in_writes": 0,
+        "w_writes": 1040449536,
+        "out_writes": 0,
+        "last_out_reads": 0,
+        "last_out_writes": 0
+    }]
+
+correct_latency_simba_conv_timeloop_stride_1 = [{
+        "latency_read_drain": 1040449536,
+        "latency_fill_update": 1040449536,
+        "cc_per_tile": 64512,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 0.12296075837742504,
+        "ideal_bandwidth_update": 0.0015432098765432098,
+        "ideal_bandwidth_fill": 0.0,
+        "ideal_bandwidth_drain": 0.0
+    },{
+        "latency_read_drain": 1040449536,
+        "latency_fill_update": 1040449536,
+        "cc_per_tile": 21504,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 0.997960758377425,
+        "ideal_bandwidth_update": 0.6666666666666666,
+        "ideal_bandwidth_fill": 0.051532186948853614,
+        "ideal_bandwidth_drain": 0.00154320987654321
+    },{
+        "latency_read_drain": 1040449536,
+        "latency_fill_update": 1040449536,
+        "cc_per_tile": 10752,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 4.0,
+        "ideal_bandwidth_update": 0.0,
+        "ideal_bandwidth_fill": 0.16641865079365079,
+        "ideal_bandwidth_drain": 0.0
+    },{
+        "latency_read_drain": 1040449536,
+        "latency_fill_update": 1040449536,
+        "cc_per_tile": 96,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 0.25,
+        "ideal_bandwidth_update": 0.0,
+        "ideal_bandwidth_fill": 0.017857142857142856,
+        "ideal_bandwidth_drain": 0.0
+    },{
+        "latency_read_drain": 1040449536,
+        "latency_fill_update": 1040449536,
+        "cc_per_tile": 16,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 0.9992283950617283,
+        "ideal_bandwidth_update": 1.0,
+        "ideal_bandwidth_fill": 0.33256172839506176,
+        "ideal_bandwidth_drain": 0.3333333333333333
+    },{
+        "latency_read_drain": 1040449536,
+        "latency_fill_update": 1040449536,
+        "cc_per_tile": 1,
+        "stall_cycles": 0,
+        "ideal_bandwidth_read": 1.0,
+        "ideal_bandwidth_update": 0.0,
+        "ideal_bandwidth_fill": 0.0625,
+        "ideal_bandwidth_drain": 0.0
+    }]
+
 # TESTS:
 
 tests = [
@@ -2398,12 +2510,20 @@ tests = [
         "correct_mops": correct_mops_eyeriss_conv_timeloop_stride_1,
         "correct_latency": correct_latency_eyeriss_conv_timeloop_stride_1
     }, {
-        "name": "eyeriss_conv_timeloop__stride_2",
+        "name": "eyeriss_conv_timeloop_stride_2",
         "comp": Shape(C = 128, M = 128, P = 112, Q = 112, R = 9, S = 9, Pstride = 1, Qstride = 4, Rdilation = 1, Sdilation = 3),
         "bias_read": False,
         "arch": arch_eyeriss_conv_timeloop_stride_2,
         "correct_mops": correct_mops_eyeriss_conv_timeloop_stride_2,
         "correct_latency": correct_latency_eyeriss_conv_timeloop_stride_2,
+        "change_settings": {"OVERESTIMATE_DISTINCT_VALUES": True}
+    }, {
+        "name": "simba_conv_timeloop_stride_1",
+        "comp": Shape(C = 128, M = 128, P = 112, Q = 112, R = 9, S = 9, Pstride = 1, Qstride = 4, Rdilation = 1, Sdilation = 3),
+        "bias_read": False,
+        "arch": arch_simba_conv_timeloop_stride_1,
+        "correct_mops": correct_mops_simba_conv_timeloop_stride_1,
+        "correct_latency": correct_latency_simba_conv_timeloop_stride_1,
         "change_settings": {"OVERESTIMATE_DISTINCT_VALUES": True}
     }
 ]
@@ -2411,8 +2531,9 @@ tests = [
 if __name__ == "__main__":
     for test in tests:
         print(f"Test: {test['name']}")
-        print("Computation: ", end='')
-        print(test['comp'])
+        print("Computation: ", test['comp'])
+        if "change_settings" in test:
+            print("Modified Settings: ", test['change_settings'])
         print(f"Bias read: {test['bias_read']}")
         runTest(test['arch'], test['correct_mops'] + test['correct_latency'], test['comp'], test['bias_read'], test["change_settings"] if "change_settings" in test else None)
         print("PASSED!\n")
