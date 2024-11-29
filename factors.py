@@ -145,6 +145,14 @@ class Coupling:
         else:
             raise Exception(f"Unrecognized operand ({operand}) in coupling.")
     
+    """
+    Returns a compact string representing the coupling.
+    """
+    def compactStr(self):
+        def coup2str(coupling, strides):
+            return '[' + ']['.join(map(lambda dim_sum : '+'.join(map(lambda dim : strides[dim] + '*' + dim if dim in strides else dim, dim_sum)) if len(dim_sum) > 1 else dim_sum[0], coupling)) + ']'
+        return f"dims: {''.join(self.dims)}, in_coupling: {coup2str(self.in_coupling, self.in_strides)}, w_coupling: {coup2str(self.w_coupling, self.w_strides)}, out_coupling: {coup2str(self.out_coupling, self.out_strides)}"
+    
     def __str__(self):
         return "{" + f"dims: {self.dims}, in_coupling: {self.in_coupling}, w_coupling: {self.w_coupling}, out_coupling: {self.out_coupling}, in_strides: {self.in_strides}, w_strides: {self.w_strides}, out_strides: {self.out_strides}" + "}"
 

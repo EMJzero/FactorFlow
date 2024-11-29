@@ -408,7 +408,7 @@ class MemLevel(Level):
                     # on the first iteration, you send down the sum of tile sizes for the sum of indices, then at each iteration you fill up only your tile size worth of new elements
                     # WARNING: this ignores potential reuse in the case in which (e.g.) R is iterated immediately around P, and part of the input can be reuse on inner levels!!! That may not be supported by HW tho...
                     #in_reads *= (distinct_values((tile_sizes := [self.tile_sizes[dim] for dim in innermost_dim_sum]), (strides := [self.arch.stride_values[self.arch.coupling.in_strides[dim]] for dim in innermost_dim_sum])) - (overlap := overlapped_values(tile_sizes, strides, innermost_dim_sum.index(actual_dataflow[i]))))*self.factors.dimProduct(actual_dataflow[i]) + overlap
-                    in_reads *= distinct_values([self.factors.dimProduct(actual_dataflow[i])*self.tile_sizes[actual_dataflow[i]]] + [self.tile_sizes[dim] for dim in innermost_dim_sum if dim != actual_dataflow[i]], [self.arch.getInStride(dim) for dim in innermost_dim_sum])
+                    in_reads *= distinct_values([self.factors.dimProduct(actual_dataflow[i])*self.tile_sizes[actual_dataflow[i]]] + [self.tile_sizes[dim] for dim in innermost_dim_sum if dim != actual_dataflow[i]], [self.arch.getInStride(actual_dataflow[i])] + [self.arch.getInStride(dim) for dim in innermost_dim_sum if dim != actual_dataflow[i]])
                     i -= 1
             if not self.next_spatials:
                 # no spatial level(s) immediately follow;
@@ -438,7 +438,7 @@ class MemLevel(Level):
                 if innermost_dim_sum and (not all(all(sp_level.factors.dimProduct(dim) == 1 for dim in innermost_dim_sum) for sp_level in self.next_spatials) or (skipped and not self.multiple_reuses)):
                     innermost_dim_sum = None
                 if innermost_dim_sum:
-                    w_reads *= distinct_values([self.factors.dimProduct(actual_dataflow[i])*self.tile_sizes[actual_dataflow[i]]] + [self.tile_sizes[dim] for dim in innermost_dim_sum if dim != actual_dataflow[i]], [self.arch.getWStride(dim) for dim in innermost_dim_sum])
+                    w_reads *= distinct_values([self.factors.dimProduct(actual_dataflow[i])*self.tile_sizes[actual_dataflow[i]]] + [self.tile_sizes[dim] for dim in innermost_dim_sum if dim != actual_dataflow[i]], [self.arch.getWStride(actual_dataflow[i])] + [self.arch.getWStride(dim) for dim in innermost_dim_sum if dim != actual_dataflow[i]])
                     i -= 1
             if not self.next_spatials:
                 w_reads *= prod(distinct_values([self.tile_sizes[dim] for dim in dim_sum], [self.arch.getWStride(dim) for dim in dim_sum]) for dim_sum in self.arch.coupling.w_coupling if dim_sum is not innermost_dim_sum)
@@ -462,7 +462,7 @@ class MemLevel(Level):
                 if innermost_dim_sum and (not all(all(sp_level.factors.dimProduct(dim) == 1 for dim in innermost_dim_sum) for sp_level in self.next_spatials) or (skipped and not self.multiple_reuses)):
                     innermost_dim_sum = None
                 if innermost_dim_sum:
-                    out_reads *= distinct_values([self.factors.dimProduct(actual_dataflow[i])*self.tile_sizes[actual_dataflow[i]]] + [self.tile_sizes[dim] for dim in innermost_dim_sum if dim != actual_dataflow[i]], [self.arch.getOutStride(dim) for dim in innermost_dim_sum])
+                    out_reads *= distinct_values([self.factors.dimProduct(actual_dataflow[i])*self.tile_sizes[actual_dataflow[i]]] + [self.tile_sizes[dim] for dim in innermost_dim_sum if dim != actual_dataflow[i]], [self.arch.getOutStride(actual_dataflow[i])] + [self.arch.getOutStride(dim) for dim in innermost_dim_sum if dim != actual_dataflow[i]])
                     i -= 1
             if not self.next_spatials:
                 out_reads *= prod(distinct_values([self.tile_sizes[dim] for dim in dim_sum], [self.arch.getOutStride(dim) for dim in dim_sum]) for dim_sum in self.arch.coupling.out_coupling if dim_sum is not innermost_dim_sum)
@@ -485,7 +485,7 @@ class MemLevel(Level):
                     in_reads_bp, w_reads_bp, out_reads_bp, out_writes_bp, out_reads_bp_factors = level.MOPs(operand == 'in', operand == 'w', operand == 'out', True)
                     # bulid the inner-most dataflow, by piling one against the other all non-1 loops, then look at which is the innermost dimension, that is the one that matters!
                     # TL;DR: consider the dataflow only w.r.t. the innermost loop, ignoring those with 1 iteration!
-                    stationarity_to_address = not any(level.factors.dimProduct(dim) > 1 and dim in self.arch.coupling.flatCouplingByOperand(operand) for dim in level.dataflow)
+                    stationarity_to_address = not (any(level.factors.dimProduct(dim) > 1 and dim in self.arch.coupling.flatCouplingByOperand(operand) for dim in level.dataflow) if self.multiple_reuses else any(level.factors.dimProduct(dim) > 1 for dim in level.dataflow))
                     for in_btwn in in_between[::-1]:
                         if isinstance(in_btwn, MemLevel):
                             # ignore loops at one
@@ -500,12 +500,11 @@ class MemLevel(Level):
                                     stationarity_to_address = i < 0 # postpone stationarity evaluation since not input-coupled dimension is iterated here
                                     # dimensions that partake in a sum of indices for the input operand together with the innermost iterated dimension on the currently traversed level between bypasses
                                     innermost_dim_sum = next((dim_sum for dim_sum in self.arch.coupling.in_coupling if actual_dataflow_bp[i] in dim_sum and len(dim_sum) > 1), None) if i >= 0 else None
-                                    if innermost_dim_sum and (all(all(sp_level.factors.dimProduct(dim) == 1 for dim in innermost_dim_sum) for sp_level in in_btwn.next_spatials) and (i == len(actual_dataflow_bp) - 1 or in_btwn.multiple_reuses)):
+                                    if innermost_dim_sum and (all(all(sp_level.factors.dimProduct(dim) == 1 for dim in innermost_dim_sum) for sp_level in in_btwn.next_spatials) and (i == len(actual_dataflow_bp) - 1 or self.multiple_reuses)):
                                         # before updating the tile size, remove from the original one the component relative to the dimension involved in the sum of indices
                                         # WARNING: this ignores potential reuse in the case in which (e.g.) R is iterated immediately around P, and part of the input can be reuse on inner levels!!! That may not be supported by HW tho...
-                                        strides =[self.arch.getInStride(dim) for dim in innermost_dim_sum]
-                                        in_reads_bp //= distinct_values([in_btwn.tile_sizes[dim] for dim in innermost_dim_sum], strides)
-                                        in_reads_bp *= distinct_values([in_btwn.factors.dimProduct(actual_dataflow_bp[i])*in_btwn.tile_sizes[actual_dataflow_bp[i]]] + [in_btwn.tile_sizes[dim] for dim in innermost_dim_sum if dim != actual_dataflow_bp[i]], strides)
+                                        in_reads_bp //= distinct_values([in_btwn.tile_sizes[dim] for dim in innermost_dim_sum], [self.arch.getInStride(dim) for dim in innermost_dim_sum])
+                                        in_reads_bp *= distinct_values([in_btwn.factors.dimProduct(actual_dataflow_bp[i])*in_btwn.tile_sizes[actual_dataflow_bp[i]]] + [in_btwn.tile_sizes[dim] for dim in innermost_dim_sum if dim != actual_dataflow_bp[i]], [self.arch.getInStride(actual_dataflow_bp[i])] + [self.arch.getInStride(dim) for dim in innermost_dim_sum if dim != actual_dataflow_bp[i]])
                                         i -= 1
                                     for dim in actual_dataflow_bp[:i+1]:
                                         in_reads_bp *= in_btwn.factors.dimProduct(dim)
@@ -517,13 +516,12 @@ class MemLevel(Level):
                                     i = len(actual_dataflow_bp) - 1
                                     while i >= 0 and (actual_dataflow_bp[i] not in self.arch.coupling.flat_w_coupling):
                                         i -= 1
-                                    innermost_dim_sum = next((dim_sum for dim_sum in self.arch.coupling.w_coupling if actual_dataflow_bp[i] in dim_sum and len(dim_sum) > 1), None) if i >= 0 else None
-                                    if innermost_dim_sum and (all(all(sp_level.factors.dimProduct(dim) == 1 for dim in innermost_dim_sum) for sp_level in in_btwn.next_spatials) and (i == len(actual_dataflow_bp) - 1 or in_btwn.multiple_reuses)):
-                                        strides =[self.arch.getWStride(dim) for dim in innermost_dim_sum]
-                                        w_reads_bp //= distinct_values([in_btwn.tile_sizes[dim] for dim in innermost_dim_sum], strides)
-                                        w_reads_bp *= distinct_values([in_btwn.factors.dimProduct(actual_dataflow_bp[i])*in_btwn.tile_sizes[actual_dataflow_bp[i]]] + [in_btwn.tile_sizes[dim] for dim in innermost_dim_sum if dim != actual_dataflow_bp[i]], strides)
-                                        i -= 1
                                     stationarity_to_address = i < 0
+                                    innermost_dim_sum = next((dim_sum for dim_sum in self.arch.coupling.w_coupling if actual_dataflow_bp[i] in dim_sum and len(dim_sum) > 1), None) if i >= 0 else None
+                                    if innermost_dim_sum and (all(all(sp_level.factors.dimProduct(dim) == 1 for dim in innermost_dim_sum) for sp_level in in_btwn.next_spatials) and (i == len(actual_dataflow_bp) - 1 or self.multiple_reuses)):
+                                        w_reads_bp //= distinct_values([in_btwn.tile_sizes[dim] for dim in innermost_dim_sum], [self.arch.getWStride(dim) for dim in innermost_dim_sum])
+                                        w_reads_bp *= distinct_values([in_btwn.factors.dimProduct(actual_dataflow_bp[i])*in_btwn.tile_sizes[actual_dataflow_bp[i]]] + [in_btwn.tile_sizes[dim] for dim in innermost_dim_sum if dim != actual_dataflow_bp[i]], [self.arch.getWStride(actual_dataflow_bp[i])] + [self.arch.getWStride(dim) for dim in innermost_dim_sum if dim != actual_dataflow_bp[i]])
+                                        i -= 1
                                     for dim in actual_dataflow_bp[:i+1]:
                                         w_reads_bp *= in_btwn.factors.dimProduct(dim)
                                 else:
@@ -535,10 +533,9 @@ class MemLevel(Level):
                                         i -= 1
                                     stationarity_to_address = i < 0
                                     innermost_dim_sum = next((dim_sum for dim_sum in self.arch.coupling.out_coupling if actual_dataflow_bp[i] in dim_sum and len(dim_sum) > 1), None) if i >= 0 else None
-                                    if innermost_dim_sum and (all(all(sp_level.factors.dimProduct(dim) == 1 for dim in innermost_dim_sum) for sp_level in in_btwn.next_spatials) and (i == len(actual_dataflow_bp) - 1 or in_btwn.multiple_reuses)):
-                                        strides =[self.arch.getOutStride(dim) for dim in innermost_dim_sum]
-                                        out_reads_bp, out_writes_bp = out_reads_bp//(dvs := distinct_values([in_btwn.tile_sizes[dim] for dim in innermost_dim_sum], strides)), out_writes_bp//dvs
-                                        out_reads_bp, out_writes_bp = out_reads_bp*(dvs := distinct_values([in_btwn.factors.dimProduct(actual_dataflow_bp[i])*in_btwn.tile_sizes[actual_dataflow_bp[i]]] + [in_btwn.tile_sizes[dim] for dim in innermost_dim_sum if dim != actual_dataflow_bp[i]], strides)), out_writes_bp*dvs
+                                    if innermost_dim_sum and (all(all(sp_level.factors.dimProduct(dim) == 1 for dim in innermost_dim_sum) for sp_level in in_btwn.next_spatials) and (i == len(actual_dataflow_bp) - 1 or self.multiple_reuses)):
+                                        out_reads_bp, out_writes_bp = out_reads_bp//(dvs := distinct_values([in_btwn.tile_sizes[dim] for dim in innermost_dim_sum], [self.arch.getOutStride(dim) for dim in innermost_dim_sum])), out_writes_bp//dvs
+                                        out_reads_bp, out_writes_bp = out_reads_bp*(dvs := distinct_values([in_btwn.factors.dimProduct(actual_dataflow_bp[i])*in_btwn.tile_sizes[actual_dataflow_bp[i]]] + [in_btwn.tile_sizes[dim] for dim in innermost_dim_sum if dim != actual_dataflow_bp[i]], [self.arch.getOutStride(actual_dataflow_bp[i])] + [self.arch.getOutStride(dim) for dim in innermost_dim_sum if dim != actual_dataflow_bp[i]])), out_writes_bp*dvs
                                         i -= 1
                                     for dim in actual_dataflow_bp[:i+1]:
                                         out_reads_bp *= in_btwn.factors.dimProduct(dim)
@@ -563,9 +560,8 @@ class MemLevel(Level):
                                 i -= 1
                             innermost_dim_sum = next((dim_sum for dim_sum in self.arch.coupling.in_coupling if actual_dataflow[i] in dim_sum and len(dim_sum) > 1), None) if i >= 0 else None
                             if innermost_dim_sum and (all(all(sp_level.factors.dimProduct(dim) == 1 for dim in innermost_dim_sum) for sp_level in self.next_spatials) and (i == len(actual_dataflow) - 1 or self.multiple_reuses)):
-                                strides =[self.arch.getInStride(dim) for dim in innermost_dim_sum]
-                                in_reads_bp //= distinct_values([self.tile_sizes[dim] for dim in innermost_dim_sum], strides)
-                                in_reads_bp *= distinct_values([self.factors.dimProduct(actual_dataflow[i])*self.tile_sizes[actual_dataflow[i]]] + [self.tile_sizes[dim] for dim in innermost_dim_sum if dim != actual_dataflow[i]], strides)
+                                in_reads_bp //= distinct_values([self.tile_sizes[dim] for dim in innermost_dim_sum], [self.arch.getInStride(dim) for dim in innermost_dim_sum])
+                                in_reads_bp *= distinct_values([self.factors.dimProduct(actual_dataflow[i])*self.tile_sizes[actual_dataflow[i]]] + [self.tile_sizes[dim] for dim in innermost_dim_sum if dim != actual_dataflow[i]], [self.arch.getInStride(actual_dataflow[i])] + [self.arch.getInStride(dim) for dim in innermost_dim_sum if dim != actual_dataflow[i]])
                                 i -= 1
                             for dim in actual_dataflow[:i+1]:
                                 in_reads_bp *= self.factors.dimProduct(dim)
@@ -579,9 +575,8 @@ class MemLevel(Level):
                                 i -= 1
                             innermost_dim_sum = next((dim_sum for dim_sum in self.arch.coupling.w_coupling if actual_dataflow[i] in dim_sum and len(dim_sum) > 1), None) if i >= 0 else None
                             if innermost_dim_sum and (all(all(sp_level.factors.dimProduct(dim) == 1 for dim in innermost_dim_sum) for sp_level in self.next_spatials) and (i == len(actual_dataflow) - 1 or self.multiple_reuses)):
-                                strides =[self.arch.getWStride(dim) for dim in innermost_dim_sum]
-                                w_reads_bp //= distinct_values([self.tile_sizes[dim] for dim in innermost_dim_sum], strides)
-                                w_reads_bp *= distinct_values([self.factors.dimProduct(actual_dataflow[i])*self.tile_sizes[actual_dataflow[i]]] + [self.tile_sizes[dim] for dim in innermost_dim_sum if dim != actual_dataflow[i]], strides)
+                                w_reads_bp //= distinct_values([self.tile_sizes[dim] for dim in innermost_dim_sum], [self.arch.getWStride(dim) for dim in innermost_dim_sum])
+                                w_reads_bp *= distinct_values([self.factors.dimProduct(actual_dataflow[i])*self.tile_sizes[actual_dataflow[i]]] + [self.tile_sizes[dim] for dim in innermost_dim_sum if dim != actual_dataflow[i]], [self.arch.getWStride(actual_dataflow[i])] + [self.arch.getWStride(dim) for dim in innermost_dim_sum if dim != actual_dataflow[i]])
                                 i -= 1
                             for dim in actual_dataflow[:i+1]:
                                 w_reads_bp *= self.factors.dimProduct(dim)
@@ -594,9 +589,8 @@ class MemLevel(Level):
                                 i -= 1
                             innermost_dim_sum = next((dim_sum for dim_sum in self.arch.coupling.out_coupling if actual_dataflow[i] in dim_sum and len(dim_sum) > 1), None) if i >= 0 else None
                             if innermost_dim_sum and (all(all(sp_level.factors.dimProduct(dim) == 1 for dim in innermost_dim_sum) for sp_level in self.next_spatials) and (i == len(actual_dataflow) - 1 or self.multiple_reuses)):
-                                strides =[self.arch.getOutStride(dim) for dim in innermost_dim_sum]
-                                out_reads_bp, out_writes_bp = out_reads_bp//(dvs := distinct_values([self.tile_sizes[dim] for dim in innermost_dim_sum], strides)), out_writes_bp//dvs
-                                out_reads_bp, out_writes_bp = out_reads_bp*(dvs := distinct_values([self.factors.dimProduct(actual_dataflow[i])*self.tile_sizes[actual_dataflow[i]]] + [self.tile_sizes[dim] for dim in innermost_dim_sum if dim != actual_dataflow[i]], strides)), out_writes_bp*dvs
+                                out_reads_bp, out_writes_bp = out_reads_bp//(dvs := distinct_values([self.tile_sizes[dim] for dim in innermost_dim_sum], [self.arch.getOutStride(dim) for dim in innermost_dim_sum])), out_writes_bp//dvs
+                                out_reads_bp, out_writes_bp = out_reads_bp*(dvs := distinct_values([self.factors.dimProduct(actual_dataflow[i])*self.tile_sizes[actual_dataflow[i]]] + [self.tile_sizes[dim] for dim in innermost_dim_sum if dim != actual_dataflow[i]], [self.arch.getOutStride(actual_dataflow[i])] + [self.arch.getOutStride(dim) for dim in innermost_dim_sum if dim != actual_dataflow[i]])), out_writes_bp*dvs
                                 i -= 1
                             for dim in actual_dataflow[:i+1]:
                                 out_reads_bp *= self.factors.dimProduct(dim)
