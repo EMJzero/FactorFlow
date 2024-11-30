@@ -3,7 +3,7 @@
 A promising design in the domain of modern deep learning hardware accelerators is **Spatial Architectures (SAs)**, which employ a multidimensional array of **Processing Elements (PEs)** that execute Multiply and Accumulate (MAC) operations paired with a dedicated **memory hierarchy** to enable data reuse.
 Spatial architectures aim to reduce the energy and latency required for running kernels like **General Matrix Multiplications (GEMMs)** and convolutions, and are very flexible in how they can handle them. They can pick between many ways to exploit parallelism, to allocate and move data between memories while reusing a specific part of it, and to distrubute MAC operations among PEs. As such, to exploit the full capabilities of a SA it is crucial to decide the best **mapping** with which a computation is ran by the hardware. However, finding such an optimal mapping is a complex taks due to the size of the map-space (the space of all possible mappings for a kernel-SA pair), thus requiring specialized approaches.
 
-This repository presents **FactorFlow (FF)**, a framework for mapping GEMMs on SAs, comprising an analytical model and a mapper. The analytical model within FF uses a description of a SA and a mapping to quickly estimate the performance of the two. FF's mapper employs instead three steps to search the map-space for optimal mappings, while using the analytical model to gather feedback throughout its exploration.
+This repository presents **FactorFlow (FF)**, a framework for mapping GEMMs (now extended to convolutions as well) on SAs, comprising an analytical model and a mapper. The analytical model within FF uses a description of a SA and a mapping to quickly estimate the performance of the two. FF's mapper employs instead three steps to search the map-space for optimal mappings, while using the analytical model to gather feedback throughout its exploration.
 
 ## Authors
 
@@ -43,8 +43,11 @@ There are two ways to use FactorFlow:
 
 - Run [`main_cli.py`](main_cli.py) and follow its help menu for more information. This is intended for normal usage, it allows you to pick the architecture specification and the target computation through the CLI. You may also provide your own python file with a custom architecture as shown in [`example_arch.py`](architectures/example_arch.py). Some example commands:
   - `python main_cli.py -h`: prints the help menu;
-  - `python main_cli.py eyeriss KQV`: run FF with the existing eyeriss model for the KQV GEMM;
-  - `python main_cli.py architectures/example_arch.py 128 768 512`: run FF with the architecture provided in `example_arch.py` and for a GEMM with $\mathrm{M}:128,\: \mathrm{K}:768,\: \mathrm{N}:512$.
+  - `python main_cli.py eyeriss KQV`: run FF with the existing Eyeriss model for the KQV GEMM;
+  - `python main_cli.py simba 128 768 512`: run FF with the existing Simba model and for a GEMM with $\mathrm{M}:128,\: \mathrm{K}:768,\: \mathrm{N}:512$.
+  - `python main_cli.py eyeriss-conv 128 768 512 128 768 512`: run FF with the existing Eyeriss model and for a convoluion with $\mathrm{M}:128,\: \mathrm{P}:768,\: \mathrm{Q}:512$, $\mathrm{C}:128,\: \mathrm{R}:768,\: \mathrm{S}:512$.
+  - `python main_cli.py simba-conv 128 768 512 128 768 512 2 2 1 1`: run FF with the existing Simba model and for a convoluion with $\mathrm{M}:128,\: \mathrm{P}:768,\: \mathrm{Q}:512$, $\mathrm{C}:128,\: \mathrm{R}:768,\: \mathrm{S}:512, \mathrm{Pstride}:2, \mathrm{Qstride}:2, \mathrm{Rdilation}:1, \mathrm{Sdilation}:1$.
+  - `python main_cli.py architectures/example_arch.py architectures/example_comp.py`: run FF with the architecture provided in `example_arch.py` and for the computation and coupling in `example_comp.py`.
 
 - Customize and run [`main.py`](main.py). This is the best option to experiment with and modify FF, with `main.py` being a minimal script which runs FF on the hardcoded architecture and computation. You may import in such script any of the files in this repository to explore its functionalities.
 
@@ -85,8 +88,11 @@ For each level of the memory hierarchy, we classify its dataflow according to wh
 ### Workload
 
 <img src="static/GEMM.png" width="550px" padding-left="15px" align="right"/>
+<img src="static/convolution.png" width="550px" padding-left="15px" align="right"/>
 
-Our workload is a GEMM, which, from a computational perspective, can be seen as three nested loops around a MAC operation. The order of loops is arbitrary and data reuse opportunities arise from all three operands being orthogonal to a different loop and remaining constant throughout it. The $Bias$ can be handled outside said loops by initializing $Out$ with it, and carrying out the sum through the first round of accumulation. Hence, we consider as operands solely the input $In$, the weights $W$, and the output $Out$.
+Our workload is a kernel in the form of three tensors (operands) indicized via several nested loops around a MAC operation: $Out = W \cdot In + Bias$. The order of loops is arbitrary and data reuse opportunities arise from all three operands being orthogonal to different loops and remaining constant throughout them. Moreover, some indices may operate along the same dimension of some tensor, also introducing halo (sliding window) reuse opportunities. The $Bias$ term can be handled outside the loops nest, by initializing $Out$ with it and carrying out the sum through the first round of accumulation. Hence, we consider as operands solely the input $In$, the weights $W$, and the output $Out$.
+
+In FactorFlow a kernel is defined by a coupling, which specifies existing dimension and their relation with tensors, and a computation, which gives sizes to said dimensions. The GEMM and convolution kernels are already available, but any kernel of the above form can be specified via custom couplings and shapes.
 
 ### Mapping Decisions
 
@@ -94,24 +100,31 @@ Our workload is a GEMM, which, from a computational perspective, can be seen as 
 
 Let's introduce the three main decisions involved in a mapping:
 
-- **Tiling**: to fit a GEMM's dimensions on the limited hardware resources of a SA, we repeatedly tile it into progressively smaller GEMMs throughout the SA's memory hierarchy.
+- **Tiling**: to fit a kernel's tensors on the limited hardware resources of a SA, we repeatedly tile it into progressively smaller kernels throughout the SA's memory hierarchy.
 Tile sizes are chosen to both fit in and exploit to the maximum the storage available at their level.
-This is represented by replicating the three nested loops of a GEMM across all memory levels of the SA, with each copy performing a subset of the total iterations along every dimension.
+This is represented by replicating the kernel's loops nest across all memory levels of the SA, with each copy performing a subset of the total iterations along every dimension.
 Loops on a memory level unfold over time, and each memory in the hierarchy only needs to store all the values used in iterations on its loops or inner ones, enabling their reuse across all such iterations.
 
 - **Parallelism Strategy**: spatial fanout levels allow some iterations to unfold spatially across multiple instances of subsequent levels, each running the same inner loops concurrently on partially different data.
 Hardware limitations on resources and flexibility constrain the maximum number of such spatial iterations and also which dimensions can exploit them.
 Thus, a mapping must specify which dimension(s) leverage parallelism and allocate their spatial iterations.
-This is modeled like tiling, by having a copy of one or more of a GEMM's loops dedicated to each spatial fanout level.
+This is modeled like tiling, by having a copy of one or more of a loop dedicated to each spatial fanout level.
 
-- **Loop Ordering**: any group of three loops within a tiled GEMM can be arbitrarily reordered without affecting the correctness of the computation, but with relevant implications on data movements and reuse within the SA.
-This is what determines the **dataflow**, a specific order of a loop triplet and the data access patterns derived from it. In particular: in a weight stationary dataflow the output's width, $\mathrm{N}$, is iterated first, resulting in weights reuse (multicast) across the innermost iterations.
-For an input stationary dataflow it is the output's height, $\mathrm{M}$, resulting in inputs reuse (multicast).
-While an output stationary dataflow iterates first on the GEMM's inner dimension, $\mathrm{K}$, enabling the in-place reduction of outputs.
-In summary, each dataflow reuses the operand orthogonal to the dimension of the innermost iterations it performs, ignoring loops with a single iteration.
+- **Loop Ordering**: any level's group of loops within a tiled kernel can be arbitrarily reordered without affecting the correctness of the computation, but with relevant implications on data movements and reuse within the SA.
+This is what determines the **dataflow**, a specific order of a loops and the data access patterns derived from it. Each dataflow reuses the operand orthogonal to the dimension of the innermost iterations it performs, ignoring loops with a single iteration. Orthogonality leads to complete stationarity of the operand (e.g. iterating $\mathrm{N}$ first for a GEMM yields weights stationarity), but another form of reuse also occurs when the innermost iteration goes over a dimension coupled to a sum of indices (e.g. the input's width or height of a convolution), creating a sliding window effect over the involved operand, and reusing part of its previous tile at ever subsequent iteration.
 
-### Compact Notation
+### Notation
 
-Throughout FactorFlow, the following compact notation for triplets of nested loops on a level is used:
+Throughout FactorFlow, the following compact notation for triplets of nested loops on a level is used, omitting dimension with a single iteration:
 
-<img src="static/compact_notation.png" width="450px" align="center"/>
+<p align="center">
+  <img src="static/compact_notation.png" width="450px"/>
+</p>
+
+Data regarding memory operations (MOPs) is always reported as comulative across instances (e.g. 4 reads from each register file of two PEs are reported as 8 reads on that register file).
+
+Data for bandwidths is always in $words/clock\textrm{-}cycle$, and is divided between read, write, fill, and drain bandwidth, following the notation used for Buffets:
+
+<p align="center">
+  <img src="static/buffet.png" width="250px"/>
+</p>
