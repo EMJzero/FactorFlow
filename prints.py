@@ -1,19 +1,20 @@
 import collections.abc
 
-from levels import *
 from factors import *
+from levels import *
+from arch import *
 
 """
 Returns a string with a pretty textual representation of the provided dictionary.
 """
-def pretty_format_dict(dictionary, level = 0):
+def pretty_format_dict(dictionary : dict, indent_level : int = 0) -> str:
     string = ""
     for key, value in (dictionary.items() if isinstance(dictionary, dict) else zip(["" for i in dictionary], dictionary)):
-        string += ''*level + (f"{key}: " if key != "" else "- ")
+        string += ''*indent_level + (f"{key}: " if key != "" else "- ")
         if isinstance(value, dict):
-            string += "\n" + pretty_format_dict(value, level + 4)
+            string += "\n" + pretty_format_dict(value, indent_level + 4)
         elif isinstance(value, list) and len(value) > 0 and isinstance(value[0], dict):
-            string += "\n" + pretty_format_dict(value, level + 4)
+            string += "\n" + pretty_format_dict(value, indent_level + 4)
         else:
             string += str(value)
         string += "\n"
@@ -24,68 +25,73 @@ Prints to stdout the provided object in a nicely formatted way.
 Explicitly supported objects are: classes, iterables, dictionaries, and atomics.
 Any other object should also work reasonably well.
 """
-def prettyPrint(obj):
+def prettyPrint(obj : object) -> None:
     seen = set()
+    res = ""
     
     def pp(obj, indent=0, keep_first_indend = True):
+        nonlocal res
+        
         if isinstance(obj, dict):
             for key, value in obj.items():
-                print(f"{' ' * (indent + 4)}{key}: ")
+                res += f"{' ' * (indent + 4)}{key}:\n"
                 pp(value, indent + 4)
             if len(obj) == 0:
-                print(f"{' ' * (indent + 4)}<empty>")
+                res += f"{' ' * (indent + 4)}<empty>\n"
             return
         if isinstance(obj, collections.abc.Iterable) and not isinstance(obj, str):
             if len(obj) == 0:
-                print("[]")
+                res += "[]\n"
                 return
-            print(f"{' ' * indent * keep_first_indend}[")
+            res += f"{' ' * indent * keep_first_indend}[\n"
             for i, item in enumerate(obj):
-                print(f"{' ' * (indent + 4)}Item {i}: ")
+                res += f"{' ' * (indent + 4)}Item {i}:\n"
                 pp(item, indent + 8)
-            print(f"{' ' * indent}]")
+            res += f"{' ' * indent}]\n"
             return
         if hasattr(obj, "__dict__"):
             name = obj.name if hasattr(obj, "name") else id(obj)
             if id(obj) in seen:
-                print(f"{' ' * indent * keep_first_indend}- Reference to {obj.__class__.__name__}({name}) already printed")
+                res += f"{' ' * indent * keep_first_indend}- Reference to {obj.__class__.__name__}({name}) already printed\n"
                 return
             seen.add(id(obj))
-            print(f"{' ' * indent * keep_first_indend}{obj.__class__.__name__}({name}): ")
+            res += f"{' ' * indent * keep_first_indend}{obj.__class__.__name__}({name}):\n"
             for attr, value in obj.__dict__.items():
                 if attr.startswith('_'):
                     continue
                 if hasattr(value, "__dict__"):
-                    print(f"{' ' * (indent + 4)}{attr}: ")
+                    res += f"{' ' * (indent + 4)}{attr}:\n"
                     pp(value, indent + 4)
                 elif isinstance(value, dict):
-                    print(f"{' ' * (indent + 4)}{attr}: ")
+                    res += f"{' ' * (indent + 4)}{attr}:\n"
                     pp(value, indent + 4)
                 elif isinstance(value, collections.abc.Iterable) and not isinstance(value, str):
-                    print(f"{' ' * (indent + 4)}{attr}: ", end='')
+                    res += f"{' ' * (indent + 4)}{attr}: "
                     pp(value, indent + 4, False)
                 else:
-                    print(f"{' ' * (indent + 4)}{attr}: {value}")
+                    res += f"{' ' * (indent + 4)}{attr}: {value}\n"
         else:
-            print(f"{' ' * (indent + 4)}- {obj}")
+            res += f"{' ' * (indent + 4)}- {obj}\n"
+    
     pp(obj)
+    print(res)
 
 """
 Print to stdout a summary of the factors allocated to each dimension across the
 entire architecture. Dimensions order also reflects dataflows.
 """
-def printFactors(arch):
+def printFactors(arch : Arch) -> None:
     for level in arch:
         fac_str = f"{level.name} -> "
         for dim in level.dataflow:
             fac_str += f"{dim}: {level.factors.dimProduct(dim)}, "
         print(fac_str[:-2])
-        
+
 """
 Returns a summary string representing the factors allocated to each dimension
 across the entire architecture.
 """
-def factorsString(arch):
+def factorsString(arch : Arch) -> str:
     res = ""
     for level in arch:
         res += f"{level.name}["
@@ -98,7 +104,7 @@ def factorsString(arch):
 Print to stdout a summary of the tile sizes for each dimension across the
 entire architecture. Dimensions order also reflects dataflows.
 """
-def printTileSizes(arch):
+def printTileSizes(arch : Arch) -> None:
     for level in arch:
         fac_str = f"{level.name} -> "
         for dim in level.dataflow:
@@ -108,7 +114,7 @@ def printTileSizes(arch):
 """
 DEPRECATED: printMOPsNew instead.
 """
-def printMOPs(arch, per_instance = False):
+def printMOPs(arch : Arch, per_instance : bool = False) -> None:
     temporal_iterations_inputs = 1
     temporal_iterations_weights = 1
     temporal_iterations_outputs = 1
@@ -181,7 +187,7 @@ in the architecture, broken down per-operand. A few notes:
   since otherwise drain and updates are 0, while fill and read can be inferred
   from Tot_W and Tot_R respectively.
 """
-def printMOPsNew(arch, per_instance = False):
+def printMOPsNew(arch : Arch, per_instance : bool = False) -> None:
     tot_reads = 0
     tot_writes = 0
     WMOPs = 0
@@ -207,7 +213,7 @@ def printMOPsNew(arch, per_instance = False):
 """
 DEPRECATED: printLatencyNew instead.
 """
-def printLatency(arch):
+def printLatency(arch : Arch) -> None:
     max_latency, max_latency_level_name = 0, "<<Error>>"
     temporal_iterations = 1
     spatial_iterations = 1
@@ -266,7 +272,7 @@ in the architecture, broken down per operation. A few notes:
   required to move data which exceed those required by the computation, thus
   forcing the latter to wait/stall.
 """
-def printLatencyNew(arch):
+def printLatencyNew(arch : Arch) -> None:
     max_latency, max_latency_level_name = 0, "<<Unavailable>>"
     for level in arch:
         if isinstance(level, MemLevel):
@@ -284,7 +290,7 @@ def printLatencyNew(arch):
 Print to stdout the total amount of padding required by the different dimensions
 of the computation. This is non-zero iif the PADDED_MAPPINGS is True.
 """
-def printPadding(arch, comp):
+def printPadding(arch : Arch, comp : Shape) -> None:
     total_iterations = {'M': 1, 'K': 1, 'N': 1}
     for level in arch:
         for dim in ['M', 'K', 'N']:
@@ -294,7 +300,30 @@ def printPadding(arch, comp):
         print(f"\t{dim}: {total_iterations[dim] - comp[dim]:.0f} ({comp[dim]} -> {total_iterations[dim]})")
 
 """
+Print to stdout the energy per action of the levels in the give architecture.
+"""
+def printEnergyPerAction(arch : Arch) -> None:
+    for level in arch:
+        if isinstance(level, MemLevel):
+            print(f"{level.name}:{chr(9) * (2 - (len(level.name) + 1)//8)}read {level.read_access_energy:.3e} pJ, write {level.write_access_energy:.3e} pJ, leak {level.leakage_energy:.3e} pJ/cc (values per wordline {level.values_per_wordline})")
+        if isinstance(level, ComputeLevel):
+            print(f"{level.name}:{chr(9) * (2 - (len(level.name) + 1)//8)}compute {level.compute_energy:.3e} pJ, leak {level.leakage_energy:.3e} pJ/cc")
+
+"""
+Print to stdout the area of the levels in the give architecture.
+"""
+def printAreaPerLevel(arch : Arch) -> None:
+    physical_instances = 1
+    for level in arch:
+        if level.area != None:
+            print(f"{level.name}:{chr(9) * (2 - (len(level.name) + 1)//8)}total level area {level.area*physical_instances:.3e} um^2, per instance area {level.area:.3e} um^2")
+        else:
+            print(f"{level.name}:{chr(9) * (2 - (len(level.name) + 1)//8)}N/A")
+        if isinstance(level, SpatialLevel):
+            physical_instances *= level.mesh
+
+"""
 Shorthand to invoke prettyPrint on an architecture.
 """
-def printArch(arch):
+def printArch(arch : Arch) -> None:
     prettyPrint(arch[::-1])

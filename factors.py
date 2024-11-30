@@ -1,5 +1,8 @@
+from __future__ import annotations
 from functools import reduce
 from enum import Enum
+
+from typing import Optional
 
 """
 Possible dataflows for GEMMs.
@@ -22,24 +25,24 @@ Dimensions are:
 - N = In and Out's width
 """
 class Shape():
-    def __init__(self, M, K, N):
-        self.M = M # Weight/Out rows
-        self.K = K # Inner dimension, Weight cols/In rows
-        self.N = N # In/Out cols
+    def __init__(self, M : int, K : int, N : int):
+        self.M : int = M # Weight/Out rows
+        self.K : int = K # Inner dimension, Weight cols/In rows
+        self.N : int = N # In/Out cols
 
-    def mem_footprint(self):
-        return self.M*self.K + self.K*self.N + self.M*self.N
+    def mem_footprint(self) -> int:
+        return self.M * self.K + self.K * self.N + self.M * self.N
 
-    def FLOPs(self):
-        return 2*self.M*self.K*self.N
+    def FLOPs(self) -> int:
+        return 2 * self.M * self.K * self.N
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: str) -> int:
         return getattr(self, key)
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: str, value: int) -> None:
         setattr(self, key, value)
-        
-    def __str__(self):
+
+    def __str__(self) -> str:
         return f"{{M: {self.M}, K: {self.K}, N: {self.N}}}"
 
 """
@@ -51,11 +54,11 @@ to every prime factor (key) the number of times it occurs (value)
 over that dimension.
 """
 class Factors():
-    def __init__(self, M = None, K = None, N = None):
-        self.M = M if M else {}
-        self.K = K if K else {}
-        self.N = N if N else {}
-        self._dim_products = {
+    def __init__(self, M : Optional[dict[int, int]] = None, K : Optional[dict[int, int]] = None, N : Optional[dict[int, int]] = None):
+        self.M : dict[int, int] = M if M else {}
+        self.K : dict[int, int] = K if K else {}
+        self.N : dict[int, int] = N if N else {}
+        self._dim_products : dict[str, int] = {
             'M': reduce(lambda tot, f_a : tot*(f_a[0]**f_a[1]), self.M.items(), 1),
             'K': reduce(lambda tot, f_a : tot*(f_a[0]**f_a[1]), self.K.items(), 1),
             'N': reduce(lambda tot, f_a : tot*(f_a[0]**f_a[1]), self.N.items(), 1)
@@ -65,7 +68,7 @@ class Factors():
     Add "amount" instances of the provided factor to those of
     "dimension" in the current set of factors.
     """
-    def addFactor(self, dimension, factor, amount):
+    def addFactor(self, dimension : str, factor : int, amount : int) -> None:
         if factor in self[dimension]:
             self[dimension][factor] += amount
         else:
@@ -78,7 +81,7 @@ class Factors():
     Return False if the removal failed because the current factors do
     not have at least "amount" instances of "factor" along "dimension".
     """
-    def removeFactor(self, dimension, factor, amount):
+    def removeFactor(self, dimension : str, factor : int, amount : int) -> bool:
         if factor not in self[dimension] or self[dimension][factor] < amount:
             return False
         self[dimension][factor] -= amount
@@ -91,11 +94,11 @@ class Factors():
     Product of all prime factors along a dimension, equivalent
     to the actual number of iterations along said dimension.
     """
-    def dimProduct(self, dimension):
+    def dimProduct(self, dimension : str) -> int:
         return self._dim_products[dimension]
 
     """Total number of iterations across all three dimensions."""
-    def fullProduct(self):
+    def fullProduct(self) -> int:
         return self._dim_products['M']*self._dim_products['K']*self._dim_products['N']
 
     """
@@ -105,7 +108,7 @@ class Factors():
     
     Pass dimensions as an array of dimensions to only reset indicated ones.
     """
-    def resetDimProducts(self, dimensions = None):
+    def resetDimProducts(self, dimensions : Optional[str] = None) -> None:
         dimensions = dimensions if dimensions else self._dim_products.keys()
         for dim in dimensions:
             res = 1
@@ -119,7 +122,7 @@ class Factors():
     False if "subset" has an additional factor or more occurrencies
     of one along any of the three dimensions.
     """
-    def isSubset(self, subset):
+    def isSubset(self, subset : Factors) -> bool:
         for k, v in subset.M.items():
             if k not in self.M or v > self.M[k]:
                 return False
@@ -138,7 +141,7 @@ class Factors():
     (It is assumed that a level always stores all data for the
     iterations unfolding over it)
     """
-    def mem_footprint(self, tile_sizes, in_bp = 1, w_bp = 1, out_bp = 1):
+    def mem_footprint(self, tile_sizes : Shape, in_bp : bool = 1, w_bp : bool = 1, out_bp : bool = 1) -> int:
         return (self.dimProduct('M')*self.dimProduct('K')*w_bp*tile_sizes.M*tile_sizes.K +
                 self.dimProduct('K')*self.dimProduct('N')*in_bp*tile_sizes.K*tile_sizes.N +
                 self.dimProduct('M')*self.dimProduct('N')*out_bp*tile_sizes.M*tile_sizes.N)
@@ -147,20 +150,23 @@ class Factors():
     Returns the factors present on the specified dimension as a list rather
     than as a dictionary. Factors multiplicity in the list reflects arity.
     """
-    def toList(self, dimension):
+    def toList(self, dimension : str) -> list[int]:
         return [k for k in self[dimension] for _ in range(self[dimension][k])]
 
     """
     Reset this "Factors" instance to no factors along any dimension.
     """
-    def clear(self):
+    def clear(self) -> None:
         self.M.clear()
         self.K.clear()
         self.N.clear()
         self._dim_products = {'M': 1, 'K': 1, 'N': 1}
 
-    def __getitem__(self, key):
+    def __getitem__(self, key : str):
         return getattr(self, key)
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key : str, value : dict[int, int]):
         setattr(self, key, value)
+
+    def __str__(self) -> str:
+        return f"{{M: {self.M}, K: {self.K}, N: {self.N}}}"

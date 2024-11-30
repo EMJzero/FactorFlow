@@ -2,10 +2,10 @@ from architectures.architectures import *
 from engine import *
 from utils import *
 
-#from solutions_db import *
+#from architectures.solutions_db import *
+#from architectures.architectures_hw_data import *
 #from comparisons.ZigZag.zigzag_archs import *
 #from comparisons.CoSA.cosa_archs import *
-#from comparisons.MAESTRO.maestro_archs import *
 
 
 # SPECIFICATION:
@@ -21,5 +21,5 @@ if __name__ == "__main__":
     #Here changing settings does not propagate to processes, which reimport and reset settings.py
     #Settings.forcedSettingsUpdate(arch)
 
-    fitConstraintsToComp(arch, comp)
+    arch.fitConstraintsToComp(comp, enforce=True)
     edp, mops, energy, latency, utilization, end_time, arch = run_engine(arch, comp, bias_read, verbose = True)

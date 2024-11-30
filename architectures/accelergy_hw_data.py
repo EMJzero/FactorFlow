@@ -55,18 +55,21 @@ accelergy_state.add_plug_ins(
         )
 print("ACCELERGY PLUG-INS:", list(map(lambda p : p.get_name(), accelergy_state.plug_ins)))
 
-# Prepare the query function
+# Prepare the query functions
 # NOTE: for details on how queries are handled, read the code in .../accelergy/plug_in_interface/query_plug_ins.py lines 116-209
 # NOTE: for details on queries syntax, read the code in .../accelergy/plug_in_interface/interface.py lines 219-243
 # NOTE: results are an instance of Estimation (.../accelergy/plug_in_interface/interface.py lines 99-161), use .get_value() for results in Joules, then scale them to PicoJoules.
 # NOTE: precision defaults to 6 (decimal places returned)
 # NOTE: actions are 'read', 'write', 'update', 'leak' (only 'read' and 'leak' supported by non-memory components) ('compare' is exclusive to the comparator)
 accelergy_estimate_energy_raw = partial(accelergy_get_best_estimate, plug_ins=accelergy_state.plug_ins, is_energy_estimation=True)
-accelergy_estimate_energy = lambda query : accelergy_estimate_energy_raw(query=query).get_value()*(10**12)
+accelergy_estimate_energy = lambda query : accelergy_estimate_energy_raw(query=query).get_value()*(10**12) # J -> pJ
+
+accelergy_estimate_area_raw = partial(accelergy_get_best_estimate, plug_ins=accelergy_state.plug_ins, is_energy_estimation=False)
+accelergy_estimate_area = lambda query : accelergy_estimate_area_raw(query=query).get_value()*(10**12) # m^2 -> um^2
 
 if __name__ == "__main__":
     print("\nTesting Accelergy:")
-    print("LPDDR4 estimation test:", accelergy_estimate_energy(query={
+    print("LPDDR4 read estimation test:", accelergy_estimate_energy(query={
         "class_name": "DRAM",
         "attributes": {
             "type": "LPDDR4",
@@ -91,7 +94,27 @@ if __name__ == "__main__":
         }
     }), "pJ")
     
-    print("SRAM estimation test:", accelergy_estimate_energy(query={
+    print("LPDDR4 area estimation test (should be 0):", accelergy_estimate_area(query={
+        "class_name": "DRAM",
+        "attributes": {
+            "type": "LPDDR4",
+            "width": 64,
+            #"datawidth": 8,
+            #"has_power_gating": False,
+            #"n_banks": 2,
+            #"cluster_size": 1,
+            #"reduction_supported": True,
+            #"multiple_buffering": 1,
+            #"allow_overbooking": False,
+            #"global_cycle_seconds": 1.2e-09,
+            "technology": "32nm",
+            #"action_latency_cycles": 1,
+            "cycle_seconds": 1.2e-09,
+            #"n_instances": 1
+        }
+    }), "um^2")
+    
+    print("SRAM read estimation test:", accelergy_estimate_energy(query={
         "class_name": "SRAM",
         "attributes": {
             "n_rw_ports": 1,
@@ -118,12 +141,35 @@ if __name__ == "__main__":
         }
     }), "pJ")
     
-    # bank of 192 registers
-    dynamic_energy_scale = (16/32)*((12/64)**(1.56/2)) # taken from smartbuffer_RF
-    print("Register estimation test:", accelergy_estimate_energy(query={
+    print("SRAM area estimation test:", accelergy_estimate_area(query={
+        "class_name": "SRAM",
+        "attributes": {
+            "n_rw_ports": 1,
+            #"n_rdwr_ports": 1,
+            #"n_rd_ports": 0,
+            #"n_wr_ports": 0,
+            "width": 64,
+            "depth": 16384,
+            #"global_cycle_seconds": 1.2e-09,
+            #"action_latency_cycles": 1,
+            #"cycle_seconds": 1.2e-09,
+            #"n_instances": 1,
+            "technology": "32nm",
+            "n_banks": 1,
+            #"latency": "5ns"
+        }
+    }), "um^2")
+    
+    # bank of 12 registers with width 16
+    std_width, std_depth = 32, 64
+    dynamic_energy_scale = 1#(16/std_width)*((12/std_depth)**(1.56/2)) # taken from smartbuffer_RF
+    static_energy_scale = 1#(16/std_width)*(12/std_depth) # = area_scale
+    # NOTE: Accelergy seems to screw up and does not include these scales...
+    print("Smartbuffer register file, dynamic_energy_scale:", dynamic_energy_scale, "static_energy_scale:", static_energy_scale)
+    print("Register read estimation test:", accelergy_estimate_energy(query={
         "class_name": "aladdin_register",
         "attributes": {
-            #"global_cycle_seconds": 1.2e-09,
+            "global_cycle_seconds": 1.2e-09,
             #"action_latency_cycles": 1,
             #"cycle_seconds": 1.2e-09,
             #"n_instances": 1,
@@ -139,10 +185,10 @@ if __name__ == "__main__":
             #"n_instances": 1,
             #"technology": "32nm",
         }
-    })*32 + accelergy_estimate_energy(query={ # the 32 comes from smartbuffer_RF with max(32, width)
+    })*std_width*dynamic_energy_scale + accelergy_estimate_energy(query={ # the 32 comes from smartbuffer_RF with max(32, width)
         "class_name": "aladdin_comparator",
         "attributes": {
-            #"global_cycle_seconds": 1.2e-09,
+            "global_cycle_seconds": 1.2e-09,
             #"action_latency_cycles": 1,
             #"cycle_seconds": 1.2e-09,
             #"n_instances": 1,
@@ -158,7 +204,7 @@ if __name__ == "__main__":
             #"n_instances": 1,
             #"technology": "32nm",
         }
-    })*64 + accelergy_estimate_energy(query={ # the 64 comes from smartbuffer_RF with max(64, depth)
+    })*std_depth*dynamic_energy_scale + accelergy_estimate_energy(query={ # the 64 comes from smartbuffer_RF with max(64, depth)
         "class_name": "intadder",
         "attributes": {
             "n_bits": 8,
@@ -180,8 +226,106 @@ if __name__ == "__main__":
             #"technology": "32nm",
         }
     })*1, "pJ") # these are the 2 (whops, only 1 used while reading) address generators
+    print("Register leak estimation test:", accelergy_estimate_energy(query={
+        "class_name": "aladdin_register",
+        "attributes": {
+            "global_cycle_seconds": 1.2e-09,
+            #"action_latency_cycles": 1,
+            #"cycle_seconds": 1.2e-09,
+            #"n_instances": 1,
+            "technology": "32nm",
+            #"n_banks": 1,
+            #"latency": "5ns"
+        },
+        "action_name": "leak",
+        "arguments": {
+            #"global_cycle_seconds": 1.2e-09,
+            #"action_latency_cycles": 1
+            #"cycle_seconds": 1.2e-09,
+            #"n_instances": 1,
+            #"technology": "32nm",
+        }
+    })*std_width*std_depth*static_energy_scale + accelergy_estimate_energy(query={ # the 32 comes from smartbuffer_RF with max(32, width)
+        "class_name": "aladdin_comparator",
+        "attributes": {
+            "global_cycle_seconds": 1.2e-09,
+            #"action_latency_cycles": 1,
+            #"cycle_seconds": 1.2e-09,
+            #"n_instances": 1,
+            "technology": "32nm",
+            #"n_banks": 1,
+            #"latency": "5ns"
+        },
+        "action_name": "leak",
+        "arguments": {
+            #"global_cycle_seconds": 1.2e-09,
+            #"action_latency_cycles": 1
+            #"cycle_seconds": 1.2e-09,
+            #"n_instances": 1,
+            #"technology": "32nm",
+        }
+    })*std_depth*static_energy_scale + accelergy_estimate_energy(query={ # the 64 comes from smartbuffer_RF with max(64, depth)
+        "class_name": "intadder",
+        "attributes": {
+            "n_bits": 8,
+            "precision": 8,
+            "datawidth": 8,
+            #"n_instances": 1,
+            "technology": "32nm",
+            "global_cycle_seconds": 1.2e-09,
+            "cycle_seconds": 1.2e-09,
+            #"action_latency_cycles": 1
+            #"latency": "5ns"
+        },
+        "action_name": "leak",
+        "arguments": {
+            #"global_cycle_seconds": 1.2e-09,
+            #"action_latency_cycles": 1
+            #"cycle_seconds": 1.2e-09,
+            #"n_instances": 1,
+            #"technology": "32nm",
+        }
+    })*2, "pJ") # these are the 2 address generators
 
-    print("MAC estimation test:", accelergy_estimate_energy(query={
+    area_scale = static_energy_scale
+    print("Register area estimation test:", accelergy_estimate_area(query={
+        "class_name": "aladdin_register",
+        "attributes": {
+            "global_cycle_seconds": 1.2e-09,
+            #"action_latency_cycles": 1,
+            #"cycle_seconds": 1.2e-09,
+            #"n_instances": 1,
+            "technology": "32nm",
+            #"n_banks": 1,
+            #"latency": "5ns"
+        }
+    })*std_width*std_depth*area_scale + accelergy_estimate_area(query={ # the 32 comes from smartbuffer_RF with max(32, width)
+        "class_name": "aladdin_comparator",
+        "attributes": {
+            "global_cycle_seconds": 1.2e-09,
+            #"action_latency_cycles": 1,
+            #"cycle_seconds": 1.2e-09,
+            #"n_instances": 1,
+            "technology": "32nm",
+            #"n_banks": 1,
+            #"latency": "5ns"
+        }
+    })*std_depth*area_scale + accelergy_estimate_area(query={ # the 64 comes from smartbuffer_RF with max(64, depth)
+        "class_name": "intadder",
+        "attributes": {
+            "n_bits": 8,
+            "precision": 8,
+            "datawidth": 8,
+            #"n_instances": 1,
+            "technology": "32nm",
+            "global_cycle_seconds": 1.2e-09,
+            "cycle_seconds": 1.2e-09,
+            #"action_latency_cycles": 1
+            #"latency": "5ns"
+        }
+    })*2, "um^2") # these are the 2 address generators
+
+    print("MAC compute (read) estimation test:", accelergy_estimate_energy(query={
         "class_name": "aladdin_adder",
         "attributes": {
             # output bitwidth
@@ -221,3 +365,28 @@ if __name__ == "__main__":
             #"n_instances": 1,
         }
     }), "pJ")
+
+    print("MAC area estimation test:", accelergy_estimate_area(query={
+        "class_name": "aladdin_adder",
+        "attributes": {
+            # output bitwidth
+            "width": 16,
+            #"global_cycle_seconds": 1.2e-09,
+            #"action_latency_cycles": 1,
+            #"cycle_seconds": 1.2e-09,
+            "technology": "32nm",
+            #"n_instances": 1,
+        }
+    }) + accelergy_estimate_area(query={
+        "class_name": "aladdin_adder",
+        "attributes": {
+            # the two operands bitwidths
+            "width_a": 8,
+            "width_b": 8,
+            #"global_cycle_seconds": 1.2e-09,
+            #"action_latency_cycles": 1,
+            #"cycle_seconds": 1.2e-09,
+            "technology": "32nm",
+            #"n_instances": 1,
+        }
+    }), "um^2")

@@ -1,5 +1,6 @@
 from architectures.architectures import WS, OS, IS
 from levels import *
+from arch import *
 
 
 # >>> GEMMINI <<<
@@ -7,7 +8,7 @@ from levels import *
 
 # SOLUTION GIVEN BY TIMELOOP:
 # Comp: bert large KQV
-arch_gemmini_timeloop = [
+arch_gemmini_timeloop = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'K', 'M'],
@@ -58,16 +59,16 @@ arch_gemmini_timeloop = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY FF:
 # Comp: bert large KQV
-arch_gemmini_factorflow_1 = [
+arch_gemmini_factorflow_1 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'K', 'M'],
@@ -118,16 +119,16 @@ arch_gemmini_factorflow_1 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY FF:
 # Comp: bert large KQV
-arch_gemmini_factorflow_2 = [
+arch_gemmini_factorflow_2 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'K', 'M'],
@@ -178,19 +179,19 @@ arch_gemmini_factorflow_2 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 
 # >>> EYERISS <<<
 
 # SOLUTION GIVEN BY TIMELOOP:
 # Comp: bert large KQV
-arch_eyeriss_timeloop = [
+arch_eyeriss_timeloop = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'M', 'K'],
@@ -250,16 +251,16 @@ arch_eyeriss_timeloop = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY TIMELOOP EXHAUSTIVE:
 # Comp: maestro BLAS 4
-arch_eyeriss_timeloop_ex_1 = [
+arch_eyeriss_timeloop_ex_1 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'M', 'K'],
@@ -334,16 +335,16 @@ arch_eyeriss_timeloop_ex_1 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY TIMELOOP EXHAUSTIVE:
 # Comp: bert large KQV
-arch_eyeriss_timeloop_ex_2 = [
+arch_eyeriss_timeloop_ex_2 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'M', 'K'],
@@ -418,16 +419,16 @@ arch_eyeriss_timeloop_ex_2 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY FF:
 # Comp: bert large KQV
-arch_eyeriss_factorflow_1 = [
+arch_eyeriss_factorflow_1 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'M', 'K'],
@@ -487,19 +488,19 @@ arch_eyeriss_factorflow_1 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 
 # >>> SIMBA <<<
 
 # SOLUTION GIVEN BY TIMELOOP:
 # Comp: bert large KQV
-arch_simba_timeloop = [
+arch_simba_timeloop = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'M', 'K'],
@@ -574,16 +575,16 @@ arch_simba_timeloop = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY FF:
 # Comp: bert large KQV
-arch_simba_factorflow_1 = [
+arch_simba_factorflow_1 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['K', 'M', 'N'],
@@ -658,19 +659,19 @@ arch_simba_factorflow_1 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 
 # >>> TPU <<<
 
 # SOLUTION GIVEN BY FF:
 # Comp: bert large KQV
-arch_tpu_factorflow_1 = [
+arch_tpu_factorflow_1 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'K', 'M'],
@@ -741,16 +742,16 @@ arch_tpu_factorflow_1 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY TIMELOOP EXHAUSTIVE:
 # Comp: maestro BLAS 6
-arch_tpu_timeloop_ex = [
+arch_tpu_timeloop_ex = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'K', 'M'],
@@ -839,9 +840,9 @@ arch_tpu_timeloop_ex = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])

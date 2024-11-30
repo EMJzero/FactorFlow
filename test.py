@@ -1,20 +1,23 @@
+from typing import Union
+
 from architectures.solutions_db import *
+from prints import prettyPrint
 from factors import *
 from engine import *
 from utils import *
-from prints import prettyPrint
+from arch import *
 
 """
 Runs a test by recoputing an architecture's statistics given a mapping in
 the form of a complete constraints set. The test passes iif all the newly
 evaluated statistics match those in "correct_data".
 """
-def runTest(arch, correct_data, comp, bias_read):
-    initFactors(arch, comp)
-    enforceFactorsConstraints(arch)
-    assert checkDataflowConstraints(arch), "Dataflow constraints violated."
-    setupBypasses(arch)
-    updateInstances(arch)
+def runTest(arch : Arch, correct_data : list[dict[str, Union[int, float]]], comp : Shape, bias_read : bool) -> None:
+    arch.initFactors(comp)
+    arch.enforceFactorsConstraints()
+    assert arch.checkDataflowConstraints(), "Dataflow constraints violated."
+    arch.setupBypasses()
+    arch.updateInstances()
     updateStats(arch, bias_read)
     mem = list(filter(lambda l : isinstance(l, MemLevel), arch))
     passed = True
@@ -32,7 +35,7 @@ Helper function that dumps the entirety of an architecture's MOPs statistics
 in the form of python code for an array of dictionaries, the same as those
 below in this file.
 """
-def generateTestMOPs(arch):
+def generateTestMOPs(arch : Arch) -> None:
     string = "correct_mops = ["
     indentation = 1
     for level in arch:
@@ -55,7 +58,7 @@ Helper function that dumps the entirety of an architecture's latency statistics
 in the form of python code for an array of dictionaries, the same as those
 below in this file.
 """
-def generateTestLatency(arch):
+def generateTestLatency(arch : Arch) -> None:
     string = "correct_latency = ["
     indentation = 1
     for level in arch:

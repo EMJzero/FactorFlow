@@ -1,5 +1,6 @@
-from architectures import WS, OS, IS
+from architectures.architectures import WS, OS, IS
 from levels import *
+from arch import *
 
 # ZigZag conversions:
 # K -> M
@@ -10,7 +11,7 @@ from levels import *
 # > WS version  <
 
 # Modified architecture with split-memories
-arch_gemmini_zigzag_compatible = [
+arch_gemmini_zigzag_compatible = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = [], #['N', 'K', 'M'],
@@ -76,19 +77,19 @@ arch_gemmini_zigzag_compatible = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # NOTE: unfair compared to the Gemmini architecture in "architectures.py"
 #       because LOMA can "split" memories at will. Hence compare only
 #       with the Gemmini version in this file!
 # Comp: bert large KQV
-arch_gemmini_zigzag_loma_kqv = [
+arch_gemmini_zigzag_loma_kqv = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'K', 'M'],
@@ -148,16 +149,16 @@ arch_gemmini_zigzag_loma_kqv = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: bert large VScores
-arch_gemmini_zigzag_loma_vscores = [
+arch_gemmini_zigzag_loma_vscores = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'K', 'M'],
@@ -217,16 +218,16 @@ arch_gemmini_zigzag_loma_vscores = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: bert large KTQ
-arch_gemmini_zigzag_loma_ktq = [
+arch_gemmini_zigzag_loma_ktq = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'K', 'M'],
@@ -277,16 +278,16 @@ arch_gemmini_zigzag_loma_ktq = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: bert large FF1
-arch_gemmini_zigzag_loma_ff1 = [
+arch_gemmini_zigzag_loma_ff1 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['M', 'K', 'N'],
@@ -337,16 +338,16 @@ arch_gemmini_zigzag_loma_ff1 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 1
-arch_gemmini_zigzag_loma_mb1 = [
+arch_gemmini_zigzag_loma_mb1 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['K', 'M', 'N'],
@@ -397,16 +398,16 @@ arch_gemmini_zigzag_loma_mb1 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 2
-arch_gemmini_zigzag_loma_mb2 = [
+arch_gemmini_zigzag_loma_mb2 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'K', 'M'],
@@ -457,16 +458,16 @@ arch_gemmini_zigzag_loma_mb2 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 3
-arch_gemmini_zigzag_loma_mb3 = [
+arch_gemmini_zigzag_loma_mb3 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'K', 'M'],
@@ -517,16 +518,16 @@ arch_gemmini_zigzag_loma_mb3 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 4
-arch_gemmini_zigzag_loma_mb4 = [
+arch_gemmini_zigzag_loma_mb4 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'K', 'M'],
@@ -586,16 +587,16 @@ arch_gemmini_zigzag_loma_mb4 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 5
-arch_gemmini_zigzag_loma_mb5 = [
+arch_gemmini_zigzag_loma_mb5 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'K', 'M'],
@@ -655,16 +656,16 @@ arch_gemmini_zigzag_loma_mb5 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 6
-arch_gemmini_zigzag_loma_mb6 = [
+arch_gemmini_zigzag_loma_mb6 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'K', 'M'],
@@ -715,16 +716,16 @@ arch_gemmini_zigzag_loma_mb6 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: bert large KQV
-arch_gemmini_zigzag_salsa_kqv = [
+arch_gemmini_zigzag_salsa_kqv = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['M', 'K', 'N'],
@@ -775,16 +776,16 @@ arch_gemmini_zigzag_salsa_kqv = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: bert large KTQ
-arch_gemmini_zigzag_salsa_ktq = [
+arch_gemmini_zigzag_salsa_ktq = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'M', 'K'],
@@ -835,16 +836,16 @@ arch_gemmini_zigzag_salsa_ktq = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: bert large VScores
-arch_gemmini_zigzag_salsa_vscores = [
+arch_gemmini_zigzag_salsa_vscores = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['M', 'K', 'N'],
@@ -904,16 +905,16 @@ arch_gemmini_zigzag_salsa_vscores = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: bert large FF1
-arch_gemmini_zigzag_salsa_ff1 = [
+arch_gemmini_zigzag_salsa_ff1 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'K', 'M'],
@@ -964,16 +965,16 @@ arch_gemmini_zigzag_salsa_ff1 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 1
-arch_gemmini_zigzag_salsa_mb1 = [
+arch_gemmini_zigzag_salsa_mb1 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'K', 'M'],
@@ -1024,16 +1025,16 @@ arch_gemmini_zigzag_salsa_mb1 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 2
-arch_gemmini_zigzag_salsa_mb2 = [
+arch_gemmini_zigzag_salsa_mb2 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['K', 'N', 'M'],
@@ -1084,16 +1085,16 @@ arch_gemmini_zigzag_salsa_mb2 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 3
-arch_gemmini_zigzag_salsa_mb3 = [
+arch_gemmini_zigzag_salsa_mb3 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['M', 'K', 'N'],
@@ -1144,16 +1145,16 @@ arch_gemmini_zigzag_salsa_mb3 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 4
-arch_gemmini_zigzag_salsa_mb4 = [
+arch_gemmini_zigzag_salsa_mb4 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['M', 'K', 'N'],
@@ -1213,16 +1214,16 @@ arch_gemmini_zigzag_salsa_mb4 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 5
-arch_gemmini_zigzag_salsa_mb5 = [
+arch_gemmini_zigzag_salsa_mb5 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['M', 'K', 'N'],
@@ -1282,16 +1283,16 @@ arch_gemmini_zigzag_salsa_mb5 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 6
-arch_gemmini_zigzag_salsa_mb6 = [
+arch_gemmini_zigzag_salsa_mb6 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['M', 'K', 'N'],
@@ -1342,18 +1343,18 @@ arch_gemmini_zigzag_salsa_mb6 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 
 # >>> EYERISS <<<
 
 # Modified architecture with split-memories
-arch_eyeriss_zigzag_compatible = [
+arch_eyeriss_zigzag_compatible = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = [], # ['N', 'M', 'K'],
@@ -1414,15 +1415,15 @@ arch_eyeriss_zigzag_compatible = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # Modified architecture without constraints
-arch_eyeriss_zigzag_compatible_2 = [
+arch_eyeriss_zigzag_compatible_2 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = [], # ['N', 'M', 'K'],
@@ -1483,17 +1484,17 @@ arch_eyeriss_zigzag_compatible_2 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # NOTE: solution obtained by constraining the fanout levels to the known best. Ignore.
 # Comp: bert large KQV
-arch_eyeriss_zigzag_loma_kqv = [
+arch_eyeriss_zigzag_loma_kqv = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['M', 'N', 'K'],
@@ -1553,19 +1554,19 @@ arch_eyeriss_zigzag_loma_kqv = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # NOTE: unfair compared to the Eyeriss architecture in "architectures.py"
 #       because LOMA can "split" memories at will. Hence compare only
 #       with the Eyeriss version in this file!
 # Comp: bert large VScores
-arch_eyeriss_zigzag_loma_vscores = [
+arch_eyeriss_zigzag_loma_vscores = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['K', 'M', 'N'],
@@ -1625,19 +1626,19 @@ arch_eyeriss_zigzag_loma_vscores = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # NOTE: unfair compared to the Eyeriss architecture in "architectures.py"
 #       because LOMA can "split" memories at will. Hence compare only
 #       with the Eyeriss version in this file!
 # Comp: bert large VScores
-arch_eyeriss_zigzag_loma_vscores = [
+arch_eyeriss_zigzag_loma_vscores = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['M', 'K', 'N'],
@@ -1697,16 +1698,16 @@ arch_eyeriss_zigzag_loma_vscores = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: bert large KTQ
-arch_eyeriss_zigzag_loma_ktq = [
+arch_eyeriss_zigzag_loma_ktq = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['M', 'N', 'K'],
@@ -1766,16 +1767,16 @@ arch_eyeriss_zigzag_loma_ktq = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: bert large FF1
-arch_eyeriss_zigzag_loma_ff1 = [
+arch_eyeriss_zigzag_loma_ff1 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['K', 'M', 'N'],
@@ -1835,16 +1836,16 @@ arch_eyeriss_zigzag_loma_ff1 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 1
-arch_eyeriss_zigzag_loma_mb1 = [
+arch_eyeriss_zigzag_loma_mb1 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['M', 'N', 'K'],
@@ -1904,16 +1905,16 @@ arch_eyeriss_zigzag_loma_mb1 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 2
-arch_eyeriss_zigzag_loma_mb2 = [
+arch_eyeriss_zigzag_loma_mb2 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['K', 'M', 'N'],
@@ -1973,16 +1974,16 @@ arch_eyeriss_zigzag_loma_mb2 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 3
-arch_eyeriss_zigzag_loma_mb3 = [
+arch_eyeriss_zigzag_loma_mb3 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['M', 'N', 'K'],
@@ -2042,16 +2043,16 @@ arch_eyeriss_zigzag_loma_mb3 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 4
-arch_eyeriss_zigzag_loma_mb4 = [
+arch_eyeriss_zigzag_loma_mb4 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['M', 'N', 'K'],
@@ -2120,16 +2121,16 @@ arch_eyeriss_zigzag_loma_mb4 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 5
-arch_eyeriss_zigzag_loma_mb5 = [
+arch_eyeriss_zigzag_loma_mb5 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['M', 'N', 'K'],
@@ -2189,16 +2190,16 @@ arch_eyeriss_zigzag_loma_mb5 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 6
-arch_eyeriss_zigzag_loma_mb6 = [
+arch_eyeriss_zigzag_loma_mb6 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['M', 'N', 'K'],
@@ -2267,16 +2268,16 @@ arch_eyeriss_zigzag_loma_mb6 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: bert large KQV
-arch_eyeriss_zigzag_salsa_kqv = [
+arch_eyeriss_zigzag_salsa_kqv = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'M', 'K'],
@@ -2336,16 +2337,16 @@ arch_eyeriss_zigzag_salsa_kqv = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: bert large KTQ
-arch_eyeriss_zigzag_salsa_ktq = [
+arch_eyeriss_zigzag_salsa_ktq = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'M', 'K'],
@@ -2405,16 +2406,16 @@ arch_eyeriss_zigzag_salsa_ktq = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: bert large VScores
-arch_eyeriss_zigzag_salsa_vscores = [
+arch_eyeriss_zigzag_salsa_vscores = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'M', 'K'],
@@ -2483,16 +2484,16 @@ arch_eyeriss_zigzag_salsa_vscores = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: bert large FF1
-arch_eyeriss_zigzag_salsa_ff1 = [
+arch_eyeriss_zigzag_salsa_ff1 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'M', 'K'],
@@ -2552,16 +2553,16 @@ arch_eyeriss_zigzag_salsa_ff1 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 1
-arch_eyeriss_zigzag_salsa_mb1 = [
+arch_eyeriss_zigzag_salsa_mb1 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['M', 'N', 'K'],
@@ -2621,16 +2622,16 @@ arch_eyeriss_zigzag_salsa_mb1 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 2
-arch_eyeriss_zigzag_salsa_mb2 = [
+arch_eyeriss_zigzag_salsa_mb2 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['M', 'N', 'K'],
@@ -2690,16 +2691,16 @@ arch_eyeriss_zigzag_salsa_mb2 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 3
-arch_eyeriss_zigzag_salsa_mb3 = [
+arch_eyeriss_zigzag_salsa_mb3 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['K', 'M', 'N'],
@@ -2759,16 +2760,16 @@ arch_eyeriss_zigzag_salsa_mb3 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 4
-arch_eyeriss_zigzag_salsa_mb4 = [
+arch_eyeriss_zigzag_salsa_mb4 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['K', 'M', 'N'],
@@ -2837,16 +2838,16 @@ arch_eyeriss_zigzag_salsa_mb4 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 5
-arch_eyeriss_zigzag_salsa_mb5 = [
+arch_eyeriss_zigzag_salsa_mb5 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['K', 'M', 'N'],
@@ -2906,16 +2907,16 @@ arch_eyeriss_zigzag_salsa_mb5 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 6
-arch_eyeriss_zigzag_salsa_mb6 = [
+arch_eyeriss_zigzag_salsa_mb6 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['K', 'M', 'N'],
@@ -2975,19 +2976,19 @@ arch_eyeriss_zigzag_salsa_mb6 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 
 # >>> SIMBA <<<
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: bert large KQV
-arch_simba_zigzag_loma_kqv = [
+arch_simba_zigzag_loma_kqv = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['M', 'N', 'K'],
@@ -3062,16 +3063,16 @@ arch_simba_zigzag_loma_kqv = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: bert large VScores
-arch_simba_zigzag_loma_vscores = [
+arch_simba_zigzag_loma_vscores = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['M', 'N', 'K'],
@@ -3146,16 +3147,16 @@ arch_simba_zigzag_loma_vscores = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: bert large KTQ
-arch_simba_zigzag_loma_ktq = [
+arch_simba_zigzag_loma_ktq = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['M', 'N', 'K'],
@@ -3230,16 +3231,16 @@ arch_simba_zigzag_loma_ktq = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: bert large FF1
-arch_simba_zigzag_loma_ff1 = [
+arch_simba_zigzag_loma_ff1 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['M', 'N', 'K'],
@@ -3314,16 +3315,16 @@ arch_simba_zigzag_loma_ff1 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 1
-arch_simba_zigzag_loma_mb1 = [
+arch_simba_zigzag_loma_mb1 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['K', 'N', 'M'],
@@ -3398,16 +3399,16 @@ arch_simba_zigzag_loma_mb1 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 2
-arch_simba_zigzag_loma_mb2 = [
+arch_simba_zigzag_loma_mb2 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['M', 'N', 'K'],
@@ -3482,16 +3483,16 @@ arch_simba_zigzag_loma_mb2 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 3
-arch_simba_zigzag_loma_mb3 = [
+arch_simba_zigzag_loma_mb3 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['M', 'N', 'K'],
@@ -3566,16 +3567,16 @@ arch_simba_zigzag_loma_mb3 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 4
-arch_simba_zigzag_loma_mb4 = [
+arch_simba_zigzag_loma_mb4 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['M', 'N', 'K'],
@@ -3650,16 +3651,16 @@ arch_simba_zigzag_loma_mb4 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 5
-arch_simba_zigzag_loma_mb5 = [
+arch_simba_zigzag_loma_mb5 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['M', 'N', 'K'],
@@ -3734,16 +3735,16 @@ arch_simba_zigzag_loma_mb5 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 6
-arch_simba_zigzag_loma_mb6 = [
+arch_simba_zigzag_loma_mb6 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['M', 'N', 'K'],
@@ -3818,16 +3819,16 @@ arch_simba_zigzag_loma_mb6 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: bert large KQV
-arch_simba_zigzag_salsa_kqv = [
+arch_simba_zigzag_salsa_kqv = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['M', 'N', 'K'],
@@ -3911,16 +3912,16 @@ arch_simba_zigzag_salsa_kqv = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: bert large KTQ
-arch_simba_zigzag_salsa_ktq = [
+arch_simba_zigzag_salsa_ktq = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['M', 'N', 'K'],
@@ -4004,16 +4005,16 @@ arch_simba_zigzag_salsa_ktq = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: bert large VScores
-arch_simba_zigzag_salsa_vscores = [
+arch_simba_zigzag_salsa_vscores = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['M', 'N', 'K'],
@@ -4097,16 +4098,16 @@ arch_simba_zigzag_salsa_vscores = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: bert large FF1
-arch_simba_zigzag_salsa_ff1 = [
+arch_simba_zigzag_salsa_ff1 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['M', 'N', 'K'],
@@ -4190,16 +4191,16 @@ arch_simba_zigzag_salsa_ff1 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 1
-arch_simba_zigzag_salsa_mb1 = [
+arch_simba_zigzag_salsa_mb1 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['M', 'K', 'N'],
@@ -4283,16 +4284,16 @@ arch_simba_zigzag_salsa_mb1 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 2
-arch_simba_zigzag_salsa_mb2 = [
+arch_simba_zigzag_salsa_mb2 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['M', 'K', 'N'],
@@ -4376,16 +4377,16 @@ arch_simba_zigzag_salsa_mb2 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 3
-arch_simba_zigzag_salsa_mb3 = [
+arch_simba_zigzag_salsa_mb3 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['M', 'N', 'K'],
@@ -4460,16 +4461,16 @@ arch_simba_zigzag_salsa_mb3 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 4
-arch_simba_zigzag_salsa_mb4 = [
+arch_simba_zigzag_salsa_mb4 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['M', 'N', 'K'],
@@ -4553,16 +4554,16 @@ arch_simba_zigzag_salsa_mb4 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 5
-arch_simba_zigzag_salsa_mb5 = [
+arch_simba_zigzag_salsa_mb5 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['M', 'N', 'K'],
@@ -4637,16 +4638,16 @@ arch_simba_zigzag_salsa_mb5 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 6
-arch_simba_zigzag_salsa_mb6 = [
+arch_simba_zigzag_salsa_mb6 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['M', 'N', 'K'],
@@ -4721,19 +4722,19 @@ arch_simba_zigzag_salsa_mb6 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 
 # >>> TPU <<<
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: bert large KQV
-arch_tpu_zigzag_loma_kqv = [
+arch_tpu_zigzag_loma_kqv = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'K', 'M'],
@@ -4804,16 +4805,16 @@ arch_tpu_zigzag_loma_kqv = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: bert large KTQ
-arch_tpu_zigzag_loma_ktq = [
+arch_tpu_zigzag_loma_ktq = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'K', 'M'],
@@ -4884,16 +4885,16 @@ arch_tpu_zigzag_loma_ktq = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: bert large VScores
-arch_tpu_zigzag_loma_vscores = [
+arch_tpu_zigzag_loma_vscores = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'K', 'M'],
@@ -4964,16 +4965,16 @@ arch_tpu_zigzag_loma_vscores = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: bert large FF1
-arch_tpu_zigzag_loma_ff1 = [
+arch_tpu_zigzag_loma_ff1 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'K', 'M'],
@@ -5044,16 +5045,16 @@ arch_tpu_zigzag_loma_ff1 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 1
-arch_tpu_zigzag_loma_mb1 = [
+arch_tpu_zigzag_loma_mb1 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'K', 'M'],
@@ -5124,16 +5125,16 @@ arch_tpu_zigzag_loma_mb1 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 2
-arch_tpu_zigzag_loma_mb2 = [
+arch_tpu_zigzag_loma_mb2 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'K', 'M'],
@@ -5204,16 +5205,16 @@ arch_tpu_zigzag_loma_mb2 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 3
-arch_tpu_zigzag_loma_mb3 = [
+arch_tpu_zigzag_loma_mb3 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'K', 'M'],
@@ -5284,16 +5285,16 @@ arch_tpu_zigzag_loma_mb3 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 4
-arch_tpu_zigzag_loma_mb4 = [
+arch_tpu_zigzag_loma_mb4 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'K', 'M'],
@@ -5364,16 +5365,16 @@ arch_tpu_zigzag_loma_mb4 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 5
-arch_tpu_zigzag_loma_mb5 = [
+arch_tpu_zigzag_loma_mb5 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'K', 'M'],
@@ -5444,16 +5445,16 @@ arch_tpu_zigzag_loma_mb5 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 6
-arch_tpu_zigzag_loma_mb6 = [
+arch_tpu_zigzag_loma_mb6 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'K', 'M'],
@@ -5524,16 +5525,16 @@ arch_tpu_zigzag_loma_mb6 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: bert large KQV
-arch_tpu_zigzag_salsa_kqv = [
+arch_tpu_zigzag_salsa_kqv = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'K', 'M'],
@@ -5604,16 +5605,16 @@ arch_tpu_zigzag_salsa_kqv = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: bert large KTQ
-arch_tpu_zigzag_salsa_ktq = [
+arch_tpu_zigzag_salsa_ktq = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'K', 'M'],
@@ -5684,16 +5685,16 @@ arch_tpu_zigzag_salsa_ktq = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: bert large VScores
-arch_tpu_zigzag_salsa_vscores = [
+arch_tpu_zigzag_salsa_vscores = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'K', 'M'],
@@ -5764,16 +5765,16 @@ arch_tpu_zigzag_salsa_vscores = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: bert large FF1
-arch_tpu_zigzag_salsa_ff1 = [
+arch_tpu_zigzag_salsa_ff1 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'K', 'M'],
@@ -5844,16 +5845,16 @@ arch_tpu_zigzag_salsa_ff1 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 1
-arch_tpu_zigzag_salsa_mb1 = [
+arch_tpu_zigzag_salsa_mb1 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['K', 'N', 'M'],
@@ -5924,16 +5925,16 @@ arch_tpu_zigzag_salsa_mb1 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 2
-arch_tpu_zigzag_salsa_mb2 = [
+arch_tpu_zigzag_salsa_mb2 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'K', 'M'],
@@ -6004,16 +6005,16 @@ arch_tpu_zigzag_salsa_mb2 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 3
-arch_tpu_zigzag_salsa_mb3 = [
+arch_tpu_zigzag_salsa_mb3 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'K', 'M'],
@@ -6084,16 +6085,16 @@ arch_tpu_zigzag_salsa_mb3 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 4
-arch_tpu_zigzag_salsa_mb4 = [
+arch_tpu_zigzag_salsa_mb4 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'K', 'M'],
@@ -6164,16 +6165,16 @@ arch_tpu_zigzag_salsa_mb4 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 5
-arch_tpu_zigzag_salsa_mb5 = [
+arch_tpu_zigzag_salsa_mb5 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'K', 'M'],
@@ -6244,16 +6245,16 @@ arch_tpu_zigzag_salsa_mb5 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 6
-arch_tpu_zigzag_salsa_mb6 = [
+arch_tpu_zigzag_salsa_mb6 = Arch([
     MemLevel(
         name = "DRAM",
         dataflow_constraints = ['N', 'K', 'M'],
@@ -6324,9 +6325,9 @@ arch_tpu_zigzag_salsa_mb6 = [
     ),
     ComputeLevel(
         name = "Compute",
-        dataflow = WS[2],
-        size = 1,
+        dim= WS[2],
+        mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )]
+    )])

@@ -16,10 +16,9 @@ from levels import *
 from prints import *
 from utils import *
 
-#from solutions_db import *
+#from architectures.solutions_db import *
 #from comparisons.ZigZag.zigzag_archs import *
 #from comparisons.CoSA.cosa_archs import *
-#from comparisons.MAESTRO.maestro_archs import *
 
 
 # CLI MANAGEMENT
@@ -56,6 +55,7 @@ def parse_options():
         "help": args_match_and_remove("-h") or args_match_and_remove("--help"),
         "bias": args_match_and_remove("-b") or args_match_and_remove("--bias"),
         "processes": args_match_and_remove("-p", True) or args_match_and_remove("--processes", True),
+        "accelergy-data": args_match_and_remove("-ad") or args_match_and_remove("--accelergy-data"),
         "tryall": args_match_and_remove("-ta") or args_match_and_remove("--tryall"),
         "gen-tests": args_match_and_remove("-gt") or args_match_and_remove("--gen-tests")
     }
@@ -66,6 +66,7 @@ def help_options():
     print("-h, --help\t\tDisplay this help menu.")
     print("-b --bias\t\tIf set, the bias is considered present in the GEMM, otherwise it is assumed absent.")
     print("-p --processes\t\tSets the number of concurrent processes to use.")
+    print("-ad --accelergy-data\tQuery Accelergy instead of using hardcoded component level estimates, effective only if arg. 1 is an architecture name.")
     print("-ta --tryall\t\tOverrides normal execution, runs FF for all known architectures and GEMMs.")
     print("-gt --gen-tests\t\tOverrides normal execution, runs FF and generates tests to enforce the obtained results.")
 
@@ -98,6 +99,9 @@ if __name__ == "__main__":
     options = parse_options()
     
     supported_archs = {"gemmini": arch_gemmini, "eyeriss": arch_eyeriss, "simba": arch_simba, "tpu": arch_tpu}
+    if options["accelergy-data"]:
+        from architectures.architectures_hw_data import *
+        supported_archs_accelergy = {"gemmini": get_arch_gemmini_hw_data, "eyeriss": get_arch_eyeriss_hw_data, "simba": get_arch_simba_hw_data, "tpu": get_arch_tpu_hw_data}
     supported_comps = comp_BERT_large | comp_maestro_blas
     
     if options["help"]:
@@ -109,7 +113,7 @@ if __name__ == "__main__":
         help_comp(supported_comps)
         print("------------------------------")
         sys.exit(1)
-        
+    
     if not options["tryall"]:
         if not (len(sys.argv) >= 2 and (sys.argv[1] in supported_archs or os.path.exists(sys.argv[1]) and sys.argv[1][-3:] == '.py')):
             help_arch(supported_archs)
@@ -117,8 +121,12 @@ if __name__ == "__main__":
             print("WARNING: no architecture provided, defaulting to \"eyeriss\"...\n")
         if len(sys.argv) >= 2:
             if sys.argv[1] in supported_archs:
-                arch = supported_archs[sys.argv[1]]
-                print("Architecture:", sys.argv[1])
+                if options["accelergy-data"]:
+                    arch = supported_archs_accelergy[sys.argv[1]]()
+                    print()
+                else:
+                    arch = supported_archs[sys.argv[1]]
+                    print("Architecture:", sys.argv[1])
             elif sys.argv[1][-3:] == '.py':
                 arch_file = importlib.util.spec_from_file_location("user_arch", sys.argv[1])
                 arch_module = importlib.util.module_from_spec(arch_file)
@@ -162,7 +170,7 @@ if __name__ == "__main__":
             #for comp_name, current_comp in zip(list(comp_maestro_blas.keys())[:2], list(comp_maestro_blas.values())[:2]):
                 current_arch_copy = copy.deepcopy(current_arch)
                 print(f"Now running FactorFlow on arch: {arch_name} and comp: {comp_name}...")
-                if fitConstraintsToComp(current_arch_copy, current_comp, arch_name, comp_name):
+                if not current_arch_copy.fitConstraintsToComp(current_comp, comp_name):
                     continue
                 edp, mops, energy, latency, utilization, end_time, _ = run_engine(current_arch_copy, current_comp, bias_read, verbose = False)
                 table.add_row([arch_name, comp_name, f"{edp:.3e}", f"{mops[0]+mops[1]:.0f}", f"{latency:.3e}", f"{energy:.3e}", f"{utilization:.3e}", f"{end_time:.3f}"] + extra_constant_columns_values)
@@ -171,7 +179,7 @@ if __name__ == "__main__":
     elif options["gen-tests"]:
         #Here changing settings does not propagate to processes, which reimport and reset settings.py
         #Settings.forcedSettingsUpdate(arch)
-        fitConstraintsToComp(arch, comp)
+        arch.fitConstraintsToComp(comp, enforce=True)
         edp, mops, energy, latency, utilization, _, arch = run_engine(arch, comp, bias_read, verbose = True)
         from test import generateTestMOPs, generateTestLatency
         print("\nGenerated tests:")
@@ -181,5 +189,5 @@ if __name__ == "__main__":
     else:
         #Here changing settings does not propagate to processes, which reimport and reset settings.py
         #Settings.forcedSettingsUpdate(arch)
-        fitConstraintsToComp(arch, comp)
+        arch.fitConstraintsToComp(comp, enforce=True)
         run_engine(arch, comp, bias_read, verbose = True)

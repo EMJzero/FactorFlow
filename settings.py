@@ -80,7 +80,7 @@ class Settings():
     - set some to best target the provided architecture.
     """
     @classmethod
-    def forcedSettingsUpdate(self, arch, verbose = True):
+    def forcedSettingsUpdate(self, arch, verbose : bool = True) -> None:
         #return
         for level in arch:
             if isinstance(level, FanoutLevel) and len(level.dims) >= 2:
@@ -102,7 +102,7 @@ class Settings():
         if verbose: print("")
         
     @classmethod
-    def toString(self):
+    def toString(self) -> str:
         res = "Settings("
         for k, v in vars(self).items():
             if not k.startswith("__"):
