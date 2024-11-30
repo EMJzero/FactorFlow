@@ -1,19 +1,20 @@
 import collections.abc
 
-from levels import *
 from factors import *
+from levels import *
+from arch import *
 
 """
 Returns a string with a pretty textual representation of the provided dictionary.
 """
-def prettyFormatDict(dictionary, level = 0):
+def prettyFormatDict(dictionary : dict, indent_level : int = 0) -> str:
     string = ""
     for key, value in (dictionary.items() if isinstance(dictionary, dict) else zip(["" for i in dictionary], dictionary)):
-        string += ''*level + (f"{key}: " if key != "" else "- ")
+        string += ''*indent_level + (f"{key}: " if key != "" else "- ")
         if isinstance(value, dict):
-            string += "\n" + prettyFormatDict(value, level + 4)
+            string += "\n" + prettyFormatDict(value, indent_level + 4)
         elif isinstance(value, list) and len(value) > 0 and isinstance(value[0], dict):
-            string += "\n" + prettyFormatDict(value, level + 4)
+            string += "\n" + prettyFormatDict(value, indent_level + 4)
         else:
             string += str(value)
         string += "\n"
@@ -26,7 +27,7 @@ Any other object should also work reasonably well.
 
 Any attribute or key appearing in 'omit_fields' will not be printed.
 """
-def prettyPrint(obj, omit_fields = None):
+def prettyPrint(obj : object, omit_fields : Optional[list[str]] = None) -> None:
     omit_fields = omit_fields if omit_fields else []
     seen = set()
     res = ""
@@ -84,7 +85,7 @@ Print to stdout a summary of the factors allocated to each dimension across the
 entire architecture. Dimensions order also reflects dataflows.
 If 'omitOnes' is True, dimension with a single iterations are omitted.
 """
-def printFactors(arch, omitOnes = True):
+def printFactors(arch : Arch, omitOnes : bool = True) -> None:
     for level in arch:
         fac_str = f"{level.name} -> "
         for dim in level.dataflow:
@@ -96,7 +97,7 @@ def printFactors(arch, omitOnes = True):
 Returns a summary string representing the factors allocated to each dimension
 across the entire architecture.
 """
-def factorsString(arch):
+def factorsString(arch : Arch) -> str:
     res = ""
     for level in arch:
         res += f"{level.name}["
@@ -109,7 +110,7 @@ def factorsString(arch):
 Print to stdout a summary of the tile sizes for each dimension across the
 entire architecture. Dimensions order also reflects dataflows.
 """
-def printTileSizes(arch):
+def printTileSizes(arch : Arch) -> None:
     for level in arch:
         fac_str = f"{level.name} -> "
         for dim in level.dataflow:
@@ -128,7 +129,8 @@ in the architecture, broken down per-operand. A few notes:
   since otherwise drain and updates are 0, while fill and read can be inferred
   from Tot_W and Tot_R respectively.
 """
-def printMOPs(arch, per_instance = False):
+
+def printMOPs(arch : Arch, per_instance : bool = False) -> None:
     tot_reads = 0
     tot_writes = 0
     WMOPs = 0
@@ -164,7 +166,8 @@ in the architecture, broken down per operation. A few notes:
   required to move data which exceed those required by the computation, thus
   forcing the latter to wait/stall.
 """
-def printLatency(arch):
+
+def printLatency(arch : Arch) -> None:
     max_latency, max_latency_level_name = 0, "<<Unavailable>>"
     for level in arch:
         if isinstance(level, MemLevel):
@@ -182,7 +185,8 @@ def printLatency(arch):
 Print to stdout the total amount of padding required by the different dimensions
 of the computation. This is non-zero iif the PADDED_MAPPINGS is True.
 """
-def printPadding(arch, comp):
+
+def printPadding(arch : Arch, comp : Shape) -> None:
     total_iterations = {dim: 1 for dim in arch.coupling.dims}
     for level in arch:
         for dim in arch.coupling.dims:
@@ -194,7 +198,7 @@ def printPadding(arch, comp):
 """
 Print to stdout the energy per action of the levels in the give architecture.
 """
-def printEnergyPerAction(arch):
+def printEnergyPerAction(arch : Arch) -> None:
     for level in arch:
         if isinstance(level, MemLevel):
             print(f"{level.name}:{chr(9) * (2 - (len(level.name) + 1)//8)}read {level.read_access_energy:.3e} pJ, write {level.write_access_energy:.3e} pJ, leak {level.leakage_energy:.3e} pJ/cc (values per wordline {level.values_per_wordline})")
@@ -204,7 +208,7 @@ def printEnergyPerAction(arch):
 """
 Print to stdout the area of the levels in the give architecture.
 """
-def printAreaPerLevel(arch):
+def printAreaPerLevel(arch : Arch) -> None:
     physical_instances = 1
     for level in arch:
         if level.area != None:
@@ -217,5 +221,5 @@ def printAreaPerLevel(arch):
 """
 Shorthand to invoke prettyPrint on an architecture.
 """
-def printArch(arch):
+def printArch(arch : Arch) -> None:
     prettyPrint(arch[::-1], ['arch'])

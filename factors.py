@@ -6,6 +6,8 @@ from math import prod
 
 from utils import *
 
+from typing import Optional, Union
+
 """
 Coupling defines the relationship between the dimensions and the tensors
 (operands) involved in a compute kernel. Tensors are 3: inputs, weights,
@@ -55,17 +57,17 @@ Constructor arguments:
 - in/w/out_strides: dictionary binding stride constant names to dimensions
 """
 class Coupling:
-    def __init__(self, dims : list[str], in_coupling : list[str], w_coupling : list[str], out_coupling : list[str], in_strides : dict[str, str] = None, w_strides : dict[str, str] = None, out_strides : dict[str, str] = None):
+    def __init__(self, dims : list[str], in_coupling : list[Union[str, list[str]]], w_coupling : list[Union[str, list[str]]], out_coupling : list[Union[str, list[str]]], in_strides : Optional[dict[str, str]] = None, w_strides : Optional[dict[str, str]] = None, out_strides : Optional[dict[str, str]] = None):
         assert all(dims.count(dim) == 1 for dim in dims), f"Invalid coupling: dims ({dims}) must not contain duplicates."
         assert is_two_levels_list(in_coupling) and is_two_levels_list(w_coupling) and is_two_levels_list(out_coupling), f"Invalid coupling: in_coupling ({in_coupling}), w_coupling ({w_coupling}), and out_coupling ({out_coupling}) must be one or two level lists, no more."
         
-        self.dims = dims
+        self.dims : list[str] = dims
         # TODO: implement a more elegant solution by redefining __iter__ for a two levels list, alternatively, make these sets!
         # TODO: (verify this once more -> good old %flat_out_coupling in the search bar) looking at how these are used in levels.py, making them sets seems the best option! Keep the uniqueness assert before the conversion to sets tho, or directly (also) accept a set as argument!
         # => Nevermind, as long as lists are short, this is fine...
-        self.flat_in_coupling = flatten_two_levels_list(in_coupling)
-        self.flat_w_coupling = flatten_two_levels_list(w_coupling)
-        self.flat_out_coupling = flatten_two_levels_list(out_coupling)
+        self.flat_in_coupling : list[str] = flatten_two_levels_list(in_coupling)
+        self.flat_w_coupling : list[str] = flatten_two_levels_list(w_coupling)
+        self.flat_out_coupling : list[str] = flatten_two_levels_list(out_coupling)
         # uncoupled dims are permitted, if there is a reason to model the whole kernel running multiple times
         assert all(dim in dims for dim in self.flat_in_coupling), f"Invalid coupling: in_coupling ({in_coupling}) must be a subset of dims ({dims})."
         assert all(dim in dims for dim in self.flat_w_coupling), f"Invalid coupling: w_coupling ({w_coupling}) must be a subset of dims ({dims})."
@@ -74,13 +76,13 @@ class Coupling:
         assert all(self.flat_w_coupling.count(dim) == 1 for dim in self.flat_w_coupling), f"Invalid coupling: w_coupling ({w_coupling}) must not use a dimension more than once, not even between sublists."
         assert all(self.flat_out_coupling.count(dim) == 1 for dim in self.flat_out_coupling), f"Invalid coupling: out_coupling ({out_coupling}) must not use a dimension more than once, not even between sublists."
         
-        self.in_coupling = list(map(lambda x : x if isinstance(x, list) else [x], in_coupling))
-        self.w_coupling = list(map(lambda x : x if isinstance(x, list) else [x], w_coupling))
-        self.out_coupling = list(map(lambda x : x if isinstance(x, list) else [x], out_coupling))
+        self.in_coupling : list[list[str]] = list(map(lambda x : x if isinstance(x, list) else [x], in_coupling))
+        self.w_coupling : list[list[str]] = list(map(lambda x : x if isinstance(x, list) else [x], w_coupling))
+        self.out_coupling : list[list[str]] = list(map(lambda x : x if isinstance(x, list) else [x], out_coupling))
         
-        self.in_strides = in_strides if in_strides else {}
-        self.w_strides = w_strides if w_strides else {}
-        self.out_strides = out_strides if out_strides else {}
+        self.in_strides : dict[str, str] = in_strides if in_strides else {}
+        self.w_strides : dict[str, str] = w_strides if w_strides else {}
+        self.out_strides : dict[str, str] = out_strides if out_strides else {}
         assert all(dim in self.dims for dim in self.in_strides.keys()), f"Invalid coupling: all keys assigned in in_strides {self.in_strides.keys()} must be dimensions of the coupling ({self.dims})."
         assert all(dim in self.dims for dim in self.w_strides.keys()), f"Invalid coupling: all keys assigned for w_strides {self.w_strides.keys()} must be dimensions of the coupling ({self.dims})."
         assert all(dim in self.dims for dim in self.out_strides.keys()), f"Invalid coupling: all keys assigned for out_strides {self.out_strides.keys()} must be dimensions of the coupling ({self.dims})."
@@ -99,7 +101,7 @@ class Coupling:
     If True, the provided comp's is valid for the present coupling.
     This means that all required dimensions are specified.
     """
-    def isCompatibleComp(self, comp: Shape):
+    def isCompatibleComp(self, comp: Shape) -> bool:
         return (all(dim in comp for dim in self.dims) and
                 all(dim in comp for dim in self.in_strides.values()) and
                 all(dim in comp for dim in self.w_strides.values()) and
@@ -110,7 +112,7 @@ class Coupling:
     architectural constraints and mappings. However, 'coupling' does not
     necessarily model a subset of the kernels modeled by the current coupling.
     """
-    def isCompatibleCoupling(self, coupling: Coupling):
+    def isCompatibleCoupling(self, coupling: Coupling) -> bool:
         return (all(dim in self.dims for dim in coupling.dims) and
                 all(dim in self.flat_in_coupling for dim in coupling.flat_in_coupling) and
                 all(dim in self.flat_w_coupling for dim in coupling.flat_w_coupling) and
@@ -124,7 +126,7 @@ class Coupling:
     dimensions (that is the same as those being of size 1). Therefore, 'coupling'
     can model a subset of the kernels modeled by the current coupling.
     """
-    def isSubcoupling(self, coupling : Coupling):
+    def isSubcoupling(self, coupling : Coupling) -> bool:
         return (self.isCompatibleCoupling(coupling) and
                 len(self.in_coupling) == len(coupling.in_coupling) and len(self.w_coupling) == len(coupling.w_coupling) and len(self.out_coupling) == len(coupling.out_coupling) and
                 any(all(set(dim_sum) <= set(self_dim_sum) for dim_sum, self_dim_sum in zip(coupling.in_coupling, perm)) for perm in permutations(self.in_coupling, len(coupling.in_coupling))) and
@@ -135,7 +137,7 @@ class Coupling:
     Returns the flat coupling list for the provided operand.
     Valid operand names are: 'in', 'w', and 'out'.
     """
-    def flatCouplingByOperand(self, operand):
+    def flatCouplingByOperand(self, operand : str) -> list[str]:
         if operand == 'in':
             return self.flat_in_coupling
         elif operand == 'w':
@@ -148,12 +150,12 @@ class Coupling:
     """
     Returns a compact string representing the coupling.
     """
-    def compactStr(self):
+    def compactStr(self) -> str:
         def coup2str(coupling, strides):
             return '[' + ']['.join(map(lambda dim_sum : '+'.join(map(lambda dim : strides[dim] + '*' + dim if dim in strides else dim, dim_sum)) if len(dim_sum) > 1 else dim_sum[0], coupling)) + ']'
         return f"dims: {''.join(self.dims)}, in_coupling: {coup2str(self.in_coupling, self.in_strides)}, w_coupling: {coup2str(self.w_coupling, self.w_strides)}, out_coupling: {coup2str(self.out_coupling, self.out_strides)}"
     
-    def __str__(self):
+    def __str__(self) -> str:
         return "{" + f"dims: {self.dims}, in_coupling: {self.in_coupling}, w_coupling: {self.w_coupling}, out_coupling: {self.out_coupling}, in_strides: {self.in_strides}, w_strides: {self.w_strides}, out_strides: {self.out_strides}" + "}"
 
 """
@@ -165,12 +167,12 @@ class Shape(dict[str, int]):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def memFootprint(self, coupling : Coupling):
+    def memFootprint(self, coupling : Coupling) -> int:
         return (prod(sum(self[dim] for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in coupling.in_coupling) +
                 prod(sum(self[dim] for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in coupling.w_coupling) +
                 prod(sum(self[dim] for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in coupling.out_coupling))
 
-    def FLOPs(self):
+    def FLOPs(self) -> int:
         return 2*prod(self.values())
 
     def fitToCoupling(self, coupling : Coupling):
@@ -178,7 +180,7 @@ class Shape(dict[str, int]):
             if dim not in self:
                 self[dim] = 1
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "{" + ", ".join(f"{k}: {v}" for k, v in self.items()) + "}"
 
 """
@@ -198,7 +200,7 @@ Constructor:
   and its value shall be a prime_factor->arity dictionary as above.
 """
 class Factors(dict[str, dict[int, int]]):
-    def __init__(self, iterable : list[str] | dict[str, dict[int, int]] = None, *args, **kwargs):
+    def __init__(self, iterable : Union[list[str], dict[str, dict[int, int]]] = None, *args, **kwargs):
         if isinstance(iterable, list):
             super().__init__()
             for dim in iterable:
@@ -208,13 +210,13 @@ class Factors(dict[str, dict[int, int]]):
         else:
             super().__init__(*args, **kwargs)
         
-        self._dim_products = {k: reduce(lambda tot, f_a : tot*(f_a[0]**f_a[1]), v.items(), 1) for k, v in self.items()}
+        self._dim_products : dict[str, int] = {k: reduce(lambda tot, f_a : tot*(f_a[0]**f_a[1]), v.items(), 1) for k, v in self.items()}
 
     """
     Add "amount" instances of the provided factor to those of
     "dimension" in the current set of factors.
     """
-    def addFactor(self, dimension, factor, amount):
+    def addFactor(self, dimension : str, factor : int, amount : int) -> None:
         if factor in self[dimension]:
             self[dimension][factor] += amount
         else:
@@ -227,7 +229,7 @@ class Factors(dict[str, dict[int, int]]):
     Return False if the removal failed because the current factors do
     not have at least "amount" instances of "factor" along "dimension".
     """
-    def removeFactor(self, dimension, factor, amount):
+    def removeFactor(self, dimension : str, factor : int, amount : int) -> bool:
         if factor not in self[dimension] or self[dimension][factor] < amount:
             return False
         self[dimension][factor] -= amount
@@ -240,11 +242,11 @@ class Factors(dict[str, dict[int, int]]):
     Product of all prime factors along a dimension, equivalent
     to the actual number of iterations along said dimension.
     """
-    def dimProduct(self, dimension):
+    def dimProduct(self, dimension : str) -> int:
         return self._dim_products[dimension]
 
     """Total number of iterations across all three dimensions."""
-    def fullProduct(self):
+    def fullProduct(self) -> int:
         return prod(self._dim_products.values())
 
     """
@@ -254,7 +256,7 @@ class Factors(dict[str, dict[int, int]]):
 
     Pass dimensions as an array of dimensions to only reset indicated ones.
     """
-    def resetDimProducts(self, dimensions = None):
+    def resetDimProducts(self, dimensions : Optional[str] = None) -> None:
         dimensions = dimensions if dimensions else self._dim_products.keys()
         for dim in dimensions:
             res = 1
@@ -268,7 +270,7 @@ class Factors(dict[str, dict[int, int]]):
     False if "subset" has an additional factor or more occurrencies
     of one along any of the three dimensions.
     """
-    def isSubset(self, subset):
+    def isSubset(self, subset : Factors) -> bool:
         for dim in subset.keys():
             for k, v in subset[dim].items():
                 if k not in self[dim] or v > self[dim][k]:
@@ -282,7 +284,7 @@ class Factors(dict[str, dict[int, int]]):
     (It is assumed that a level always stores all data for the
     iterations unfolding over it)
     """
-    def memFootprint(self, tile_sizes, coupling : Coupling, in_bp = 1, w_bp = 1, out_bp = 1):
+    def memFootprint(self, tile_sizes : Shape, coupling : Coupling, in_bp : bool = 1, w_bp : bool = 1, out_bp : bool = 1) -> int:
         return (prod(sum(tile_sizes[dim]*self._dim_products[dim] for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in coupling.in_coupling)*in_bp +
                 prod(sum(tile_sizes[dim]*self._dim_products[dim] for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in coupling.w_coupling)*w_bp +
                 prod(sum(tile_sizes[dim]*self._dim_products[dim] for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in coupling.out_coupling)*out_bp)
@@ -291,16 +293,16 @@ class Factors(dict[str, dict[int, int]]):
     Returns the factors present on the specified dimension as a list rather
     than as a dictionary. Factors multiplicity in the list reflects arity.
     """
-    def toList(self, dimension):
+    def toList(self, dimension : str) -> list[int]:
         return [k for k in self[dimension] for _ in range(self[dimension][k])]
 
     """
     Reset this "Factors" instance to no factors along any dimension.
     """
-    def clear(self):
+    def clear(self) -> None:
         for k in self.keys():
             self[k].clear()
             self._dim_products[k] = 1
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "{" + ", ".join(f"{k}: {v}" for k, v in self.items()) + "}"

@@ -26,7 +26,7 @@ Generates computation instances for each GEMM of a BERT Transformer
 with arbitrary parameters/dimensions. See:
 "BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding"
 """
-def comp_BERT(embedding, seq_length, heads, ff_dim):
+def comp_BERT(embedding : int, seq_length : int, heads : int, ff_dim : int) -> dict[str, Shape]:
     assert embedding % heads == 0, f"Embedding dim ({embedding}) must be divisible by the number of heads ({heads})."
     return {
         'KQV': Shape(

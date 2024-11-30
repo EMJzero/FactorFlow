@@ -136,7 +136,7 @@ if __name__ == "__main__":
         if not (len(sys.argv) >= 2 and (sys.argv[1] in supported_archs or os.path.exists(sys.argv[1]) and sys.argv[1][-3:] == '.py')):
             help_arch(supported_archs)
             #sys.exit(1)
-            print("WARNING: no architecture provided, defaulting to \"eyeriss\"...")
+            print("WARNING: no valid architecture provided, defaulting to \"eyeriss\"...")
         if len(sys.argv) >= 2:
             if sys.argv[1] in supported_archs:
                 if options["accelergy-data"]:
@@ -157,7 +157,7 @@ if __name__ == "__main__":
         print("-------- computation  --------")
         if not ((len(sys.argv) >= 2 and ((len(split_comp_name := sys.argv[1].split('-')) == 2 and split_comp_name[0] in supported_comp_groups and split_comp_name[1] in supported_comp_groups[split_comp_name[0]]) or os.path.exists(sys.argv[1]) and sys.argv[1][-3:] == '.py')) or (len(sys.argv) == 4 and all([d.isdigit() and d[0] != '-' for d in sys.argv[1:4]])) or (len(sys.argv) >= 7 and all([d.isdigit() and d[0] != '-' for d in sys.argv[1:7]]))):
             help_comp(supported_comp_groups)
-            print("WARNING: no computation provided, defaulting to GEMM: \"KQV\"...")
+            print("WARNING: no valid computation provided, defaulting to GEMM: \"KQV\"...")
             #sys.exit(1)
         if len(sys.argv) == 2:
             if len(split_comp_name := sys.argv[1].split('-')) == 2 and split_comp_name[0] in supported_comp_groups and split_comp_name[1] in supported_comp_groups[split_comp_name[0]]:
@@ -223,7 +223,7 @@ if __name__ == "__main__":
             for comp_name, current_comp in zip(supported_comp_groups[options["tryall"]].keys(), supported_comp_groups[options["tryall"]].values()):
                 current_arch_copy = copy.deepcopy(current_arch)
                 print(f"Now running FactorFlow on arch: {arch_name} and comp: {comp_name}...")
-                if current_arch_copy.fitConstraintsToComp(current_comp, comp_name):
+                if not current_arch_copy.fitConstraintsToComp(current_comp, comp_name):
                     continue
                 edp, mops, energy, latency, utilization, end_time, _ = run_engine(current_arch_copy, current_comp, gemm_coupling, bias_read, verbose = False)
                 table.add_row([arch_name, comp_name, f"{edp:.3e}", f"{mops[0]+mops[1]:.0f}", f"{latency:.3e}", f"{energy:.3e}", f"{utilization:.3e}", f"{end_time:.3f}"] + extra_constant_columns_values)

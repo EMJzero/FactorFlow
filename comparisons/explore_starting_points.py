@@ -310,7 +310,7 @@ if __name__ == "__main__":
 
         #print("Generating random starting points...")
         arch_copy = copy.deepcopy(arch)
-        if arch_copy.fitConstraintsToComp(comp, comp_name):
+        if not arch_copy.fitConstraintsToComp(comp, comp_name):
             continue
         random_archs = randomFactorsInitializationsFast(arch_copy, comp, RANDOM_MOVES)
         #_ = next(random_archs)
@@ -361,7 +361,7 @@ if __name__ == "__main__":
             #    print(f"\nComplete random starting point Warts: {short_warts}")
         else:
             arch_ff = copy.deepcopy(arch)
-            if arch_ff.fitConstraintsToComp(comp, comp_name):
+            if not arch_ff.fitConstraintsToComp(comp, comp_name):
                 continue
             arch_ff, factorflow_wart = factorFlow(arch_ff, comp, bias_read)
             factorflow_edp = EDP(arch_ff, bias_read, True)

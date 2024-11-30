@@ -2,6 +2,9 @@ from itertools import chain, combinations
 from functools import reduce
 import math
 
+from typing import Iterable, Iterator, TypeVar
+T = TypeVar('T')
+
 from settings import *
 
 # >>> Miscellaneus functions working with primes and iterables/arrays (snake_cased)
@@ -10,7 +13,7 @@ from settings import *
 Computes the prime factors of 'n' and returns them as a dictionary where
 keys are n's prime factors, and values are their arities (occurrencies).
 """
-def prime_factors(n):
+def prime_factors(n : int) -> dict[int, int]:
     i = 2
     factors = {}
     while i * i <= n:
@@ -26,7 +29,7 @@ def prime_factors(n):
 """
 Computes the prime factors of 'n' and returns them as a list.
 """
-def prime_factors_list(n):
+def prime_factors_list(n : int) -> list[int]:
     factors = []
     while n % 2 == 0:
         factors.append(2)
@@ -43,7 +46,7 @@ def prime_factors_list(n):
 Returns the powerset of an iterable, that being all its possible subsets,
 including the complete and empty ones.
 """
-def powerset(iterable):
+def powerset(iterable : Iterable[T]) -> Iterator[tuple[T, ...]]:
     s = list(iterable)
     return chain.from_iterable(combinations(s, r) for r in range(len(s)+1))
 
@@ -52,7 +55,7 @@ Interleaves the entries of 'elements' in all possible ways in between the
 elements of 'array'. The array elements retain their order, while those of
 'elements' may not.
 """
-def interleave(array, elements):
+def interleave(array : list[T], elements : list[T]) -> list[list[T]]:
     def recursive_insert(arr, elems):
         if not elems:
             return [arr]
@@ -66,15 +69,17 @@ def interleave(array, elements):
 """
 Returns a list of all versions of 'array' that differ by a rotation (or shift).
 """
-def rotations(array):
+def rotations(array : list[T]) -> list[list[T]]:
     return [array[i:] + array[:i] for i in range(len(array))] or [[]]
 
 """
 Returns, if any, the sets of elements which can undergo a cyclic shift and
 in so reach the configuration of 'arr2' starting from 'arr1'.
 """
-def single_cyclic_shift(arr1, arr2):
+def single_cyclic_shift(arr1 : list[T], arr2 : list[T]) -> list[list[T]]:
     n = len(arr1)
+    if n != len(arr2):
+        return []
     for i in range(n):
         # Right Shift
         if arr1[-1] == arr2[i] and arr1[:-1] == arr2[i+1:]:
@@ -88,7 +93,7 @@ def single_cyclic_shift(arr1, arr2):
 Returns all elements which need to be involved in swaps between neighbours
 to reach 'arr2' from 'arr1' (no cyclic behaviour allowed).
 """
-def pairwise_swaps(arr1, arr2):
+def pairwise_swaps(arr1 : list[T], arr2 : list[T]) -> set[T]:
     swaps = set()
     arr1 = arr1.copy()
     for i in range(len(arr1)):
@@ -108,7 +113,7 @@ Finds the subarray of 'arr', if any, whose product exceeds 'target' by
 the least amount and returns that subarray and the excess amount.
 (the product is allowed to be equal to the target)
 """
-def smallest_product_greater_than(arr, target):
+def smallest_product_greater_than(arr : list[T], target : T) -> tuple[list[T], T]:
     min_excess = math.inf
     best_subarray = []
     for r in range(1, len(arr) + 1):
@@ -124,7 +129,7 @@ Finds the subarray of 'arr', if any, whose product is short of 'target'
 by the least amount and returns that subarray and the defect amount.
 (the product is allowed to be equal to the target)
 """
-def largest_product_less_than(arr, target):
+def largest_product_less_than(arr : list[T], target : T) -> tuple[list[T], T]:
     min_defect = math.inf
     best_subarray = []
 

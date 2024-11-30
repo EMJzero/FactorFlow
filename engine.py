@@ -4,6 +4,9 @@ import math
 import copy
 import time
 
+from multiprocessing.managers import ListProxy
+from typing import Iterator, Optional
+
 from computations import *
 from settings import *
 from factors import *
@@ -17,7 +20,7 @@ from arch import *
 Entry point for the analytical model.
 Updates the MOPs and Latency data of each level w.r.t. the current mapping.
 """
-def updateStats(arch, bias_read):
+def updateStats(arch : Arch, bias_read : bool) -> tuple[float, int]:
     # MOPs:
     WMOPs = 0
     temporal_iterations = 1
@@ -169,7 +172,7 @@ Weighted Arithmetic Intensity (WART)
 It is equivalent to FLOPs/EDPoU, where EDPoU = (Energy * Latency) / Utilization
 => Maximizing the WART minimizes the EDPoU.
 """
-def Wart(arch, comp, bias_read):
+def Wart(arch : Arch, comp : Shape, bias_read : bool) -> float:
     FLOPs = comp.FLOPs()
     WMOPs, max_latency = updateStats(arch, bias_read)
     utilization = arch.spatialUtilization() if Settings.UTILIZATION_IN_WART else 1
@@ -180,14 +183,14 @@ Energy-Delay Product [pJ*cc]
 
 If pJ_to_J is True, the returned value is in [J*cc].
 """
-def EDP(arch, bias_read, pJ_to_J = False):
+def EDP(arch : Arch, bias_read : bool, pJ_to_J : bool = False) -> float:
     WMOPs, max_latency = updateStats(arch, bias_read)
     return WMOPs*max_latency*(10**-12 if pJ_to_J else 1)
 
 """
 Latency [cc]
 """
-def Latency(arch):
+def Latency(arch : Arch) -> int:
     max_latency = 0
     for level in arch:
         if isinstance(level, MemLevel):
@@ -204,7 +207,7 @@ Energy [pJ]
 
 If pJ_to_uJ is True, the returned value is in [uJ].
 """
-def Energy(arch, pJ_to_uJ = False):
+def Energy(arch : Arch, pJ_to_uJ : bool = False) -> float:
     WMOPs = 0
     for level in arch:
         if isinstance(level, MemLevel):
@@ -221,7 +224,7 @@ def Energy(arch, pJ_to_uJ = False):
 """
 Total read and write Memory Operations (MOPs)
 """
-def MOPs(arch):
+def MOPs(arch : Arch) -> tuple[int, int]:
     tot_reads, tot_writes = 0, 0
     for level in arch:
         if isinstance(level, MemLevel):
@@ -239,7 +242,7 @@ def MOPs(arch):
 Mapper Step 2: allocate to fanout levels the maximum number of iterations
                which can fit on their instances.
 """
-def fanoutMaximization(arch, comp, bias_read, verbose = False):
+def fanoutMaximization(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = False) -> None:
     # TECHNIQUE: Find the prime factors of the mesh, and pick the largest common ones with the dimension
     # mapped along that mesh, continue picking from the largest ones in common until you run out!
     # NOTE: When making this handle Fanouts with multiple unrolled dimensions, the issue is dividing the fanout size across dimensions
@@ -322,7 +325,7 @@ Arguments:
                    any arity of a factor between loops on the same dimension.
 - skip_spatial: if True, spatial levels are not considered for adjacency.
 """
-def factorsIterator(arch, iterate_amounts = False, skip_spatial = False):
+def factorsIterator(arch : Arch, iterate_amounts : bool = False, skip_spatial : bool = False) -> Iterator[tuple[int, str, int, int]]:
     for level_idx in range(len(arch)):
         if skip_spatial and (isinstance(arch[level_idx], SpatialLevel)):
             continue
@@ -342,7 +345,7 @@ Adjacency: two mappings are adjacent if one can be constructed from the other
            by moving exactly one prime factor between two loops/levels on the
            same dimension.
 """
-def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = False):
+def factorFlow(arch : Arch, comp : Shape, bias_read : bool, already_initialized : bool = False, verbose : bool = False) -> tuple[Arch, float]:
     if verbose: print("-------- factorFlow --------")
     if not already_initialized:
         arch.initFactors(comp)
@@ -458,7 +461,7 @@ The function is meant as the entry point for multiple processes or threads:
 - threads_count: total number of employed tasks.
 - return_list: shared list among tasks for the return values.
 """
-def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, threads_count = 1, return_list = None, verbose = False):
+def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : int = -1, threads_count : int = 1, return_list : Optional[ListProxy] = None, verbose : bool = False) -> Optional[tuple[Arch, float, list[int]]]:
     #Here changing settings is fine, we are within a process
     forcedSettingsUpdate(arch, False)
     
@@ -592,7 +595,7 @@ Update settings:
 - initialize some depeding on runtime information.
 - set some to best target the provided architecture.
 """
-def forcedSettingsUpdate(arch, verbose = True):
+def forcedSettingsUpdate(arch : Arch, verbose : bool = True) -> None:
     for level in arch:
         if isinstance(level, SpatialLevel) and len(level.dims) >= 2:
             Settings.FREEZE_SA = False
@@ -615,7 +618,7 @@ def forcedSettingsUpdate(arch, verbose = True):
 """
 Mapper entry point.
 """
-def run_engine(arch : Arch, comp : Shape, coupling : Coupling, bias_read : bool, verbose : bool = False):
+def run_engine(arch : Arch, comp : Shape, coupling : Coupling, bias_read : bool, verbose : bool = False) -> tuple[float, int, float, int, float, float, Arch]:
     start_time = time.time()
     
     if Settings.MULTITHREADED:
