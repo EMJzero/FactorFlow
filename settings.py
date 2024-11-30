@@ -82,7 +82,7 @@ class Settings():
     ACCELERGY_PATH = "\\\\wsl.localhost/Ubuntu-22.04/home/zero/.local/lib/python3.10/site-packages"
 
     @classmethod
-    def toString(self):
+    def toString(self) -> str:
         res = "Settings("
         for k, v in vars(self).items():
             if not k.startswith("__"):

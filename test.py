@@ -1,15 +1,18 @@
+from typing import Union, Any
+
 from architectures.solutions_db import *
 from settings import *
 from factors import *
 from engine import *
 from utils import *
+from arch import *
 
 """
 Runs a test by recomputing an architecture's statistics given a mapping in
 the form of a complete constraints set. The test passes iif all the newly
 evaluated statistics match those in "correct_data".
 """
-def runTest(arch, correct_data, comp, bias_read, change_settings = None):
+def runTest(arch : Arch, correct_data : list[dict[str, Union[int, float]]], comp : Shape, bias_read : bool, change_settings : dict[str, Any] = None) -> None:
     if change_settings:
         backup = {key: getattr(Settings, key) for key in change_settings.keys()}
         for key, value in change_settings.items():
@@ -40,7 +43,7 @@ Helper function that dumps the entirety of an architecture's MOPs statistics
 in the form of python code for an array of dictionaries, the same as those
 below in this file.
 """
-def generateTestMOPs(arch):
+def generateTestMOPs(arch : Arch) -> None:
     string = "correct_mops = ["
     indentation = 1
     for level in arch:
@@ -63,7 +66,7 @@ Helper function that dumps the entirety of an architecture's latency statistics
 in the form of python code for an array of dictionaries, the same as those
 below in this file.
 """
-def generateTestLatency(arch):
+def generateTestLatency(arch : Arch) -> None:
     string = "correct_latency = ["
     indentation = 1
     for level in arch:

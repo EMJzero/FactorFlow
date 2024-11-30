@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Any
 from math import prod
 
 from factors import *
@@ -19,9 +19,9 @@ class LevelCore:
     # IMPORTANT:
     # Use the entries of "dataflow" to access "factors", so that you only
     # see the factors over which you are actually supposed to iterate!
-    dataflow: None # order of the loops | e.g. ['M', 'K', 'N']
-    factors: None # iterations done for the dimensions at this lever
-    tile_sizes: None # indicate the size of a tile used in the level BELOW
+    dataflow : list[str] # order of the loops | e.g. ['M', 'K', 'N']
+    factors : Factors # iterations done for the dimensions at this lever
+    tile_sizes : Shape # indicate the size of a tile used in the level BELOW
     # NOTE: also, this is the data sent inward at each iterations
     # NOTE: tile sizes are, in other words, the number of elements jumped
     #       by one iteration at this level an any dimension
@@ -33,12 +33,12 @@ class LevelCore:
     #       stored in an instance below them
     # NOTE: tile sizes are updated in "moveFactor"
     
-    def __init__(self, dataflow, factors, tile_sizes):
+    def __init__(self, dataflow : list[str], factors : Factors, tile_sizes : Shape):
         self.dataflow = dataflow
         self.factors = factors
         self.tile_sizes = tile_sizes
     
-    def __str__(self):
+    def __str__(self) -> str:
         return f"dataflow: {self.dataflow}, factors: {self.factors}, tile_sizes: {self.tile_sizes}"
 
 
@@ -50,16 +50,16 @@ NOTE: the hierarchy is read just as the architecture is specified, with
 to DRAM or slower memories.
 """
 class Level(LevelCore):
-    name: None
-    arch: None
-    factors_constraints: None
-    area: None
+    name : str
+    arch : Arch
+    factors_constraints : dict[str, int]
+    area : Optional[float]
 
     """
     Add "amount" instances of the provided factor to those of
     "dimension" in the current level.
     """
-    def addFactor(self, dimension, factor, amount = 1):
+    def addFactor(self, dimension : str, factor : int, amount : int = 1) -> None:
         self.factors.addFactor(dimension, factor, amount)
 
     """
@@ -68,14 +68,14 @@ class Level(LevelCore):
     Return False if the removal failed because the current level does not
     have at least "amount" instances of "factor" along "dimension".
     """
-    def removeFactor(self, dimension, factor, amount = 1):
+    def removeFactor(self, dimension : str, factor : int, amount : int = 1) -> bool:
         return self.factors.removeFactor(dimension, factor, amount)
 
     """
     Returns True iif factors present on this level satisfy all of
     its constraints.
     """
-    def checkConstraints(self):
+    def checkConstraints(self) -> bool:
         return (all([(dim not in self.factors_constraints or self.factors_constraints[dim] == self.factors.dimProduct(dim)) for dim in self.dataflow]) and
                 all([(dim + '<=' not in self.factors_constraints or self.factors_constraints[dim + '<='] >= self.factors.dimProduct(dim)) for dim in self.dataflow]) and
                 all([(dim + '>=' not in self.factors_constraints or self.factors_constraints[dim + '>='] <= self.factors.dimProduct(dim)) for dim in self.dataflow]))
@@ -84,7 +84,7 @@ class Level(LevelCore):
     Returns a string describing the current violation of constraints,
     if any.
     """
-    def logConstraintsViolation(self):
+    def logConstraintsViolation(self) -> str:
         if not self.checkConstraints():
             return (f"CONSTRAINTS VIOLATION: Arch: {self.arch.name} -> Level: {self.name}: "
                 + ', '.join([f"constrained {dim} == {self.factors_constraints[dim]} VS obtained {dim}: {self.factors.dimProduct(dim)}, " for dim in self.dataflow if (dim in self.factors_constraints and self.factors_constraints[dim] != self.factors.dimProduct(dim))])
@@ -92,13 +92,13 @@ class Level(LevelCore):
                 + ', '.join([f"constrained {dim} >= {self.factors_constraints[dim + '>=']} VS obtained {dim}: {self.factors.dimProduct(dim)}, " for dim in self.dataflow if (dim + '>=' in self.factors_constraints and self.factors_constraints[dim + '>='] <= self.factors.dimProduct(dim))]))
         return ""
 
-    def __getitem__(self, key):
+    def __getitem__(self, key : str) -> Any:
         return getattr(self, key)
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key : str, value : Any) -> None:
         setattr(self, key, value)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.name}: ({super().__str__()}, factors_constraints: {self.factors_constraints})"
 
 
@@ -158,21 +158,61 @@ Constructor arguments:
   - Note: either both or none of read_bandwidth and write_bandwidth must be specified
 """
 class MemLevel(Level):
-    def __init__(self, name, size, value_access_energy = None, wordline_access_energy = None, word_bits = None, value_bits = None, leakage_energy = 0, area = None, bandwidth = None, dataflow = None, factors = None, tile_sizes = None, factors_constraints = None, dataflow_constraints = None, bypasses = None, multiple_buffering = 1, multiple_reuses = True, read_value_access_energy = None, write_value_access_energy = None, read_wordline_access_energy = None, write_wordline_access_energy = None, read_bandwidth = None, write_bandwidth = None):
+    size : int
+    values_per_wordline : int
+    read_access_energy : float
+    write_access_energy : float
+    leakage_energy : float
+    read_bandwidth : float
+    write_bandwidth : float
+    dataflow_constraints : list[str]
+    bypasses : list[str]
+    in_bp : bool
+    w_bp : bool
+    out_bp : bool
+    multiple_buffering : int
+    multiple_reuses : bool
+    
+    # POINTERS TO OTHER LEVELS:
+    next_is_compute : bool # flag indicating if this is the last memory before the compute level (initialized in setupSpatialLevelPointers)
+    next_spatials : Optional[list[Level]] # list of spatial levels following this one (can be empty, initialized in setupSpatialLevelPointers)
+    next_levels_with_bypass : dict[str, Optional[list[Level]]] # pointers to the next level storing an operand hereby bypassed (initialized in setupBypasses)
+
+    # STATISTICS:
+    instances = 1 # this are the used/active instances
+    temporal_iterations = 0
+    in_reads = 0
+    w_reads = 0
+    out_reads = 0
+    in_writes = 0
+    w_writes = 0
+    out_writes = 0
+    last_out_reads = 0
+    last_out_writes = 0
+    latency_read_drain = 0
+    latency_fill_update = 0
+    cc_per_tile = 0
+    stall_cycles = 0
+    ideal_bandwidth_read = 0
+    ideal_bandwidth_update = 0
+    ideal_bandwidth_fill = 0
+    ideal_bandwidth_drain = 0
+
+    def __init__(self, name : str, size : int, value_access_energy : Optional[float] = None, wordline_access_energy : Optional[float] = None, word_bits : Optional[int] = None, value_bits : Optional[int] = None, leakage_energy : float = 0, area : Optional[float] = None, bandwidth : Optional[float] = None, dataflow : Optional[list[str]] = None, factors : Optional[Factors] = None, tile_sizes : Optional[Shape] = None, factors_constraints : Optional[dict[str, int]] = None, dataflow_constraints : Optional[list[str]] = None, bypasses : Optional[list[str]] = None, multiple_buffering : int = 1, multiple_reuses : bool = True, read_value_access_energy : Optional[float] = None, write_value_access_energy : Optional[float] = None, read_wordline_access_energy : Optional[float] = None, write_wordline_access_energy : Optional[float] = None, read_bandwidth : Optional[float] = None, write_bandwidth : Optional[float] = None):
         self.name = name
         self.dataflow = dataflow
         self.size = size
-        self.word_bits = word_bits
-        self.value_bits = value_bits
-        self.wordline_access_energy = wordline_access_energy
-        self.value_access_energy = value_access_energy
-        self.read_wordline_access_energy = read_wordline_access_energy
-        self.write_wordline_access_energy = write_wordline_access_energy
-        self.read_value_access_energy = read_value_access_energy
-        self.write_value_access_energy = write_value_access_energy
+        self._word_bits = word_bits
+        self._value_bits = value_bits
+        self._wordline_access_energy = wordline_access_energy
+        self._value_access_energy = value_access_energy
+        self._read_wordline_access_energy = read_wordline_access_energy
+        self._write_wordline_access_energy = write_wordline_access_energy
+        self._read_value_access_energy = read_value_access_energy
+        self._write_value_access_energy = write_value_access_energy
         self.leakage_energy = leakage_energy
         self.area = area
-        self.bandwidth = bandwidth
+        self._bandwidth = bandwidth
         self.read_bandwidth = read_bandwidth
         self.write_bandwidth = write_bandwidth
         self.factors = factors
@@ -186,31 +226,6 @@ class MemLevel(Level):
         self.multiple_buffering = multiple_buffering
         self.multiple_reuses = multiple_reuses
 
-        # POINTERS TO OTHER LEVELS:
-        self.next_is_compute = False # flag indicating if this is the last memory before the compute level (initialized in setupSpatialLevelPointers)
-        self.next_spatials = None # list of spatial levels following this one (can be empty, initialized in setupSpatialLevelPointers)
-        self.next_levels_with_bypass = {'in': None, 'w': None, 'out': None} # pointers to the next level storing an operand hereby bypassed (initialized in setupBypasses)
-
-        # STATISTICS:
-        self.instances = 1 # this are the used/active instances
-        self.temporal_iterations = 0
-        self.in_reads = 0
-        self.w_reads = 0
-        self.out_reads = 0
-        self.in_writes = 0
-        self.w_writes = 0
-        self.out_writes = 0
-        self.last_out_reads = 0
-        self.last_out_writes = 0
-        self.latency_read_drain = 0
-        self.latency_fill_update = 0
-        self.cc_per_tile = 0
-        self.stall_cycles = 0
-        self.ideal_bandwidth_read = 0
-        self.ideal_bandwidth_update = 0
-        self.ideal_bandwidth_fill = 0
-        self.ideal_bandwidth_drain = 0
-
     """
     Sets up a pointer back to the whole architecture.
     Ultimates the initialization of the level and validates its attributes.
@@ -223,23 +238,24 @@ class MemLevel(Level):
         assert all(dim in arch.coupling.dims for dim in self.dataflow), f"Arch: {arch.name} -> Level: {self.name}: accepted names for dimensions, as per the present coupling, are solely {arch.coupling.dims} provided ones were {self.dataflow}."
         assert self.size >= 0, f"Arch: {arch.name} -> Level: {self.name}: a negative size ({self.size}) does not mean anything."
         # read_access_energy and write_access_energy are intended always for one value, remember to bring accessed values to a multiple of values_per_wordline for the correct total energy
-        assert (self.value_access_energy or (self.read_value_access_energy and self.write_value_access_energy)) or (self.word_bits and self.value_bits and (self.wordline_access_energy or (self.read_wordline_access_energy and self.write_wordline_access_energy))), f"Arch: {arch.name} -> Level: {self.name}: either value_access_energy ({self.value_access_energy}) or read_value_access_energy ({self.read_value_access_energy}) and write_value_access_energy ({self.write_value_access_energy}) must be specified, alternatively, you can specify word_bits ({self.word_bits}) and value_bits ({self.value_bits}) and either wordline_access_energy ({self.wordline_access_energy}) or read_wordline_access_energy ({self.read_wordline_access_energy}) and write_wordline_access_energy ({self.write_wordline_access_energy}). In any case, when if either of read_*_access_energy or write_*_access_energy is specified, the other must be present as well."
-        if (self.value_access_energy or (self.read_value_access_energy and self.write_value_access_energy)):
+        assert (self._value_access_energy or (self._read_value_access_energy and self._write_value_access_energy)) or (self._word_bits and self._value_bits and (self._wordline_access_energy or (self._read_wordline_access_energy and self._write_wordline_access_energy))), f"Arch: {arch.name} -> Level: {self.name}: either value_access_energy ({self._value_access_energy}) or read_value_access_energy ({self._read_value_access_energy}) and write_value_access_energy ({self._write_value_access_energy}) must be specified, alternatively, you can specify word_bits ({self._word_bits}) and value_bits ({self._value_bits}) and either wordline_access_energy ({self._wordline_access_energy}) or read_wordline_access_energy ({self._read_wordline_access_energy}) and write_wordline_access_energy ({self._write_wordline_access_energy}). In any case, when if either of read_*_access_energy or write_*_access_energy is specified, the other must be present as well."
+        if (self._value_access_energy or (self._read_value_access_energy and self._write_value_access_energy)):
             self.values_per_wordline = 1
-            self.read_access_energy = self.read_value_access_energy if self.read_value_access_energy else self.value_access_energy
-            self.write_access_energy = self.write_value_access_energy if self.write_value_access_energy else self.value_access_energy
+            self.read_access_energy = self._read_value_access_energy if self._read_value_access_energy else self._value_access_energy
+            self.write_access_energy = self._write_value_access_energy if self._write_value_access_energy else self._value_access_energy
         else:
-            self.values_per_wordline = self.word_bits // self.value_bits
-            self.read_access_energy = (self.read_wordline_access_energy if self.read_wordline_access_energy else self.wordline_access_energy) / self.values_per_wordline
-            self.write_access_energy = (self.write_wordline_access_energy if self.write_wordline_access_energy else self.wordline_access_energy) / self.values_per_wordline
-        del self.word_bits, self.value_bits, self.wordline_access_energy, self.value_access_energy, self.read_wordline_access_energy, self.write_wordline_access_energy, self.read_value_access_energy, self.write_value_access_energy
+            assert self._word_bits >= self._value_bits, f"Arch: {arch.name} -> Level: {self.name}: word_bits ({self._word_bits}) must be more than value_bits ({self._value_bits}), otherwise a value cannot fit on a single wordline."
+            self.values_per_wordline = self._word_bits // self._value_bits
+            self.read_access_energy = (self._read_wordline_access_energy if self._read_wordline_access_energy else self._wordline_access_energy) / self.values_per_wordline
+            self.write_access_energy = (self._write_wordline_access_energy if self._write_wordline_access_energy else self._wordline_access_energy) / self.values_per_wordline
+        del self._word_bits, self._value_bits, self._wordline_access_energy, self._value_access_energy, self._read_wordline_access_energy, self._write_wordline_access_energy, self._read_value_access_energy, self._write_value_access_energy
         assert self.read_access_energy >= 0 and self.write_access_energy >= 0 and self.leakage_energy >= 0, f"Arch: {arch.name} -> Level: {self.name}: a negative access energy ({self.read_access_energy} read, {self.read_access_energy} write), ({self.leakage_energy} leak), does not mean anything (unless you are into sci-fi stuff)."
         assert not self.area or self.area >= 0, f"Arch: {arch.name} -> Level: {self.name}: a negative area ({self.area}) does not mean anything."
         # NOTE: 1/2 split of bandwidth for consistency with Timeloop - not a true must...
-        assert (self.bandwidth and not self.read_bandwidth and not self.write_bandwidth) or (self.read_bandwidth and self.write_bandwidth), f"Arch: {arch.name} -> Level: {self.name}: either bandwidth ({self.bandwidth}) or read_bandwidth ({self.read_bandwidth}) and write_bandwidth ({self.write_bandwidth}) must be specified, if either of read_bandwidth or write_bandwidth is specified, the other must be specified as well."
-        self.read_bandwidth = self.read_bandwidth if self.read_bandwidth else self.bandwidth/2
-        self.write_bandwidth = self.write_bandwidth if self.write_bandwidth else self.bandwidth/2
-        del self.bandwidth
+        assert (self._bandwidth and not self.read_bandwidth and not self.write_bandwidth) or (self.read_bandwidth and self.write_bandwidth), f"Arch: {arch.name} -> Level: {self.name}: either bandwidth ({self._bandwidth}) or read_bandwidth ({self.read_bandwidth}) and write_bandwidth ({self.write_bandwidth}) must be specified, if either of read_bandwidth or write_bandwidth is specified, the other must be specified as well."
+        self.read_bandwidth = self.read_bandwidth if self.read_bandwidth else self._bandwidth/2
+        self.write_bandwidth = self.write_bandwidth if self.write_bandwidth else self._bandwidth/2
+        del self._bandwidth
         self.factors = self.factors if self.factors else Factors(arch.coupling.dims)
         self.tile_sizes = self.tile_sizes if self.tile_sizes else Shape({dim: 1 for dim in arch.coupling.dims})
         assert self.read_bandwidth >= 0 and self.write_bandwidth >= 0, f"Arch: {arch.name} -> Level: {self.name}: a negative bandwidth ({self.read_bandwidth} R, {self.write_bandwidth} W) does not mean anything."
@@ -248,6 +264,9 @@ class MemLevel(Level):
         assert all([value > 0 for value in self.factors_constraints.values()]), f"Arch: {arch.name} -> Level: {self.name}: all constraints ({self.factors_constraints}) must have a value strictly > 0."
         assert all([constr in self.dataflow for constr in self.dataflow_constraints]), f"Arch: {arch.name} -> Level: {self.name}: all dims specified as dataflow constraints ({self.dataflow_constraints}) must be part of the dataflow ({self.dataflow})."
         assert self.multiple_buffering >= 1, f"Arch: {arch.name} -> Level: {self.name}: multiple buffering ({self.multiple_buffering}) must be at least 1."
+        self.next_is_compute = False
+        self.next_spatials = None
+        self.next_levels_with_bypass = {'in': None, 'w': None, 'out': None}
 
     """
     Initializes the bypasses which start from this level.
@@ -257,7 +276,7 @@ class MemLevel(Level):
     => This method must be invoked while iterating from outer to inner levels
     as it updates the level's notion of bypassed operations.
     """
-    def initBypass(self, operand, levels):
+    def initBypass(self, operand : str, levels : list[Level]) -> None:
         self.next_levels_with_bypass[operand] = levels
         if operand == 'in':
             self.in_bp = 0
@@ -270,7 +289,7 @@ class MemLevel(Level):
     Sets MOPs statistics for this level.
     Those must include both operations with the above and below level.
     """
-    def setMOPs(self, in_reads, w_reads, out_reads, in_writes, w_writes, out_writes):
+    def setMOPs(self, in_reads : int, w_reads : int, out_reads : int, in_writes : int, w_writes : int, out_writes : int) -> None:
         self.in_reads = in_reads
         self.w_reads = w_reads
         self.out_reads = out_reads
@@ -286,7 +305,7 @@ class MemLevel(Level):
     Sets MOPs statistics for the interations between this level and
     the MemLevel immediately above it.
     """
-    def setAboveMOPs(self, last_out_reads, last_out_writes):
+    def setAboveMOPs(self, last_out_reads : int, last_out_writes : int) -> None:
         self.last_out_reads = last_out_reads
         self.last_out_writes = last_out_writes
 
@@ -294,40 +313,40 @@ class MemLevel(Level):
     Returns "Fills" as intended for Buffets, thus the incoming writes
     from an higher level.
     """
-    def getFill(self):
+    def getFill(self) -> int:
         return self.in_writes + self.w_writes + self.last_out_reads #include fills for outputs
 
     """
     Returns "Drains" as intended for Buffets, thus the outgoing reads
     towards an higher level.
     """
-    def getDrain(self):
+    def getDrain(self) -> int:
         return self.last_out_writes
 
     """
     Returns "Reads" as intended for Buffets, thus the outgoing reads
     towards a lower level.
     """
-    def getRead(self):
+    def getRead(self) -> int:
         return self.in_reads + self.w_reads + (self.out_reads - self.last_out_writes) #ignore reads done to drain
 
     """
     Returns "Updates" as intended for Buffets, thus the incoming writes
     from a lower level.
     """
-    def getUpdate(self):
+    def getUpdate(self) -> int:
         return self.out_writes - self.last_out_reads #ignore updates coming from fills
 
     """
     Returns the total MOPs previoulsy stored by setMOPs().
     """
-    def getSettedMOPs(self):
+    def getSettedMOPs(self) -> int:
         return self.in_reads + self.w_reads + self.out_reads + self.in_writes + self.w_writes + self.out_writes
  
     """
     Sets Latency and related statistics for this level.
     """
-    def setLatency(self, latency_read_drain, latency_fill_update, cc_per_tile, stall_cycles, ideal_bandwidth_read, ideal_bandwidth_update, ideal_bandwidth_fill, ideal_bandwidth_drain):
+    def setLatency(self, latency_read_drain : int, latency_fill_update : int, cc_per_tile : int, stall_cycles : int, ideal_bandwidth_read : float, ideal_bandwidth_update : float, ideal_bandwidth_fill : float, ideal_bandwidth_drain : float) -> None:
         self.latency_read_drain = latency_read_drain
         self.latency_fill_update = latency_fill_update
         self.cc_per_tile = cc_per_tile
@@ -340,7 +359,7 @@ class MemLevel(Level):
     """
     Returns the Latency previoulsy stored by setLatency().
     """
-    def getSettedLatency(self):
+    def getSettedLatency(self) -> int:
         return max(self.latency_read_drain, self.latency_fill_update)
 
     # Memory operation between this level and the one below it! Specifically: returns reads outgoing
@@ -377,7 +396,7 @@ class MemLevel(Level):
                        accesses from strictly adjacent levels, bypassed operands
                        will thus show 0 MOPs.
     """
-    def MOPs(self, in_bp = None, w_bp = None, out_bp= None, ignore_bypasses = False):
+    def MOPs(self, in_bp : Optional[bool] = None, w_bp : Optional[bool] = None, out_bp : Optional[bool] = None, ignore_bypasses : bool = False) -> tuple[int, int, int, int, int]:
         in_bp = in_bp if in_bp != None else self.in_bp
         w_bp = w_bp if w_bp != None else self.w_bp
         out_bp = out_bp if out_bp != None else self.out_bp
@@ -615,7 +634,7 @@ class MemLevel(Level):
     Returns the provided MOPs (or newly calculated MOPs for this level)
     scaled by the MOPs's weight/energy at this level.
     """
-    def WMOPs(self, reads = None, writes = None):
+    def WMOPs(self, reads : Optional[int] = None, writes : Optional[int] = None) -> float:
         if not (reads and writes):
             reads = reads if reads else self.in_reads + self.w_reads + self.out_reads
             writes = writes if writes else self.in_writes + self.w_writes + self.out_writes
@@ -624,20 +643,20 @@ class MemLevel(Level):
     """
     Returns the total leaked energy during the provided clock cycles.
     """
-    def Leakage(self, cycles):
+    def Leakage(self, cycles : int) -> float:
         return cycles*self.leakage_energy
 
     """
     Returns True iif factors present on this level satisfy all of
     its constraints, including fitting in the available memory.
     """
-    def checkConstraints(self):
+    def checkConstraints(self) -> bool:
         return self.factors.memFootprint(self.tile_sizes, self.arch.coupling, not self.bypasses or 'in' not in self.bypasses, not self.bypasses or 'w' not in self.bypasses, not self.bypasses or 'out' not in self.bypasses) <= self.size/self.multiple_buffering and super().checkConstraints()
 
     """
     Returns a string describing the current violation of constraints, if any.
     """
-    def logConstraintsViolation(self):
+    def logConstraintsViolation(self) -> str:
         if not super().checkConstraints():
             return super().logConstraintsViolation()
         elif not self.checkConstraints():
@@ -645,7 +664,7 @@ class MemLevel(Level):
             return f"CONSTRAINTS VIOLATION: Arch: {self.arch.name} -> Level: {self.name}: memory used: {mem_footprint} VS memory available: {self.size/self.multiple_buffering:.0f}"
         return ""
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{super().__str__()}, size: {self.size}, read_access_energy: {self.read_access_energy}, write_access_energy: {self.write_access_energy}, leakage_energy: {self.leakage_energy}, read_bandwidth: {self.read_bandwidth}, write_bandwidth: {self.write_bandwidth}, bypasses: {self.bypasses}, multiple_buffering: {self.multiple_buffering}"
 
 
@@ -653,13 +672,12 @@ class MemLevel(Level):
 Abstract class for a level introducing multiple spatial instances.
 """
 class SpatialLevel(Level):
-    dims: None
-    mesh: None
-    spatial_multicast_support: None
-    spatial_reduction_support: None
-    selective_multicast_support: None
-    selective_reduction_support: None
-    power_gating_support: None
+    dims : list[str]
+    mesh : int
+    spatial_multicast_support : bool
+    spatial_reduction_support : bool
+    selective_multicast_support : bool
+    selective_reduction_support : bool
 
 
 """
@@ -719,13 +737,16 @@ Constructor arguments:
 # Obviously, in case N < |dims| you need to change the "iterate permutations" step to actually permute spatial loops!!!
 # BETTER: make spatial_reduction_support and spatial_multicast_support be specified per-dimension!
 class FanoutLevel(SpatialLevel):
-    def __init__(self, name, mesh, dim : str = None, dims : list[str] = None, area = None, pe_to_pe = False, spatial_multicast_support = True, spatial_reduction_support = True, selective_multicast_support = False, selective_reduction_support = False, power_gating_support = False, factors = None, tile_sizes = None, factors_constraints = None):
+    pe_to_pe : bool # True in all cases where the operand independent of "dim" (e.g.: in a GEMM, if dim = M, such operand is the input) is forwarded pe->pe rather than multicasted
+    power_gating_support : bool
+
+    def __init__(self, name : str, mesh : int, dim : Optional[str] = None, dims : Optional[list[str]] = None, area : Optional[float] = None, pe_to_pe : bool = False, spatial_multicast_support : bool = True, spatial_reduction_support : bool = True, selective_multicast_support : bool = False, selective_reduction_support : bool = False, power_gating_support : bool = False, factors : Optional[Factors] = None, tile_sizes : Optional[Shape] = None, factors_constraints : Optional[dict[str, int]] = None):
         self.name = name
-        self.dim = dim
+        self._dim = dim
         self.dims =  dims
         self.mesh = mesh
         self.area = area
-        self.pe_to_pe = pe_to_pe # True in all cases where the operand independent of "dim" (e.g.: in a GEMM, if dim = M, such operand is the input) is forwarded pe->pe rather than multicasted
+        self.pe_to_pe = pe_to_pe
         self.spatial_multicast_support = spatial_multicast_support
         self.spatial_reduction_support = spatial_reduction_support
         self.selective_multicast_support = selective_multicast_support
@@ -741,9 +762,9 @@ class FanoutLevel(SpatialLevel):
     """
     def initArch(self, arch : Arch):
         self.arch = arch
-        assert (self.dim and not self.dims) or (self.dims and not self.dim), f"Arch: {arch.name} -> Level: {self.name}: exactly one of dim ({self.dim}) or dims ({self.dims}) must be specified."
-        self.dims = [self.dim] if self.dim else self.dims
-        del self.dim
+        assert (self._dim and not self.dims) or (self.dims and not self._dim), f"Arch: {arch.name} -> Level: {self.name}: exactly one of dim ({self._dim}) or dims ({self.dims}) must be specified."
+        self.dims = [self._dim] if self._dim else self.dims
+        del self._dim
         self.dataflow = self.dims
         assert all([dim in arch.coupling.dims for dim in self.dataflow]), f"Arch: {arch.name} -> Level: {self.name}: accepted names for dimensions are solely M, K and N, provided ones were {self.dataflow}."
         assert self.mesh > 0, f"Arch: {arch.name} -> Level: {self.name}: a spatial fanout must have a mesh ({self.mesh}) of at least 1."
@@ -764,7 +785,7 @@ class FanoutLevel(SpatialLevel):
     """
     # here you receive the reads/writes done by an instance, and need to
     # return the reads/writes that are needed for all instances.
-    def mulByDim(self, in_reads, w_reads, out_reads, out_writes):
+    def mulByDim(self, in_reads : int, w_reads : int, out_reads : int, out_writes : int) -> tuple[int, int, int, int]:
         if self.selective_multicast_support:
             for dim_sum in self.arch.coupling.in_coupling:
                 if len(dim_sum) > 1: #TODO: could optimize by skipping this whole if and its else if all dimProduct(dim)-s are 1!
@@ -819,27 +840,27 @@ class FanoutLevel(SpatialLevel):
     
     => The returned value must be multiplied by the factors above it.
     """
-    def latency(self):
+    def latency(self) -> int:
         return 0 # change this if we model the network's latency
 
     """
     Returns True iif factors present on this level satisfy all of its constraints,
     including not exceeding the physical mesh.
     """
-    def checkConstraints(self):
+    def checkConstraints(self) -> bool:
         return self.factors.fullProduct() <= self.mesh and super().checkConstraints()
 
     """
     Returns a string describing the current violation of constraints, if any.
     """
-    def logConstraintsViolation(self):
+    def logConstraintsViolation(self) -> str:
         if not super().checkConstraints():
             return super().logConstraintsViolation()
         elif not self.checkConstraints():
             return f"CONSTRAINTS VIOLATION: Arch: {self.arch.name} -> Level: {self.name}: spatial iterations used: {self.factors.fullProduct()} VS available instances (mesh): {self.mesh}"
         return ""
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{super().__str__()}, mesh: {self.mesh}, pe_to_pe: {self.pe_to_pe}, spatial_multicast_support: {self.spatial_multicast_support}, spatial_reduction_support: {self.spatial_reduction_support}, power_gating_support: {self.power_gating_support}"
 
 
@@ -899,9 +920,17 @@ Constructor arguments:
                             mapper's runtime as much as exact constraints.
 """
 class ComputeLevel(SpatialLevel):
-    def __init__(self, name, mesh, compute_energy, cycles, dim : str = None, dims : list[str] = None, leakage_energy = 0, area = None, factors = None, tile_sizes = None, factors_constraints = None):
+    compute_energy : float
+    leakage_energy : float
+    cycles : int # clock cycles used per element in the inner dimension (latency of one MAC)
+
+    # STATISTICS:
+    instances = 1 # this are the used/active instances
+    temporal_iterations = 0
+    
+    def __init__(self, name : str, mesh : int, compute_energy : float, cycles : int, dim : Optional[str] = None, dims : Optional[list[str]] = None, leakage_energy : float = 0, area : Optional[float] = None, factors : Optional[Factors] = None, tile_sizes : Optional[Shape] = None, factors_constraints : Optional[dict[str, int]] = None):
         self.name = name
-        self.dim = dim
+        self._dim = dim
         self.dims = dims
         self.mesh = mesh # for a systolic array, this is the length of the operand buffers
         self.compute_energy = compute_energy
@@ -916,18 +945,15 @@ class ComputeLevel(SpatialLevel):
         self.tile_sizes = tile_sizes
         self.factors_constraints = factors_constraints if factors_constraints else {}
 
-        # STATISTICS:
-        self.instances = 1 # this are the used/active instances
-        self.temporal_iterations = 0
-
     """
     Sets up a pointer back to the whole architecture.
     Ultimates the initialization of the level and validates its attributes.
     """
     def initArch(self, arch : Arch):
         self.arch = arch
-        assert self.mesh == 1 or (self.dim and not self.dims) or (self.dims and not self.dim), f"Arch: {arch.name} -> Level: {self.name}: when mesh ({self.mesh}) is > 1, exactly one of dim ({self.dim}) or dims ({self.dims}) must be specified."
-        self.dims = ([self.dim] if self.dim else self.dims) if self.dim or self.dims else []
+        assert self.mesh == 1 or (self._dim and not self.dims) or (self.dims and not self._dim), f"Arch: {arch.name} -> Level: {self.name}: when mesh ({self.mesh}) is > 1, exactly one of dim ({self._dim}) or dims ({self.dims}) must be specified."
+        self.dims = ([self._dim] if self._dim else self.dims) if self._dim or self.dims else []
+        del self._dim
         self.dataflow = self.dims
         assert all([dim in arch.coupling.dims for dim in self.dataflow]), f"Arch: {arch.name} -> Level: {self.name}: accepted names for dimensions are solely M, K and N, provided ones were {self.dataflow}."
         assert self.mesh > 0, f"Arch: {arch.name} -> Level: {self.name}: a zero or negative size ({self.mesh}) does not make sense."
@@ -949,7 +975,7 @@ class ComputeLevel(SpatialLevel):
     
     => The returned value must be multiplied by the factors above it.
     """
-    def latency(self):
+    def latency(self) -> int:
         return self.cycles
 
     """
@@ -957,31 +983,31 @@ class ComputeLevel(SpatialLevel):
     iterations, times "iterations", which represents the number of iterations done by
     the hierarchy of levels on top of this one.
     """
-    def computeCost(self, iterations = 1):
+    def computeCost(self, iterations : int = 1) -> float:
         return self.compute_energy*self.factors.fullProduct()*iterations
 
     """
     Returns the total leaked energy during the provided clock cycles.
     """
-    def Leakage(self, cycles):
+    def Leakage(self, cycles : int) -> float:
         return cycles*self.leakage_energy
 
     """
     Returns True iif factors present on this level satisfy all of its constraints,
     including not exceeding the phisical number of concurrent MACs performed here.
     """
-    def checkConstraints(self):
+    def checkConstraints(self) -> bool:
         return self.factors.fullProduct() <= self.mesh and super().checkConstraints()
 
     """
     Returns a string describing the current violation of constraints, if any.
     """
-    def logConstraintsViolation(self):
+    def logConstraintsViolation(self) -> str:
         if not super().checkConstraints():
             return super().logConstraintsViolation()
         elif not self.checkConstraints():
             return f"CONSTRAINTS VIOLATION: Arch: {self.arch.name} -> Level: {self.name}: concurrent MACs used: {self.factors.fullProduct()} VS concurrent MACs available: {self.mesh}"
         return ""
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{super().__str__()}, mesh: {self.mesh}, compute_energy: {self.compute_energy}, leakage_energy: {self.leakage_energy}, cycles: {self.cycles}"
