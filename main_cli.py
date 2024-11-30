@@ -170,7 +170,7 @@ if __name__ == "__main__":
             #for comp_name, current_comp in zip(list(comp_maestro_blas.keys())[:2], list(comp_maestro_blas.values())[:2]):
                 current_arch_copy = copy.deepcopy(current_arch)
                 print(f"Now running FactorFlow on arch: {arch_name} and comp: {comp_name}...")
-                if current_arch_copy.fitConstraintsToComp(current_comp, comp_name):
+                if not current_arch_copy.fitConstraintsToComp(current_comp, comp_name):
                     continue
                 edp, mops, energy, latency, utilization, end_time, _ = run_engine(current_arch_copy, current_comp, bias_read, verbose = False)
                 table.add_row([arch_name, comp_name, f"{edp:.3e}", f"{mops[0]+mops[1]:.0f}", f"{latency:.3e}", f"{energy:.3e}", f"{utilization:.3e}", f"{end_time:.3f}"] + extra_constant_columns_values)

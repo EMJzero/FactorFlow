@@ -1,5 +1,7 @@
 from copy import deepcopy
 
+from typing import Iterable
+
 from levels import *
 from settings import *
 from utils import *
@@ -11,8 +13,8 @@ Constructor arguments:
 - iterable: the list of levels for the architecture
 - name: the name for the architecture
 """
-class Arch(list):
-    def __init__(self, iterable=None, name="<unnamed architecture>"):
+class Arch(list[Level]):
+    def __init__(self, iterable : Optional[Iterable[Level]] = None, name : str = "<unnamed architecture>"):
         self.name = name
         
         if iterable is None:
@@ -28,13 +30,13 @@ class Arch(list):
     """
     Returns a deep-copied compact representation of the current mapping.
     """
-    def exportMapping(self):
+    def exportMapping(self) -> list[LevelCore]:
         return [LevelCore(deepcopy(level.dataflow), deepcopy(level.factors), deepcopy(level.tile_sizes)) for level in self]
 
     """
     Loads a mapping (preferably coming from "exportMapping") into the architecture.
     """
-    def importMapping(self, mapping : list[LevelCore]):
+    def importMapping(self, mapping : list[LevelCore]) -> None:
         for i in range(len(self)):
             self[i].dataflow = mapping[i].dataflow
             self[i].factors = mapping[i].factors
@@ -43,7 +45,7 @@ class Arch(list):
     """
     Checks factors allocation constraints. Returns False if a violation is found.
     """
-    def findConstraintsViolation(self, verbose = True):
+    def findConstraintsViolation(self, verbose : bool = True) -> bool:
         violation = False
         for level in self:
             for dim in ['M', 'K', 'N']:
@@ -73,7 +75,7 @@ class Arch(list):
     - skip_dst_constraints: if True, any constraints violation on the destination level
                             is ignored.
     """
-    def moveFactor(self, src_level_idx, dst_level_idx, dimension, factor, amount = 1, skip_src_constraints = False, skip_dst_constraints = False):
+    def moveFactor(self, src_level_idx : int, dst_level_idx : int, dimension : str, factor : int, amount : int = 1, skip_src_constraints : bool = False, skip_dst_constraints : bool = False) -> bool:
         # check that the factor exists in the required amount
         if not self[src_level_idx].removeFactor(dimension, factor, amount):
             return False
@@ -108,7 +110,7 @@ class Arch(list):
     Initializes the architecture's mapping with all the computation's prime
     factors placed on the first level. This is the mapper's starting point.
     """
-    def initFactors(self, comp):
+    def initFactors(self, comp : Shape) -> None:
         # initialize with all factors on first level, all tile sizes of 1!
         self[0].factors = Factors(M = prime_factors(comp.M), K = prime_factors(comp.K), N = prime_factors(comp.N))
 
@@ -122,7 +124,7 @@ class Arch(list):
     by constraints, if this is not satisfied, an assertion will be triggered.
     -> use 'fitConstraintsToComp' to prevent such a situation.
     """
-    def enforceFactorsConstraints(self, allow_padding = False, verbose_padding = True):
+    def enforceFactorsConstraints(self, allow_padding : bool = False, verbose_padding : bool = True) -> None:
         # assuming that initially all factors are on the first level
         for i in range(1, len(self)):
             level = self[i]
@@ -153,7 +155,7 @@ class Arch(list):
     """
     Checks dataflow (loop ordering) constraints. Returns False if a violation is found.
     """
-    def checkDataflowConstraints(self):
+    def checkDataflowConstraints(self) -> bool:
         for level in filter(lambda l : isinstance(l, MemLevel), self):
             dim_idx = 0
             for dim in level.dataflow_constraints:
@@ -173,7 +175,7 @@ class Arch(list):
     This way such last level can compute its MOPs according to the level it actually
     supplies data to.
     """
-    def setupBypasses(self):
+    def setupBypasses(self) -> None:
         # bypasses at the initial level simply skip the cost of operands
         for bypass in ['in', 'w', 'out']:
             # if the first MemLevel has a bypass, no need to initialize it, just let it
@@ -200,7 +202,7 @@ class Arch(list):
     Updates the count of ACTIVE instances throughout Mem- and Compute- Levels.
     An instance is ACTIVE if a FanoutLevel maps a spatial iteration to it.
     """
-    def updateInstances(self):
+    def updateInstances(self) -> None:
         spatial_fanout = 1
         for i in range(len(self)):
             level = self[i]
@@ -217,7 +219,7 @@ class Arch(list):
     Clears the accumulators for incrementally updated tile sizes and
     prime factors products in the architecture.
     """
-    def resetTilesAndFactors(self):
+    def resetTilesAndFactors(self) -> None:
         for level in self:
             level.factors.clear()
             for dim in ['M', 'K', 'N']:
@@ -226,7 +228,7 @@ class Arch(list):
     """
     Returns the overall utilization of spatial instances of a mapping.
     """
-    def spatialUtilization(self):
+    def spatialUtilization(self) -> float:
         utilization = 1
         for level in self:
             if isinstance(level, SpatialLevel):
@@ -236,7 +238,7 @@ class Arch(list):
     """
     Hash unique for each factors allocation and dataflows pair.
     """
-    def hashFromFactors(self):
+    def hashFromFactors(self) -> int:
         hsh = ""
         for level_idx in range(len(self)):
             hsh += f"|{level_idx}"
@@ -248,13 +250,13 @@ class Arch(list):
 
     """
     Reduces constraints to the largest possible ones that can be satisfied
-    by the present computations.
+    by the present computations. Returns True if the fitting was possible.
 
     If enforce is False, in case of usatisfiable constraints an error is
     printed and the return value must be checked for failure. Otherwise,
     an assertion enforces constraints to comply.
     """
-    def fitConstraintsToComp(self, comp, comp_name = None, enforce = False):
+    def fitConstraintsToComp(self, comp : Shape, comp_name : Optional[str] = None, enforce : bool = False) -> bool:
         failed = False
         for dim in ['M', 'K', 'N']:
             total_constraint = 1
@@ -268,10 +270,10 @@ class Arch(list):
                 if dim in level.factors_constraints or dim + '>=' in level.factors_constraints:
                     if comp[dim] // total_constraint < level.factors_constraints[dim + eq]:
                         if comp[dim] // total_constraint <= 0:
-                            if self.name and comp_name:
-                                print(f"ERROR: failed to fit comp: {comp_name if comp_name else comp} to arch: {self.name} because the constraint on level: {level.name} and dimension: {dim} ({eq}{level.factors_constraints[dim + eq]}) cannot be satisfied by comp ({dim}: {comp[dim]})!")
-                            else:
+                            if enforce:
                                 assert False, f"Failed to fit comp to arch because the constraint on level: {level.name} and dimension: {dim} ({eq}{level.factors_constraints[dim + eq]}) cannot be satisfied by comp ({dim}: {comp[dim]})!"
+                            else:
+                                print(f"ERROR: failed to fit comp: {comp_name if comp_name else comp} to arch: {self.name} because the constraint on level: {level.name} and dimension: {dim} ({eq}{level.factors_constraints[dim + eq]}) cannot be satisfied by comp ({dim}: {comp[dim]})!")
                             failed = True
                             break
                         print(f"WARNING: updating constraint ({dim}: {level.factors_constraints[dim + eq]}) on level \"{level.name}\" to ({dim}: {comp[dim] // total_constraint}) to fit the computation.")
@@ -281,13 +283,13 @@ class Arch(list):
                     total_constraint *= level.factors_constraints[dim + eq]
             if failed:
                 break
-        return failed
+        return not failed
 
     """
     Returns the overall estimated area for the architecture (in um^2).
     Returns None if any component is missing an area estimate.
     """
-    def totalArea(self, verbose = False):
+    def totalArea(self, verbose : bool = False) -> float:
         area = 0
         physical_instances = 1
         for level in self:
@@ -300,8 +302,8 @@ class Arch(list):
                 physical_instances *= level.mesh
         return area
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<object Arch: name: {self.name}, levels: {super().__repr__()}>"
     
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.name}: [" + ", ".join([level.__str__() for level in self]) + "]"
