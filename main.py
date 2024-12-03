@@ -20,9 +20,6 @@ arch = arch_eyeriss
 ## MAIN:
 
 if __name__ == "__main__":
-    #Here changing settings does not propagate to processes, which reimport and reset settings.py
-    #forcedSettingsUpdate(arch)
-
     arch.checkCouplingCompatibility(coupling, comp, verbose = True)
     arch.fitConstraintsToComp(comp, enforce = True)
     edp, mops, energy, latency, utilization, end_time, arch = run_engine(arch, comp, coupling, bias_read, verbose = True)

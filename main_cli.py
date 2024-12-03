@@ -230,8 +230,6 @@ if __name__ == "__main__":
         print(table)
         
     elif options["gen-tests"]:
-        #Here changing settings does not propagate to processes, which reimport and reset settings.py
-        #forcedSettingsUpdate(arch)
         arch.checkCouplingCompatibility(coupling, comp, verbose = True)
         arch.fitConstraintsToComp(comp, enforce = True)
         edp, mops, energy, latency, utilization, _, arch = run_engine(arch, comp, coupling, bias_read, verbose = True)
@@ -241,8 +239,6 @@ if __name__ == "__main__":
         generateTestLatency(arch)
     
     else:
-        #Here changing settings does not propagate to processes, which reimport and reset settings.py
-        #forcedSettingsUpdate(arch)
         arch.checkCouplingCompatibility(coupling, comp, verbose = True)
         arch.fitConstraintsToComp(comp, enforce = True)
         run_engine(arch, comp, coupling, bias_read, verbose = True)
