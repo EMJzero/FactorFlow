@@ -1,4 +1,5 @@
 from functools import reduce
+from itertools import cycle
 import multiprocessing
 import math
 import copy
@@ -463,7 +464,8 @@ The function is meant as the entry point for multiple processes or threads:
 """
 def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : int = -1, threads_count : int = 1, return_list : Optional[ListProxy] = None, verbose : bool = False) -> Optional[tuple[Arch, float, list[int]]]:
     #Here changing settings is fine, we are within a process
-    forcedSettingsUpdate(arch, False)
+    if thread_idx != -1:
+        forcedSettingsUpdate(arch, False)
     
     if verbose and thread_idx <= 0: print("-------- optimizeDataflows --------")
     targets = list(filter(lambda l : isinstance(l, MemLevel) or (Settings.ONLY_MAXIMIZE_ONE_FANOUT_DIM and isinstance(l, SpatialLevel)), arch))
@@ -476,35 +478,36 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
     permutations = [[perm for perm in interleave(level.dataflow_constraints, [dim for dim in level.dataflow if dim not in level.dataflow_constraints])] if not isinstance(level, SpatialLevel) else [rot + [dim for dim in level.dims if dim in level.factors_constraints] for rot in rotations([dim for dim in level.dims if dim not in level.factors_constraints])] for level in targets]
     
     # divide permutations across threads (if multithreading is enabled)
-    #print(f"Original permutations: {permutations}")
     if thread_idx != -1:
-        partitioning_idx = 0 # start splitting among threads from the top
-        threads_assigned_to_prev_partitions = 0
-        while threads_count > len(permutations[partitioning_idx]): # more threads than partitions, assign threads to partitions and go split the sub-partitions
-            threads_per_permutation = [(threads_count + i) // len(permutations[partitioning_idx]) for i in range(len(permutations[partitioning_idx]))]
-            current_idx = 0
-            # (thread_idx - threads_assigned_to_prev_partitions) is the idx of the thread among ones that are not yet assigned
-            while thread_idx - threads_assigned_to_prev_partitions - sum(threads_per_permutation[:current_idx+1]) >= 0:
-                current_idx += 1
-            permutations[partitioning_idx] = permutations[partitioning_idx][current_idx:current_idx+1]
-            threads_count = threads_per_permutation[current_idx]
-            threads_assigned_to_prev_partitions += sum(threads_per_permutation[:current_idx])
-            partitioning_idx += 1
-            if partitioning_idx >= len(permutations):
-                if thread_idx - threads_assigned_to_prev_partitions >= len(permutations[partitioning_idx - 1]):
-                    if verbose: print(f"Dataflow permutations to try in thread {thread_idx}: 0")
-                    return_list[thread_idx] = (arch, 0, [0 for _ in targets])
-                    return
-                else:
-                    threads_count = 1
-                    break
-        if threads_count > 1: # less or same threads as partitions, assign >=1 partition per thread
-            permutations_per_thread = len(permutations[partitioning_idx]) // threads_count
-            remainder = len(permutations[partitioning_idx]) % threads_count
-            start_idx = (thread_idx - threads_assigned_to_prev_partitions)*permutations_per_thread + min(thread_idx - threads_assigned_to_prev_partitions, remainder)
-            end_idx = start_idx + permutations_per_thread + (1 if thread_idx - threads_assigned_to_prev_partitions < remainder else 0)
-            permutations[partitioning_idx] = permutations[partitioning_idx][start_idx:end_idx]
-        #print(f"Permutations for thread {thread_idx}: {permutations}")
+        partitions_per_level = [1 for _ in permutations]
+        factors_per_level = [prime_factors_list(len(perm)) for perm in permutations]
+        cumulative_product, circular_idx = 1, 0
+        gen = (i for i, factors in cycle(enumerate(factors_per_level)) if len(factors) > 0)
+        # circularly partition each level's permutations by the smaller of their amount's prime factors, until there are more partitions than threads
+        while cumulative_product < threads_count:
+            circular_idx = next(gen, None)
+            if circular_idx == None:
+                break
+            partitions_per_level[circular_idx] *= factors_per_level[circular_idx][0]
+            cumulative_product *= factors_per_level[circular_idx][0]
+        if circular_idx == None and thread_idx >= cumulative_product:
+            # more threads than permutations, terminate extra threads
+            return
+        tmp_thread_idx = thread_idx
+        threads_on_current_permutation = threads_count
+        # partition permutations by removing those not assigned to the present thread
+        for i in range(len(permutations)):
+            partitioning_idx = tmp_thread_idx % partitions_per_level[i]
+            partitioning_stride = len(permutations[i]) // partitions_per_level[i]
+            if threads_on_current_permutation < partitions_per_level[i]:
+                extra = partitions_per_level[i] - threads_on_current_permutation
+                extra_per_thread = math.ceil(extra // threads_on_current_permutation)
+                permutations[i] = permutations[i][partitioning_idx*(partitioning_stride*(1 + min(extra_per_thread, extra - (partitioning_idx - 1)*extra_per_thread))):(partitioning_idx + 1)*(partitioning_stride*(1 + min(extra_per_thread, extra - partitioning_idx*extra_per_thread)))]
+                break
+            else:
+                permutations[i] = permutations[i][partitioning_idx*partitioning_stride:(partitioning_idx + 1)*partitioning_stride]
+            threads_on_current_permutation = (threads_on_current_permutation // partitions_per_level[i]) + (partitioning_idx < threads_on_current_permutation % partitions_per_level[i])
+            tmp_thread_idx //= partitions_per_level[i]
     
     total_perms = reduce(lambda tot, perms : tot * len(perms), permutations, 1)
     #print(f"Total permutations: {total_perms}")
@@ -619,6 +622,8 @@ def forcedSettingsUpdate(arch : Arch, verbose : bool = True) -> None:
 Mapper entry point.
 """
 def run_engine(arch : Arch, comp : Shape, coupling : Coupling, bias_read : bool, verbose : bool = False) -> tuple[float, int, float, int, float, float, Arch]:
+    #Here changing settings does not propagate to processes, which reimport and reset settings.py, therefore 'forcedSettingsUpdate' is called again in 'optimizeDataflows'.
+    forcedSettingsUpdate(arch)
     start_time = time.time()
     
     if Settings.MULTITHREADED:
