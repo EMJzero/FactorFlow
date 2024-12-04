@@ -16,6 +16,7 @@ Constructor arguments:
 class Arch(list):
     def __init__(self, iterable=None, name="<unnamed architecture>"):
         self.name = name
+        # TODO: maybe store Wart, EDP, etc. here?
         
         if iterable is None:
             iterable = []
