@@ -27,6 +27,9 @@ class Arch(list[Level]):
         assert isinstance(self[-1], ComputeLevel), f"Arch: {self.name}: the innermost (idx len-1) level must be a compute level ('ComputeLevel' instance), {type(self[-1]).__name__} provided."
         assert not any(constr[1:] == '<=' for constr in self[0].factors_constraints.keys()), f"Arch: {self.name}: the outermost (idx 0) level's constraints ({self[0].factors_constraints}) must never be of the '<=' kind."
 
+        self.setupBypasses()
+        next((level for level in self[::-1] if isinstance(level, MemLevel)), None).next_is_compute = True
+
     """
     Returns a deep-copied compact representation of the current mapping.
     """
@@ -41,7 +44,7 @@ class Arch(list[Level]):
             self[i].dataflow = mapping[i].dataflow
             self[i].factors = mapping[i].factors
             self[i].tile_sizes = mapping[i].tile_sizes
-            
+
     """
     Checks factors allocation constraints. Returns False if a violation is found.
     """
@@ -198,22 +201,6 @@ class Arch(list[Level]):
                     last_before_bypass = i
                     i += 1
 
-    """
-    Updates the count of ACTIVE instances throughout Mem- and Compute- Levels.
-    An instance is ACTIVE if a FanoutLevel maps a spatial iteration to it.
-    """
-    def updateInstances(self) -> None:
-        spatial_fanout = 1
-        for i in range(len(self)):
-            level = self[i]
-            if isinstance(level, FanoutLevel):
-                # consider only factors -> only actually used instances
-                spatial_fanout *= level.factors.fullProduct()
-            elif isinstance(level, MemLevel):
-                level.instances = spatial_fanout
-                level.next_is_compute = isinstance(self[i+1], ComputeLevel) if i+1 < len(self) else False
-            elif isinstance(level, ComputeLevel):
-                level.instances = spatial_fanout*level.factors.fullProduct()
 
     """
     Clears the accumulators for incrementally updated tile sizes and

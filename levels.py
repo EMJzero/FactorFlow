@@ -206,7 +206,7 @@ class MemLevel(Level):
         #    self.factors_constraints['M'] = 1
 
         # STATISTICS:
-        self.instances = 1 # this are the used/active instances
+        self.active_instances = 1
         self.next_is_compute = False
         self.temporal_iterations = 0
         self.in_reads = 0
@@ -722,7 +722,7 @@ class ComputeLevel(SpatialLevel):
         assert all([value > 0 for value in self.factors_constraints.values()]), f"Level: {name}: all constraints ({self.factors_constraints}) must have a value strictly > 0."
 
         # STATISTICS:
-        self.instances = 1 # this are the used/active instances
+        self.active_instances = 1
         self.temporal_iterations = 0
 
     """

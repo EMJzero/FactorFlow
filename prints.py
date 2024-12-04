@@ -193,7 +193,7 @@ def printMOPsNew(arch : Arch, per_instance : bool = False) -> None:
     WMOPs = 0
     for level in arch:
         if isinstance(level, MemLevel):
-            scaling = level.instances if per_instance else 1
+            scaling = level.active_instances if per_instance else 1
             if 'out' not in level.bypasses:
                 print(f"{level.name}:{chr(9) * (2 - (len(level.name) + 1)//8)}Out_R = {(level.out_reads - level.last_out_writes)/scaling:.0f} (reads) + {level.last_out_writes/scaling:.0f} (drains), Out_W = {(level.out_writes - level.last_out_reads)/scaling:.0f} (updates) + {level.last_out_reads/scaling:.0f} (fills)")
             reads = level.in_reads + level.w_reads + level.out_reads
@@ -205,7 +205,7 @@ def printMOPsNew(arch : Arch, per_instance : bool = False) -> None:
         elif isinstance(level, FanoutLevel):
             continue
         elif isinstance(level, ComputeLevel):
-            WMOPs += level.computeCost(level.temporal_iterations*level.instances)
+            WMOPs += level.computeCost(level.temporal_iterations*level.active_instances)
             break
     print(f"Totals:\t\t{tot_reads:.0f} R, {tot_writes:.0f} W, {tot_reads+tot_writes:.0f} Tot")
     print(f"Energy:\t\t{WMOPs*10**-6:.3f} uJ")
