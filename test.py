@@ -13,8 +13,6 @@ def runTest(arch, correct_data, comp, bias_read):
     arch.initFactors(comp)
     arch.enforceFactorsConstraints()
     assert arch.checkDataflowConstraints(), "Dataflow constraints violated."
-    arch.setupBypasses()
-    arch.updateInstances()
     updateStats(arch, bias_read)
     mem = list(filter(lambda l : isinstance(l, MemLevel), arch))
     passed = True
