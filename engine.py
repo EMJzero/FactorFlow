@@ -1,7 +1,6 @@
 from functools import reduce
 from copy import deepcopy
-import multiprocessing
-import pickle
+import threading
 import math
 import time
 
@@ -446,14 +445,6 @@ def factorFlow(arch, comp, bias_read, already_initialized = False, verbose = Fal
     return arch, best_wart
 
 """
-Helper class make multiprocessing.Manager().Value() interoperable with normal values.
-Used in "optimizeDataflows".
-"""
-class valueBox:
-    def __init__(self, value):
-        self.value = value
-
-"""
 Helper class to store past mappings together with their Wart and factors at one.
 Used in "optimizeDataflows".
 """
@@ -482,86 +473,31 @@ class OptionalLock:
             self.lock.release()
 
 """
-Helper class to manage a dictionary of lists in a shared memory pool among processes.
-Size is the shared memory's maximum size in bytes. Default size: 1GB.
-If "lock" is False, this class is not concurrency-safe and needs to be protected.
-If "shared" is False, this class operates like a normal dictionary of lists.
+Helper class with all data structures required to explore permutations.
+Used in 'optimizeDataflows'.
 """
-class SharedListManager:
-    def __init__(self, size = 2**30, lock = True, shared = True):
-        self.lock = OptionalLock(multiprocessing.Lock() if lock else None)
-        self.shared = shared
-        if shared:
-            self.memory_pool = multiprocessing.shared_memory.SharedMemory(create=True, size=size)
-            self.free_offset = 0 # Tracks free memory in the pool
-        self.data = {} # Maps keys to (list of offsets, list sizes)
-
-    def _allocate_memory(self, size):
-        with self.lock:
-            if self.free_offset + size > self.memory_pool.size:
-                raise MemoryError("Shared memory pool is full!")
-            start = self.free_offset
-            self.free_offset += size
-            return start
-
-    def _write_to_memory(self, offset, data):
-        self.memory_pool.buf[offset:offset + len(data)] = data
-
-    def _read_from_memory(self, offset, size):
-        return self.memory_pool.buf[offset:offset + size]
-
-    def add_list(self, key):
-        with self.lock:
-            if key in self.data:
-                raise ValueError(f"Key '{key}' already exists.")
-            if self.shared:
-                self.data[key] = ([], 0) # Initialize with empty offsets and size 0
-            else:
-                self.data[key] = []
-
-    def append_to_list(self, key, obj):
-        with self.lock:
-            if key not in self.data:
-                raise KeyError(f"Key '{key}' not found.")
-            if not self.shared:
-                self.data[key].append(obj)
-                return
-            offsets, size = self.data[key]
-            # Serialize the object
-            serialized_obj = pickle.dumps(obj)
-            obj_size = len(serialized_obj)
-            # Allocate space in shared memory for the object
-            offset = self._allocate_memory(obj_size)
-            self._write_to_memory(offset, serialized_obj)
-            # Update the list metadata
-            offsets.append((offset, obj_size))
-            self.data[key] = (offsets, size + 1)
-
-    def get_list(self, key):
-        with self.lock:
-            if key not in self.data:
-                raise KeyError(f"Key '{key}' not found.")
-            if not self.shared:
-                return self.data[key]
-            offsets, _ = self.data[key]
-            # Retrieve and deserialize all objects in the list
-            result = []
-            for offset, obj_size in offsets:
-                serialized_obj = self._read_from_memory(offset, obj_size)
-                result.append(pickle.loads(serialized_obj))
-            return result
-
-    def delete_list(self, key):
-        with self.lock:
-            if key not in self.data:
-                raise KeyError(f"Key '{key}' not found.")
-            del self.data[key]
-
-    def clear(self):
-        with self.lock:
-            self.data.clear()
-            if self.shared:
-                self.free_offset = 0 # Reset the memory pool
+class ExplorationState():
+    def __init__(self, thread_safe = False):
+        self.lock = OptionalLock(threading.Lock() if thread_safe else None) # clockwork algorithm and equi-dataflow check lock
+        self.barrier = threading.Barrier(Settings.THREADS_COUNT) if thread_safe else None # post-initialization synch barrier
+        # clockwork counter (indices constructing the current permutation)
+        self.current_perms = []
+        # The last memory hierarchy level which had its permutation updated
+        self.last_iterated_perm = 0
+        # The empty list (tuple([])) key contains the list for the permutations on the first level, each subsequent list is
+        # assigned as key the hash of the sublist current_perms[0, level_idx] (after it is converted in a tuple for hashing)!
+        # Remember, each list is ordered from best to worse mapping (TODO: manage them as a max-heap)!
+        # NOTE: since we check equi-dataflow matches on the last permuted level, which thus follows an inner-levels-first order, and skip entirely inner permutations of an outer permutation
+        #       when there is a match, we never end up in a situation where equi-dataflow matches need to be checked on a level other than the last permuted one, as outer ones have always
+        #       been already checked, while inner ones already skipped if needed!
+        # NOTE: store permutations for FanoutLevels too, since this datastructure is then used to propagate solutions upwards and pick the best one.
+        self.past_perms = {}
+        # With the same keys as "past_perms", tracks how many threads are working on a certain level of the permutations tree,
+        # when its entries reach zero, can be deleted, together with the matching entry in "past_perms".
+        # In other words, this is the count of processes working on a certain permutation or permutations of its inner (non specified) levels.
+        self.past_perms_process_counts = {}
+        # counts explored permutations
+        self.tried_perms = 0
 
 """
 Mapper Step 1: exhaustively iterate loop permutations/dataflows.
@@ -580,7 +516,7 @@ The function is meant as the entry point for multiple processes or threads:
 - threads_count: total number of employed tasks.
 - return_list: shared list among tasks for the return values.
 """
-def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, lock = None, barrier = None, current_perms = None, last_iterated_perm = None, past_perms = None, past_perms_process_counts = None, tried_perms = None, verbose = False):
+def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, state = None, verbose = False):
     #Here changing settings is fine, we are within a process
     Settings.forcedSettingsUpdate(arch, False)
     
@@ -596,50 +532,37 @@ def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, lock = None, barri
     
     # clockwork counter to try all permutations at all levels (in lexicographical order)
     if thread_idx <= 0:
-        current_perms = current_perms if current_perms != None else []
+        state = state if state else ExplorationState()
         for _ in range(len(targets) - 1):
-            current_perms.append(0)
+            state.current_perms.append(0)
         # ensure that the first increments yields a first permutation of all 0s
-        current_perms.append(-1)
-        if last_iterated_perm != None:
-            last_iterated_perm.value = len(targets) - 1
-        else:
-            last_iterated_perm = valueBox(len(targets) - 1)
-        if tried_perms == None:
-            tried_perms = valueBox(0)
-    local_last_iterated_perm = 0
-    # NOTE: since we check equi-dataflow matches on the last permuted level, which thus follows an inner-levels-first order, and skip entirely inner permutations of an outer permutation
-    #       when there is a match, we never end up in a situation where equi-dataflow matches need to be checked on a level other than the last permuted one, as outer ones have always
-    #       been already checked, while inner ones already skipped if needed!
-    # NOTE: store permutations for FanoutLevels too, since this datastructure is then used to propagate solutions upwards and pick the best one.
-    past_perms = past_perms if past_perms != None else {}
-    # count of processes working on a certain permutation or permutations of its inner (non specified) levels
-    past_perms_process_counts = past_perms_process_counts if past_perms_process_counts != None else {}
-    if thread_idx <= 0:
+        state.current_perms.append(-1)
+        state.last_iterated_perm = len(targets) - 1
         first_key = tuple(0 for _ in range(len(targets) - 1))
-        past_perms[first_key] = past_perms._manager.list() if thread_idx != -1 else []
-        past_perms_process_counts[first_key] = Settings.THREADS_COUNT if Settings.MULTITHREADED else 1
+        for i in range(len(first_key) + 1):
+            state.past_perms[first_key[:i]] = []
+            state.past_perms_process_counts[first_key[:i]] = Settings.THREADS_COUNT if Settings.MULTITHREADED else 1
+    with state.lock:
+        local_current_perms = state.current_perms.copy()
+    local_last_iterated_perm = len(targets) - 1
     #skipped_perms_total = 0
-    lock = OptionalLock(lock)
     
-    if barrier:
-        barrier.wait()
+    if state.barrier:
+        state.barrier.wait()
     
     """
     Checks for an equi-dataflow match with past solutions. Returns the best match found or None if no match was found. Let "i" be the level on which to check for a match.
     """
-    def equiDataflowMatch(i, key):
+    def equiDataflowMatch(i):
         if isinstance(targets[i], FanoutLevel):
             return None
-        print(key)
-        print(past_perms)
-        print(past_perms[key])
-        for perm in past_perms[key]:
+        #print(f"559 {thread_idx}:", state.past_perms_process_counts, tuple(state.current_perms[:i]), local_last_iterated_perm)
+        for perm in state.past_perms[tuple(state.current_perms[:i])]:
             # True if any set of dimensions which with a cyclic shift can yield the previous permutation from the current one is entirely made of dims with a factor of 1,
             # or true if of all dimensions involved in swaps between neighbouring nested loops to go from the previous permutation to the current one at least all except one have a factor of 1.
             if (any(map(lambda dims : all([perm.factorsAtOne(i)[dim] for dim in dims]), single_cyclic_shift(permutations[i][local_current_perms[i]], permutations[i][local_current_perms[i] - 1])))
                     or (lambda dims : sum([perm.factorsAtOne(i)[dim] for dim in dims]) >= len(dims) - 1)(pairwise_swaps(permutations[i][local_current_perms[i]], permutations[i][local_current_perms[i] - 1]))):
-                return perm.mapping # no need for "deepcopy(perm.mapping)" since deserialization already created a local copy
+                return perm.mapping
         return None
     
     """
@@ -648,41 +571,86 @@ def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, lock = None, barri
     """
     def nextPermutations():
         nonlocal local_last_iterated_perm
-        with lock:
-            i = last_iterated_perm.value
+        with state.lock:
+            i = state.last_iterated_perm
             while i >= 0:
-                if current_perms[i] + 1 == len(permutations[i]):
-                    current_perms[i] = 0
+                if state.current_perms[i] + 1 == len(permutations[i]):
+                    state.current_perms[i] = 0
                     i -= 1
                 else:
-                    current_perms[i] += 1
+                    state.current_perms[i] += 1
                     break
-            # permuting an inner level, setup new past permutations list
-            new_key = tuple(current_perms[:i])
-            if i > local_last_iterated_perm:
-                if new_key in past_perms:
-                    past_perms_process_counts[new_key] += 1
-                else:
-                    past_perms_process_counts[new_key] = 1
-                    past_perms[new_key] = past_perms._manager.list() if thread_idx != -1 else []
-            # decrement count of processes working on a permutation only when permuting an outer level
-            if i < local_last_iterated_perm:
-                old_key = tuple(local_current_perms[:local_last_iterated_perm])
-                past_perms_process_counts[old_key] -= 1
-                if past_perms_process_counts[old_key] == 0:
+            
+            changed_up_to = 0
+            while state.current_perms[changed_up_to] == local_current_perms[changed_up_to]:
+                changed_up_to += 1
+            changed_up_to = min(local_last_iterated_perm, changed_up_to, i)
+            # go up to the last common permutation point with your previous permutation, clearing up past permutations along the way
+            for j in range(local_last_iterated_perm, changed_up_to, -1):
+                key = tuple(local_current_perms[:j])
+                state.past_perms_process_counts[key] -= 1
+                if state.past_perms_process_counts[key] == 0 and j > 0:
                     # clear current past solutions buffer and move the best solution upward
-                    past_perms_process_counts.pop(old_key)
-                    if i > 0:
-                        for j in range(len(past_perms[new_key]) + 1):
-                            if j == len(past_perms[new_key]) or past_perms[new_key][j].wart < past_perms[old_key][0].wart:
-                                past_perms[new_key].insert(j, past_perms[old_key][0])
-                                break
-                    past_perms.pop(old_key)
-            local_last_iterated_perm = i
+                    state.past_perms_process_counts.pop(key)
+                    upper_key = tuple(local_current_perms[:j - 1])
+                    for k in range(len(state.past_perms[upper_key]) + 1):
+                        if k == len(state.past_perms[upper_key]) or state.past_perms[upper_key][k].wart < state.past_perms[key][0].wart:
+                            state.past_perms[upper_key].insert(k, state.past_perms[key][0])
+                            break
+                    state.past_perms.pop(key)
+            # go back down to the present permutation, preparing past permutations lists along the way
+            for j in range(changed_up_to + 1, i + 1):
+                key = tuple(state.current_perms[:j])
+                if key in state.past_perms:
+                    state.past_perms_process_counts[key] += 1
+                else:
+                    state.past_perms_process_counts[key] = 1
+                    state.past_perms[key] = []
+            
+            #new_key = tuple(state.current_perms[:i])
+            # permuting an inner level, setup new past permutations list
+            #if i > local_last_iterated_perm:
+            #    if new_key in state.past_perms:
+            #        state.past_perms_process_counts[new_key] += 1
+            #    else:
+            #        state.past_perms_process_counts[new_key] = 1
+            #        state.past_perms[new_key] = []
+            # decrement count of processes working on a permutation only when permuting an outer level
+            #if i < local_last_iterated_perm:
+            #    old_key = tuple(local_current_perms[:local_last_iterated_perm])
+            #    state.past_perms_process_counts[old_key] -= 1
+            #    if new_key not in state.past_perms:
+            #        state.past_perms_process_counts[new_key] = 1
+            #        state.past_perms[new_key] = []
+            #    if state.past_perms_process_counts[old_key] == 0:
+                    # clear current past solutions buffer and move the best solution upward
+            #        state.past_perms_process_counts.pop(old_key)
+            #        for j in range(len(state.past_perms[new_key]) + 1):
+            #            if j == len(state.past_perms[new_key]) or state.past_perms[new_key][j].wart < state.past_perms[old_key][0].wart:
+            #                state.past_perms[new_key].insert(j, state.past_perms[old_key][0])
+            #                break
+            #        state.past_perms.pop(old_key)
+            # stop when finishing permutations on the outermost level
+            if i == -1:
+                state.last_iterated_perm = -1
+                local_last_iterated_perm = -1
+                return None, None
             # if there is an equi-dataflow match, permute the same level again, otherwise re-start from the innermost one
-            eq_match = equiDataflowMatch(i, new_key) if Settings.PERM_SKIP else None
-            last_iterated_perm.value = i if eq_match else len(targets) - 1
-            return [idx for idx in current_perms], eq_match
+            eq_match = equiDataflowMatch(i) if Settings.PERM_SKIP else None
+            if eq_match:
+                local_last_iterated_perm = i
+                state.last_iterated_perm = i
+            else:
+                state.last_iterated_perm = len(targets) - 1
+                local_last_iterated_perm = len(targets) - 1
+                for j in range(i + 1, len(targets)):
+                    key = tuple(state.current_perms[:j])
+                    if key in state.past_perms:
+                        state.past_perms_process_counts[key] += 1
+                    else:
+                        state.past_perms_process_counts[key] = 1
+                        state.past_perms[key] = []
+            return [idx for idx in state.current_perms], eq_match
     
     local_current_perms, equidataflow_past_solution = nextPermutations()
     
@@ -691,37 +659,39 @@ def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, lock = None, barri
             # prepare present permutation and optimize its mapping
             arch.resetFactors(copy = True)
             for mem_idx in range(len(targets)):
-                targets[mem_idx].dataflow = permutations[mem_idx][current_perms[mem_idx]]
+                targets[mem_idx].dataflow = permutations[mem_idx][state.current_perms[mem_idx]]
             arch, wart = factorFlow(arch, comp, bias_read)
         elif not Settings.HARD_PERM_SKIP:
             # copy over the mapping and quickly re-optimize it
-            arch.importMapping(equidataflow_past_solution)
-            targets[local_last_iterated_perm].dataflow = permutations[local_last_iterated_perm][current_perms[local_last_iterated_perm]]
+            arch.importMapping(deepcopy(equidataflow_past_solution))
+            targets[local_last_iterated_perm].dataflow = permutations[local_last_iterated_perm][state.current_perms[local_last_iterated_perm]]
             arch, wart = factorFlow(arch, comp, bias_read, True)
         
         key = tuple(local_current_perms[:local_last_iterated_perm])
         if not equidataflow_past_solution:
             # store past solutions (in order of Wart)
-            with lock:
-                for j in range(len(past_perms[key]) + 1):
-                    if j == len(past_perms[key]) or past_perms[key][j].wart < wart:
-                        past_perms[key].insert(j, PastSolution(arch.exportMapping(), wart))
+            past_solution = PastSolution(arch.exportMapping(copy = True), wart)
+            with state.lock:
+                for j in range(len(state.past_perms[key]) + 1):
+                    if j == len(state.past_perms[key]) or state.past_perms[key][j].wart < wart:
+                        state.past_perms[key].insert(j, past_solution)
                         break
-            tried_perms.value += 1
-            local_tried_perms = tried_perms.value
+            state.tried_perms += 1
+            local_tried_perms = state.tried_perms
             if verbose and math.floor((local_tried_perms/total_perms)*10) > math.floor(((local_tried_perms - 1)/total_perms)*10):
                 print(f"Progress: {local_tried_perms}/{total_perms} tried...")
         else:
             # store past solutions (in order of Wart)
             # TODO: store IFF you moved at least one factor!
-            with lock:
-                for j in range(len(past_perms[key]) + 1):
-                    if j == len(past_perms[key]) or past_perms[key][j].wart < wart:
-                        past_perms[key].insert(j, PastSolution(arch.exportMapping(), wart))
+            past_solution = PastSolution(arch.exportMapping(copy = True), wart)
+            with state.lock:
+                for j in range(len(state.past_perms[key]) + 1):
+                    if j == len(state.past_perms[key]) or state.past_perms[key][j].wart < wart:
+                        state.past_perms[key].insert(j, past_solution)
                         break
             skipped_perms = reduce(lambda tot, perms : tot * len(perms), permutations[local_last_iterated_perm+1:len(permutations)], 1)
-            tried_perms.value += skipped_perms
-            local_tried_perms = tried_perms.value
+            state.tried_perms += skipped_perms
+            local_tried_perms = state.tried_perms
             #skipped_perms_total += skipped_perms
             if verbose and math.floor((local_tried_perms/total_perms)*10) > math.floor(((local_tried_perms - skipped_perms)/total_perms)*10):
                 print(f"Progress: {local_tried_perms}/{total_perms} tried...")
@@ -734,9 +704,9 @@ def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, lock = None, barri
     #print(f"Terminating thread {thread_idx} with skipped permutations (total): {skipped_perms_total}")
     
     if thread_idx == -1:
-        arch.importMapping(past_perms[()][0].mapping)
+        arch.importMapping(state.past_perms[()][0].mapping)
         wart = Wart(arch, comp, bias_read)
-        assert wart == past_perms[()][0].wart
+        assert wart == state.past_perms[()][0].wart
         return arch, wart
 
 """
@@ -750,29 +720,16 @@ def run_engine(arch, comp, bias_read, verbose = False):
         Settings.forcedSettingsUpdate(arch)
 
     if Settings.MULTITHREADED:
-        manager = multiprocessing.Manager()
-        lock = multiprocessing.Lock() # clockwork algorithm and equi-dataflow check lock
-        barrier = multiprocessing.Barrier(Settings.THREADS_COUNT if Settings.MULTITHREADED else 1) # post-initialization synch barrier
-        current_perms = manager.list()
-        # The last memory hierarchy level which had its permutation updated
-        last_iterated_perm = manager.Value('i', 0, lock = False)
-        # The empty list (tuple([])) key contains the list for the permutations on the first level, each subsequent list is
-        # assigned as key the hash of the sublist current_perms[0, level_idx] (after it is converted in a tuple for hashing)!
-        # Remember, each list is managed like a max-heap!
-        past_perms = SharedListManager(lock = False)
-        # With the same keys as "past_perms", tracks how many processes are working on a certain level of the permutations tree,
-        # when its entries reach zero, can be deleted, together with the matching entry in "past_perms".
-        past_perms_process_counts = manager.dict()
-        tried_perms = manager.Value('i', 0, lock = True)
-        processes = []
+        state = ExplorationState(thread_safe = True)
+        threads = []
         for i in range(Settings.THREADS_COUNT):
-            p = multiprocessing.Process(target=optimizeDataflows, args=(deepcopy(arch), deepcopy(comp), bias_read, i, lock, barrier, current_perms, last_iterated_perm, past_perms, past_perms_process_counts, tried_perms, Settings.VERBOSE))
-            processes.append(p)
-            p.start()
-        for p in processes:
-            p.join()
-        assert () in past_perms and len(past_perms[()]) > 0, f"All threads failed to return or found no valid mapping, see above logs..."
-        arch = arch.importMapping(past_perms[()][0].mapping)
+            t = threading.Thread(target=optimizeDataflows, args=(deepcopy(arch), deepcopy(comp), bias_read, i, state, Settings.VERBOSE))
+            threads.append(t)
+            t.start()
+        for t in threads:
+            t.join()
+        assert () in state.past_perms and len(state.past_perms[()]) > 0, f"All threads failed to return or found no valid mapping, see above logs..."
+        arch.importMapping(state.past_perms[()][0].mapping)
         wart = Wart(arch, comp, bias_read)
     else:
         #arch, _ = factorFlow(arch, comp, bias_read, verbose = VERBOSE)
