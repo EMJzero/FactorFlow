@@ -53,7 +53,8 @@ class Arch(list):
             self[i].dataflow = mapping[i].dataflow
             self[i].factors = mapping[i].factors
             self[i].tile_sizes = mapping[i].tile_sizes
-            
+        self.updateInstances()
+
     """
     Checks factors allocation constraints. Returns False if a violation is found.
     """
@@ -243,16 +244,6 @@ class Arch(list):
                 level.next_is_compute = isinstance(self[i+1], ComputeLevel) if i+1 < len(self) else False
             elif isinstance(level, ComputeLevel):
                 level.instances = spatial_fanout
-
-    """
-    Clears the accumulators for incrementally updated tile sizes and
-    prime factors products in the architecture.
-    """
-    def resetTilesAndFactors(self):
-        for level in self:
-            level.factors.clear()
-            for dim in ['M', 'K', 'N']:
-                level.tile_sizes[dim] = 1
 
     """
     Returns the overall utilization of spatial instances of a mapping.
