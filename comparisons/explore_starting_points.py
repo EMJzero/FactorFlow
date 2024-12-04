@@ -115,9 +115,6 @@ def randomFactorsInitializations(arch, comp):
     initFactors(arch, comp)
     enforceFactorsConstraints(arch)
     setupBypasses(arch)
-    arch.setupSpatialLevelPointers()
-    updateInstances(arch)
-    
     mems = list(filter(lambda l : isinstance(l, MemLevel), arch))
     random_disjoint_primes_lists = disjoint_partitions(primeFactorsList(arch[0].factors.dimProduct('M')), primeFactorsList(arch[0].factors.dimProduct('M')), primeFactorsList(arch[0].factors.dimProduct('M')), len(mems))
     
@@ -136,9 +133,6 @@ def randomFactorsInitializations(arch, comp):
 def randomFactorsInitializationsFast(arch, comp, random_moves = 10):
     arch.initFactors(comp)
     arch.enforceFactorsConstraints()
-    arch.setupBypasses()
-    arch.setupSpatialLevelPointers()
-    arch.updateInstances()
     
     mems = list(filter(lambda l : isinstance(l, MemLevel), arch))
     factors = reduce(lambda l, a : l + a, [[(dim, f) for f in mems[0].factors.toList(dim)] for dim in ['M', 'K', 'N']], [])
@@ -172,9 +166,6 @@ def randomFactorsInitializationsFast(arch, comp, random_moves = 10):
 def randomFactorsInitializationsSlow(arch, comp, random_moves = 10):
     arch.initFactors(comp)
     arch.enforceFactorsConstraints()
-    arch.setupBypasses()
-    arch.setupSpatialLevelPointers()
-    arch.updateInstances()
     
     def randomMoves(arch, n):
         mems = list(filter(lambda l : isinstance(l, MemLevel), arch))

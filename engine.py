@@ -60,6 +60,7 @@ def updateStats(arch : Arch, bias_read : bool) -> tuple[float, int]:
             level.temporal_iterations = temporal_iterations
             reads = in_reads + w_reads + out_reads
             writes = in_writes + w_writes + out_writes
+            level.active_instances = spatial_iterations
             WMOPs += level.WMOPs(reads, writes)
             temporal_iterations *= level.factors.fullProduct()
             acc_out_reads_factors *= math.prod(level.factors.dimProduct(dim) for dim in level.dataflow if dim not in level.arch.coupling.flat_out_coupling)
@@ -94,6 +95,7 @@ def updateStats(arch : Arch, bias_read : bool) -> tuple[float, int]:
             # TODO: remove cost of first output accumulate if bias_read is False!
             # => not needed because the cost of the add is << than the multiply!
             level.temporal_iterations = temporal_iterations
+            level.active_instances = spatial_iterations
             WMOPs += level.computeCost(temporal_iterations*spatial_iterations)
             # compute is meant to be the innermost level
             break
@@ -112,7 +114,7 @@ def updateStats(arch : Arch, bias_read : bool) -> tuple[float, int]:
         level = arch[i]
         previous_fanout_pe_to_pe_warmup = 0
         if isinstance(level, MemLevel):
-            scaling = level.instances*level.temporal_iterations
+            scaling = level.active_instances*level.temporal_iterations
             ideal_bandwidth_read = (level.getRead()/scaling)/(cc_per_tile*level.factors.fullProduct())
             ideal_bandwidth_update = (level.getUpdate()/scaling)/(cc_per_tile*level.factors.fullProduct())
             # TODO: this should get divided per-operand, as depending on the dataflow, an operand may have more or less iterations to be loaded
@@ -146,23 +148,23 @@ def updateStats(arch : Arch, bias_read : bool) -> tuple[float, int]:
     
     # Active instances, leakage, and final latency:
     temporal_iterations = 1
-    active_instances = 1
+    powered_instances = 1
     for i in range(len(arch)):
         level = arch[i]
         if isinstance(level, MemLevel):
             max_latency = max(max_latency, level.getSettedLatency())
-            #print(f"Leakage level {level.name}: {level.Leakage(level.getSettedLatency())*active_instances}")
-            WMOPs += level.Leakage(level.getSettedLatency())*active_instances
+            #print(f"Leakage level {level.name}: {level.Leakage(level.getSettedLatency())*powered_instances}")
+            WMOPs += level.Leakage(level.getSettedLatency())*powered_instances
             temporal_iterations *= level.factors.fullProduct()
         elif isinstance(level, FanoutLevel):
             max_latency = max(max_latency, level.latency()*temporal_iterations)
             if level.power_gating_support:
-                active_instances *= level.factors.fullProduct()
+                powered_instances *= level.factors.fullProduct()
             else:
-                active_instances *= level.mesh
+                powered_instances *= level.mesh
         elif isinstance(level, ComputeLevel):
             max_latency = max(max_latency, level.latency()*temporal_iterations)
-            WMOPs += level.Leakage(level.latency())*active_instances
+            WMOPs += level.Leakage(level.latency())*powered_instances
             break
     
     return WMOPs, max_latency
@@ -218,7 +220,7 @@ def Energy(arch : Arch, pJ_to_uJ : bool = False) -> float:
         elif isinstance(level, FanoutLevel):
             continue
         elif isinstance(level, ComputeLevel):
-            WMOPs += level.computeCost(level.temporal_iterations*level.instances)
+            WMOPs += level.computeCost(level.temporal_iterations*level.active_instances)
             break
     return WMOPs*(10**-6 if pJ_to_uJ else 1)
 
@@ -312,7 +314,6 @@ def fanoutMaximization(arch : Arch, comp : Shape, bias_read : bool, verbose : bo
                         if arch.moveFactor(0, i, level.dims[ping_pong], f):
                             ping_pong = len(level.dims) - 1 - ping_pong
         
-    arch.updateInstances()
     if verbose: print(f"After fanout maximization (Wart: {Wart(arch, comp, bias_read):.3e}):")
     if verbose: printFactors(arch)
 
@@ -354,13 +355,7 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, already_initialized 
     assert not arch.findConstraintsViolation(), f"Arch: {arch.name}: factor constraints violation in the given architecture."
     constraints_check = [level.checkConstraints() for level in arch]
     assert all(constraints_check), f"Ill-posed constraints:\n{arch[constraints_check.index(False)].logConstraintsViolation()}"
-    if not already_initialized:
-        # TODO: could be anticipated in optimizeDataflows...
-        arch.setupBypasses()
-        arch.setupSpatialLevelPointers()
-        arch.updateInstances()
     assert arch.checkDataflowConstraints(), f"Arch: {arch.name}: dataflow constraints violation."
-    
     if verbose: print(f"Initial condition (Wart: {Wart(arch, comp, bias_read):.3e}):")
     if verbose: printFactors(arch)
     
@@ -441,7 +436,6 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, already_initialized 
                 assert arch.moveFactor(best_choice[5*i + 0], best_choice[5*i + 1], best_choice[5*i + 2], best_choice[5*i + 3], best_choice[5*i + 4], skip_src_constraints = Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and i < multisteps - 1) # best choice is an invalid mapping
             best_wart = choices[best_choice]
     
-    arch.updateInstances()
     updateStats(arch, bias_read)
     if verbose: print(f"Final condition:\nWart: {best_wart}\nEDP: {EDP(arch, bias_read, True):.3e} (J*cycle)")
     if verbose: printFactors(arch)
