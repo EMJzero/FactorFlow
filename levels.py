@@ -179,7 +179,7 @@ class MemLevel(Level):
     next_levels_with_bypass : dict[str, Optional[list[Level]]] # pointers to the next level storing an operand hereby bypassed (initialized in setupBypasses)
 
     # STATISTICS:
-    instances = 1 # this are the used/active instances
+    active_instances = 1
     temporal_iterations = 0
     in_reads = 0
     w_reads = 0
@@ -925,7 +925,7 @@ class ComputeLevel(SpatialLevel):
     cycles : int # clock cycles used per element in the inner dimension (latency of one MAC)
 
     # STATISTICS:
-    instances = 1 # this are the used/active instances
+    active_instances = 1
     temporal_iterations = 0
     
     def __init__(self, name : str, mesh : int, compute_energy : float, cycles : int, dim : Optional[str] = None, dims : Optional[list[str]] = None, leakage_energy : float = 0, area : Optional[float] = None, factors : Optional[Factors] = None, tile_sizes : Optional[Shape] = None, factors_constraints : Optional[dict[str, int]] = None):

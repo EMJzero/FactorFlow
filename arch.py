@@ -34,6 +34,10 @@ class Arch(list[Level]):
         for level in self:
             level.initArch(self)
 
+        self.setupBypasses()
+        self.setupSpatialLevelPointers()
+        next((level for level in self[::-1] if isinstance(level, MemLevel)), None).next_is_compute = True
+
     """
     Returns a deep-copied compact representation of the current mapping.
     """
@@ -132,7 +136,7 @@ class Arch(list[Level]):
     def initFactors(self, comp : Shape) -> None:
         # initialize with all factors on first level, all tile sizes of 1!
         self[0].factors = Factors({dim: prime_factors(comp[dim]) for dim in self.coupling.dims})
-        self.stride_values = {dim: comp[dim] for dim in list(self.coupling.in_strides.values()) + list(self.coupling.w_strides.values()) + list(self.coupling.out_strides.values())}
+        self.stride_values = {dim: (comp[dim] if dim in comp else 1) for dim in list(self.coupling.in_strides.values()) + list(self.coupling.w_strides.values()) + list(self.coupling.out_strides.values())}
 
     """
     This function must start from arch having all factors on its first level,
@@ -228,23 +232,6 @@ class Arch(list[Level]):
                     j += 1
                 level.next_spatials = self[i+1:j]
                 level.next_is_compute = isinstance(self[j-1], ComputeLevel)
-
-    """
-    Updates the count of ACTIVE instances throughout Mem- and Compute- Levels.
-    An instance is ACTIVE if a FanoutLevel maps a spatial iteration to it.
-    """
-    def updateInstances(self) -> None:
-        spatial_fanout = 1
-        for i in range(len(self)):
-            level = self[i]
-            if isinstance(level, FanoutLevel):
-                # consider only factors -> only actually used instances
-                spatial_fanout *= level.factors.fullProduct()
-            elif isinstance(level, MemLevel):
-                level.instances = spatial_fanout
-                level.next_is_compute = isinstance(self[i+1], ComputeLevel) if i+1 < len(self) else False
-            elif isinstance(level, ComputeLevel):
-                level.instances = spatial_fanout*level.factors.fullProduct()
 
     """
     Clears the accumulators for incrementally updated tile sizes and

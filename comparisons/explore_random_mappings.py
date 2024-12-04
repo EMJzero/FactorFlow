@@ -87,9 +87,6 @@ def randomDataflows(arch):
 def randomFactorsInitializationsFast(arch, comp):
     arch.initFactors(comp)
     arch.enforceFactorsConstraints()
-    arch.setupBypasses()
-    arch.setupSpatialLevelPointers()
-    arch.updateInstances()
     
     factors = reduce(lambda l, a : l + a, [[(dim, f) for f in arch[0].factors.toList(dim)] for dim in ['M', 'K', 'N']], [])
     
@@ -124,9 +121,6 @@ def randomFactorsInitializationsFast(arch, comp):
 def randomFactorsInitializationsSlow(arch, comp, random_moves = 10):
     arch.initFactors(comp)
     arch.enforceFactorsConstraints()
-    arch.setupBypasses()
-    arch.setupSpatialLevelPointers()
-    arch.updateInstances()
     
     def randomMoves(arch, n):
         mems = list(filter(lambda l : isinstance(l, MemLevel), arch))
