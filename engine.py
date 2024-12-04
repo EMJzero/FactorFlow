@@ -597,6 +597,8 @@ def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, state = None, verb
                         if k == len(state.past_perms[upper_key]) or state.past_perms[upper_key][k].wart < state.past_perms[key][0].wart:
                             state.past_perms[upper_key].insert(k, state.past_perms[key][0])
                             break
+                    for k in range(len(state.past_perms[key]) - 1, 1, -1):
+                        del state.past_perms[key][k]
                     state.past_perms.pop(key)
             # go back down to the present permutation, preparing past permutations lists along the way
             for j in range(changed_up_to + 1, i + 1):
@@ -607,29 +609,6 @@ def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, state = None, verb
                     state.past_perms_process_counts[key] = 1
                     state.past_perms[key] = []
             
-            #new_key = tuple(state.current_perms[:i])
-            # permuting an inner level, setup new past permutations list
-            #if i > local_last_iterated_perm:
-            #    if new_key in state.past_perms:
-            #        state.past_perms_process_counts[new_key] += 1
-            #    else:
-            #        state.past_perms_process_counts[new_key] = 1
-            #        state.past_perms[new_key] = []
-            # decrement count of processes working on a permutation only when permuting an outer level
-            #if i < local_last_iterated_perm:
-            #    old_key = tuple(local_current_perms[:local_last_iterated_perm])
-            #    state.past_perms_process_counts[old_key] -= 1
-            #    if new_key not in state.past_perms:
-            #        state.past_perms_process_counts[new_key] = 1
-            #        state.past_perms[new_key] = []
-            #    if state.past_perms_process_counts[old_key] == 0:
-                    # clear current past solutions buffer and move the best solution upward
-            #        state.past_perms_process_counts.pop(old_key)
-            #        for j in range(len(state.past_perms[new_key]) + 1):
-            #            if j == len(state.past_perms[new_key]) or state.past_perms[new_key][j].wart < state.past_perms[old_key][0].wart:
-            #                state.past_perms[new_key].insert(j, state.past_perms[old_key][0])
-            #                break
-            #        state.past_perms.pop(old_key)
             # stop when finishing permutations on the outermost level
             if i == -1:
                 state.last_iterated_perm = -1
