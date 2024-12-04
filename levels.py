@@ -193,7 +193,7 @@ class MemLevel(Level):
         #    self.factors_constraints['M'] = 1
 
         # STATISTICS:
-        self.instances = 1
+        self.active_instances = 1
         self.next_is_compute = False
         self.temporal_iterations = 0
         self.in_reads = 0
@@ -710,7 +710,7 @@ class ComputeLevel(Level):
         assert all([constr in self.dataflow for constr in self.dataflow_constraints]), f"Level: {name}: all dims specified as dataflow constraints ({self.dataflow_constraints}) must be part of the dataflow ({self.dataflow})."
 
         # STATISTICS:
-        self.instances = 1
+        self.active_instances = 1
         self.temporal_iterations = 0
 
     """
