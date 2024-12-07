@@ -1,5 +1,4 @@
 from functools import reduce
-from itertools import cycle
 import multiprocessing
 import math
 import copy
@@ -115,8 +114,10 @@ def updateStats(arch : Arch, bias_read : bool) -> tuple[float, int]:
         previous_fanout_pe_to_pe_warmup = 0
         if isinstance(level, MemLevel):
             scaling = level.active_instances*level.temporal_iterations
-            ideal_bandwidth_read = (level.getRead()/scaling)/(cc_per_tile*level.factors.fullProduct())
-            ideal_bandwidth_update = (level.getUpdate()/scaling)/(cc_per_tile*level.factors.fullProduct())
+            cc_per_all_tiles = cc_per_tile*level.factors.fullProduct()
+            scaled_cc_per_all_tiles = scaling*cc_per_all_tiles
+            ideal_bandwidth_read = level.getRead()/scaled_cc_per_all_tiles # original -more readable- formulation: (level.getRead()/scaling)/(cc_per_tile*level.factors.fullProduct())
+            ideal_bandwidth_update = level.getUpdate()/scaled_cc_per_all_tiles
             # TODO: this should get divided per-operand, as depending on the dataflow, an operand may have more or less iterations to be loaded
             # TODO: support double buffering on a per-operand basis
             # NOTE: the current implementation coincides with Timeloop's notion of Buffets, but it is not exact...
@@ -124,20 +125,20 @@ def updateStats(arch : Arch, bias_read : bool) -> tuple[float, int]:
             #outermost_available_iterations = 1 if level.multiple_buffering == 1 else level.factors.dimProduct(level.dataflow[0])*(level.multiple_buffering - 1)
             #ideal_bandwidth_fill = (level.getFill()/scaling)/(cc_per_tile*level.factors.dimProduct(level.dataflow[1])*level.factors.dimProduct(level.dataflow[2])*outermost_available_iterations)
             #ideal_bandwidth_drain = (level.getDrain()/scaling)/(cc_per_tile*level.factors.dimProduct(level.dataflow[1])*level.factors.dimProduct(level.dataflow[2])*outermost_available_iterations)
-            ideal_bandwidth_fill = (level.getFill()/scaling)/(cc_per_tile*level.factors.fullProduct())
-            ideal_bandwidth_drain = (level.getDrain()/scaling)/(cc_per_tile*level.factors.fullProduct()) if not Settings.FREE_DRAINS else 0
+            ideal_bandwidth_fill = level.getFill()/scaled_cc_per_all_tiles
+            ideal_bandwidth_drain = level.getDrain()/scaled_cc_per_all_tiles if not Settings.FREE_DRAINS else 0
             # bandwidth is statically divided between reads and writes
             # NOTE: warmup cycles cannot be used to compensate for a lack of bandiwidth at regime
             if ideal_bandwidth_read + ideal_bandwidth_drain <= level.read_bandwidth:
-                latency_read_drain = cc_per_tile*level.factors.fullProduct() + previous_fanout_pe_to_pe_warmup*cc_per_tile
+                latency_read_drain = cc_per_all_tiles + previous_fanout_pe_to_pe_warmup*cc_per_tile
             else:
                 latency_read_drain = ((level.getRead() + level.getDrain())/scaling)*(1/level.read_bandwidth) if not Settings.FREE_DRAINS else (level.getRead()/scaling)*(1/level.read_bandwidth)
             if ideal_bandwidth_fill + ideal_bandwidth_update <= level.write_bandwidth:
-                latency_fill_update = cc_per_tile*level.factors.fullProduct() + previous_fanout_pe_to_pe_warmup*cc_per_tile
+                latency_fill_update = cc_per_all_tiles + previous_fanout_pe_to_pe_warmup*cc_per_tile
             else:
                 latency_fill_update = ((level.getFill() + level.getUpdate())/scaling)*(1/level.write_bandwidth)
             latency = max(latency_read_drain, latency_fill_update)
-            stall_cycles = latency - cc_per_tile*level.factors.fullProduct()
+            stall_cycles = latency - cc_per_all_tiles
             level.setLatency(latency_read_drain = latency_read_drain*level.temporal_iterations, latency_fill_update = latency_fill_update*level.temporal_iterations, cc_per_tile = cc_per_tile, stall_cycles = stall_cycles*level.temporal_iterations, ideal_bandwidth_read = ideal_bandwidth_read, ideal_bandwidth_update = ideal_bandwidth_update, ideal_bandwidth_fill = ideal_bandwidth_fill, ideal_bandwidth_drain = ideal_bandwidth_drain)
             #Timeloop does this (loosing knowledge of true behaviour): cc_per_tile = cc_per_tile*level.factors.fullProduct()
             previous_fanout_pe_to_pe_warmup = 0
@@ -472,17 +473,18 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
     if thread_idx != -1:
         partitions_per_level = [1 for _ in permutations]
         factors_per_level = [prime_factors_list(len(perm)) for perm in permutations]
-        cumulative_product, circular_idx = 1, 0
-        gen = (i for i, factors in cycle(enumerate(factors_per_level)) if len(factors) > 0)
+        cumulative_product, circular_idx = 1, -1
         # circularly partition each level's permutations by the smaller of their amount's prime factors, until there are more partitions than threads
         while cumulative_product < threads_count:
-            circular_idx = next(gen, None)
+            circular_idx = next(((i + circular_idx + 1) % len(factors_per_level) for i, factors in enumerate(factors_per_level[circular_idx + 1:] + factors_per_level[:circular_idx + 1]) if len(factors) > 0), None)
             if circular_idx == None:
                 break
-            partitions_per_level[circular_idx] *= factors_per_level[circular_idx][0]
-            cumulative_product *= factors_per_level[circular_idx][0]
+            factor = factors_per_level[circular_idx].pop(0)
+            partitions_per_level[circular_idx] *= factor
+            cumulative_product *= factor
         if circular_idx == None and thread_idx >= cumulative_product:
             # more threads than permutations, terminate extra threads
+            return_list[thread_idx] = (arch, 0, [0 for _ in targets])
             return
         tmp_thread_idx = thread_idx
         threads_on_current_permutation = threads_count
