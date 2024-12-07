@@ -403,8 +403,8 @@ class MemLevel(Level):
         # ignore loops at one
         actual_dataflow = list(filter(lambda dim : self.factors.dimProduct(dim) > 1, self.dataflow))
         # stationarity calculation for inputs
-        in_reads = in_bp
-        if in_reads:
+        in_reads = int(in_bp)
+        if in_bp:
             i = len(actual_dataflow) - 1
             innermost_dim_sum = None
             if not self.next_is_compute:
@@ -444,8 +444,8 @@ class MemLevel(Level):
             for dim in actual_dataflow[:i+1]:
                 in_reads *= self.factors.dimProduct(dim)
         # stationarity calculation for weights
-        w_reads = w_bp
-        if w_reads:
+        w_reads = int(w_bp)
+        if w_bp:
             i = len(actual_dataflow) - 1
             innermost_dim_sum = None
             if not self.next_is_compute:
@@ -467,9 +467,9 @@ class MemLevel(Level):
             for dim in actual_dataflow[:i+1]:
                 w_reads *= self.factors.dimProduct(dim)
         # stationarity calculation for outputs
-        out_reads = out_bp
-        out_reads_factors = out_bp # this collects the factors along dimensions orthogonal to the output, returned to handle the presence/absence of the bias
-        if out_reads:
+        out_reads = int(out_bp)
+        out_reads_factors = out_reads # this collects the factors along dimensions orthogonal to the output, returned to handle the presence/absence of the bias
+        if out_bp:
             i = len(actual_dataflow) - 1
             innermost_dim_sum = None
             if not self.next_is_compute:
@@ -984,7 +984,7 @@ class ComputeLevel(SpatialLevel):
     the hierarchy of levels on top of this one.
     """
     def computeCost(self, iterations : int = 1) -> float:
-        return self.compute_energy*self.factors.fullProduct()*iterations
+        return self.compute_energy*float(self.factors.fullProduct()*iterations)
 
     """
     Returns the total leaked energy during the provided clock cycles.

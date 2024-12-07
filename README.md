@@ -18,7 +18,7 @@ Marco Ronzani and Cristina Silvano. 2025. **FactorFlow: Mapping GEMMs on Spatial
 
 ## Setup
 
-Requires **Python 3.9** or newer.
+Requires **Python 3.9** or newer (Python 3.13 highly recommended).
 
 To setup FactorFlow run:
 ```bash
