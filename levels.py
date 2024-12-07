@@ -414,7 +414,7 @@ class MemLevel(Level):
                     i -= 1
                     skipped = True
                 # dimensions that partake in a sum of indices for the input operand together with the innermost iterated dimension
-                innermost_dim_sum = next((dim_sum for dim_sum in self.arch.coupling.in_coupling if actual_dataflow[i] in dim_sum and len(dim_sum) > 1), None) if i >= 0 else None
+                innermost_dim_sum = self.arch.coupling.getDimSum('in', actual_dataflow[i], 2) if i >= 0 else None
                 # if any dimension in innermost_dim_sum is spatially unrolled after this level, no halo reuse can occur because the instance
                 # storing reusable data from the previous iteration differs from the instance which needs that data for the next iteration
                 # NOTE: halo reuse, when a sum of indices is involved, after reading the first tile, all subsequent ones are only read for the part not in common
@@ -453,7 +453,7 @@ class MemLevel(Level):
                 while i >= 0 and (actual_dataflow[i] not in self.arch.coupling.flat_w_coupling):
                     i -= 1
                     skipped = True
-                innermost_dim_sum = next((dim_sum for dim_sum in self.arch.coupling.w_coupling if actual_dataflow[i] in dim_sum and len(dim_sum) > 1), None) if i >= 0 else None
+                innermost_dim_sum = self.arch.coupling.getDimSum('w', actual_dataflow[i], 2) if i >= 0 else None
                 if innermost_dim_sum and (not all(all(sp_level.factors.dimProduct(dim) == 1 for dim in innermost_dim_sum) for sp_level in self.next_spatials) or (skipped and not self.multiple_reuses)):
                     innermost_dim_sum = None
                 if innermost_dim_sum:
@@ -477,7 +477,7 @@ class MemLevel(Level):
                 while i >= 0 and (actual_dataflow[i] not in self.arch.coupling.flat_out_coupling):
                     i -= 1
                     skipped = True
-                innermost_dim_sum = next((dim_sum for dim_sum in self.arch.coupling.out_coupling if actual_dataflow[i] in dim_sum and len(dim_sum) > 1), None) if i >= 0 else None
+                innermost_dim_sum = self.arch.coupling.getDimSum('out', actual_dataflow[i], 2) if i >= 0 else None
                 if innermost_dim_sum and (not all(all(sp_level.factors.dimProduct(dim) == 1 for dim in innermost_dim_sum) for sp_level in self.next_spatials) or (skipped and not self.multiple_reuses)):
                     innermost_dim_sum = None
                 if innermost_dim_sum:
@@ -518,7 +518,7 @@ class MemLevel(Level):
                                         i -= 1
                                     stationarity_to_address = i < 0 # postpone stationarity evaluation since not input-coupled dimension is iterated here
                                     # dimensions that partake in a sum of indices for the input operand together with the innermost iterated dimension on the currently traversed level between bypasses
-                                    innermost_dim_sum = next((dim_sum for dim_sum in self.arch.coupling.in_coupling if actual_dataflow_bp[i] in dim_sum and len(dim_sum) > 1), None) if i >= 0 else None
+                                    innermost_dim_sum = self.arch.coupling.getDimSum('in', actual_dataflow_bp[i], 2) if i >= 0 else None
                                     if innermost_dim_sum and (all(all(sp_level.factors.dimProduct(dim) == 1 for dim in innermost_dim_sum) for sp_level in in_btwn.next_spatials) and (i == len(actual_dataflow_bp) - 1 or self.multiple_reuses)):
                                         # before updating the tile size, remove from the original one the component relative to the dimension involved in the sum of indices
                                         # WARNING: this ignores potential reuse in the case in which (e.g.) R is iterated immediately around P, and part of the input can be reuse on inner levels!!! That may not be supported by HW tho...
@@ -536,7 +536,7 @@ class MemLevel(Level):
                                     while i >= 0 and (actual_dataflow_bp[i] not in self.arch.coupling.flat_w_coupling):
                                         i -= 1
                                     stationarity_to_address = i < 0
-                                    innermost_dim_sum = next((dim_sum for dim_sum in self.arch.coupling.w_coupling if actual_dataflow_bp[i] in dim_sum and len(dim_sum) > 1), None) if i >= 0 else None
+                                    innermost_dim_sum = self.arch.coupling.getDimSum('w', actual_dataflow_bp[i], 2) if i >= 0 else None
                                     if innermost_dim_sum and (all(all(sp_level.factors.dimProduct(dim) == 1 for dim in innermost_dim_sum) for sp_level in in_btwn.next_spatials) and (i == len(actual_dataflow_bp) - 1 or self.multiple_reuses)):
                                         w_reads_bp //= distinct_values([in_btwn.tile_sizes[dim] for dim in innermost_dim_sum], [self.arch.getWStride(dim) for dim in innermost_dim_sum])
                                         w_reads_bp *= distinct_values([in_btwn.factors.dimProduct(actual_dataflow_bp[i])*in_btwn.tile_sizes[actual_dataflow_bp[i]]] + [in_btwn.tile_sizes[dim] for dim in innermost_dim_sum if dim != actual_dataflow_bp[i]], [self.arch.getWStride(actual_dataflow_bp[i])] + [self.arch.getWStride(dim) for dim in innermost_dim_sum if dim != actual_dataflow_bp[i]])
@@ -551,7 +551,7 @@ class MemLevel(Level):
                                     while i >= 0 and (actual_dataflow_bp[i] not in self.arch.coupling.flat_out_coupling):
                                         i -= 1
                                     stationarity_to_address = i < 0
-                                    innermost_dim_sum = next((dim_sum for dim_sum in self.arch.coupling.out_coupling if actual_dataflow_bp[i] in dim_sum and len(dim_sum) > 1), None) if i >= 0 else None
+                                    innermost_dim_sum = self.arch.coupling.getDimSum('out', actual_dataflow_bp[i], 2) if i >= 0 else None
                                     if innermost_dim_sum and (all(all(sp_level.factors.dimProduct(dim) == 1 for dim in innermost_dim_sum) for sp_level in in_btwn.next_spatials) and (i == len(actual_dataflow_bp) - 1 or self.multiple_reuses)):
                                         out_reads_bp, out_writes_bp = out_reads_bp//(dvs := distinct_values([in_btwn.tile_sizes[dim] for dim in innermost_dim_sum], [self.arch.getOutStride(dim) for dim in innermost_dim_sum])), out_writes_bp//dvs
                                         out_reads_bp, out_writes_bp = out_reads_bp*(dvs := distinct_values([in_btwn.factors.dimProduct(actual_dataflow_bp[i])*in_btwn.tile_sizes[actual_dataflow_bp[i]]] + [in_btwn.tile_sizes[dim] for dim in innermost_dim_sum if dim != actual_dataflow_bp[i]], [self.arch.getOutStride(actual_dataflow_bp[i])] + [self.arch.getOutStride(dim) for dim in innermost_dim_sum if dim != actual_dataflow_bp[i]])), out_writes_bp*dvs
@@ -577,7 +577,7 @@ class MemLevel(Level):
                             i = len(actual_dataflow) - 1
                             while i >= 0 and (actual_dataflow[i] not in self.arch.coupling.flat_in_coupling):
                                 i -= 1
-                            innermost_dim_sum = next((dim_sum for dim_sum in self.arch.coupling.in_coupling if actual_dataflow[i] in dim_sum and len(dim_sum) > 1), None) if i >= 0 else None
+                            innermost_dim_sum = self.arch.coupling.getDimSum('in', actual_dataflow[i], 2) if i >= 0 else None
                             if innermost_dim_sum and (all(all(sp_level.factors.dimProduct(dim) == 1 for dim in innermost_dim_sum) for sp_level in self.next_spatials) and (i == len(actual_dataflow) - 1 or self.multiple_reuses)):
                                 in_reads_bp //= distinct_values([self.tile_sizes[dim] for dim in innermost_dim_sum], [self.arch.getInStride(dim) for dim in innermost_dim_sum])
                                 in_reads_bp *= distinct_values([self.factors.dimProduct(actual_dataflow[i])*self.tile_sizes[actual_dataflow[i]]] + [self.tile_sizes[dim] for dim in innermost_dim_sum if dim != actual_dataflow[i]], [self.arch.getInStride(actual_dataflow[i])] + [self.arch.getInStride(dim) for dim in innermost_dim_sum if dim != actual_dataflow[i]])
@@ -592,7 +592,7 @@ class MemLevel(Level):
                             i = len(actual_dataflow) - 1
                             while i >= 0 and (actual_dataflow[i] not in self.arch.coupling.flat_w_coupling):
                                 i -= 1
-                            innermost_dim_sum = next((dim_sum for dim_sum in self.arch.coupling.w_coupling if actual_dataflow[i] in dim_sum and len(dim_sum) > 1), None) if i >= 0 else None
+                            innermost_dim_sum = self.arch.coupling.getDimSum('w', actual_dataflow[i], 2) if i >= 0 else None
                             if innermost_dim_sum and (all(all(sp_level.factors.dimProduct(dim) == 1 for dim in innermost_dim_sum) for sp_level in self.next_spatials) and (i == len(actual_dataflow) - 1 or self.multiple_reuses)):
                                 w_reads_bp //= distinct_values([self.tile_sizes[dim] for dim in innermost_dim_sum], [self.arch.getWStride(dim) for dim in innermost_dim_sum])
                                 w_reads_bp *= distinct_values([self.factors.dimProduct(actual_dataflow[i])*self.tile_sizes[actual_dataflow[i]]] + [self.tile_sizes[dim] for dim in innermost_dim_sum if dim != actual_dataflow[i]], [self.arch.getWStride(actual_dataflow[i])] + [self.arch.getWStride(dim) for dim in innermost_dim_sum if dim != actual_dataflow[i]])
@@ -606,7 +606,7 @@ class MemLevel(Level):
                             i = len(actual_dataflow) - 1
                             while i >= 0 and (actual_dataflow[i] not in self.arch.coupling.flat_out_coupling):
                                 i -= 1
-                            innermost_dim_sum = next((dim_sum for dim_sum in self.arch.coupling.out_coupling if actual_dataflow[i] in dim_sum and len(dim_sum) > 1), None) if i >= 0 else None
+                            innermost_dim_sum = self.arch.coupling.getDimSum('out', actual_dataflow[i], 2) if i >= 0 else None
                             if innermost_dim_sum and (all(all(sp_level.factors.dimProduct(dim) == 1 for dim in innermost_dim_sum) for sp_level in self.next_spatials) and (i == len(actual_dataflow) - 1 or self.multiple_reuses)):
                                 out_reads_bp, out_writes_bp = out_reads_bp//(dvs := distinct_values([self.tile_sizes[dim] for dim in innermost_dim_sum], [self.arch.getOutStride(dim) for dim in innermost_dim_sum])), out_writes_bp//dvs
                                 out_reads_bp, out_writes_bp = out_reads_bp*(dvs := distinct_values([self.factors.dimProduct(actual_dataflow[i])*self.tile_sizes[actual_dataflow[i]]] + [self.tile_sizes[dim] for dim in innermost_dim_sum if dim != actual_dataflow[i]], [self.arch.getOutStride(actual_dataflow[i])] + [self.arch.getOutStride(dim) for dim in innermost_dim_sum if dim != actual_dataflow[i]])), out_writes_bp*dvs
