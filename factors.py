@@ -24,7 +24,7 @@ for x in [0:12]:
 
 # where a coupling is expanded as
 w_coupling = ['X', 'Y']
-W[<w_coupling>] -> W[X][Y]
+W[<w_coupling>] -> W[x][y]
 
 Coupling lists directly indicate which dimensions index which tensor, the
 order is irrelevant, but maintained for readability.
@@ -132,6 +132,22 @@ class Coupling:
                 any(all(set(dim_sum) <= set(self_dim_sum) for dim_sum, self_dim_sum in zip(coupling.in_coupling, perm)) for perm in permutations(self.in_coupling, len(coupling.in_coupling))) and
                 any(all(set(dim_sum) <= set(self_dim_sum) for dim_sum, self_dim_sum in zip(coupling.w_coupling, perm)) for perm in permutations(self.w_coupling, len(coupling.w_coupling))) and
                 any(all(set(dim_sum) <= set(self_dim_sum) for dim_sum, self_dim_sum in zip(coupling.out_coupling, perm)) for perm in permutations(self.out_coupling, len(coupling.out_coupling))))
+    
+    """
+    Returns the list of indices that sum up to indicize 'operand' of which 'dim'
+    is a part of. The list must be at least of length 'min_lenght', otherwise
+    None is returned.
+    Valid operand names are: 'in', 'w', and 'out'.
+    """
+    def getDimSum(self, operand : str, dim : str, min_lenght : int = 1) -> Optional[list[str]]:
+        if operand == 'in':
+            return next((dim_sum for dim_sum in self.in_coupling if dim in dim_sum and len(dim_sum) >= min_lenght), None)
+        elif operand == 'w':
+            return next((dim_sum for dim_sum in self.w_coupling if dim in dim_sum and len(dim_sum) >= min_lenght), None)
+        elif operand == 'out':
+            return next((dim_sum for dim_sum in self.out_coupling if dim in dim_sum and len(dim_sum) >= min_lenght), None)
+        else:
+            raise Exception(f"Unrecognized operand ({operand}) in coupling.")
     
     """
     Returns the flat coupling list for the provided operand.

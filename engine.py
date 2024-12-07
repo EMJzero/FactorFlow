@@ -464,11 +464,8 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
     if verbose and thread_idx <= 0: print("-------- optimizeDataflows --------")
     targets = list(filter(lambda l : isinstance(l, MemLevel) or (Settings.ONLY_MAXIMIZE_ONE_FANOUT_DIM and isinstance(l, SpatialLevel)), arch))
     # IDEA: pre-exclude some permutations!
-    # HOW-TO: exploit the fact that you are going in order! If the difference between the
-    # next configuration and the current one involves a dimension which had in the previous
-    # best mapping a factor of 1, SKIP THE CONFIGURATION.
-    # NOTE: we cannot truly skip the configuration, but we can re-start the factorFlow exploration
-    # from where it was left -> adaptive programming!
+    # HOW-TO: exploit equi-dataflow matches to skip redundant permutations. However we cannot truly skip permutations,
+    # but we can re-start the factorFlow exploration from where it was left -> adaptive programming!
     permutations = [[perm for perm in interleave(level.dataflow_constraints, [dim for dim in level.dataflow if dim not in level.dataflow_constraints])] if not isinstance(level, SpatialLevel) else [rot + [dim for dim in level.dims if dim in level.factors_constraints] for rot in rotations([dim for dim in level.dims if dim not in level.factors_constraints])] for level in targets]
     
     # divide permutations across threads (if multithreading is enabled)
@@ -554,11 +551,26 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
         # NOTE: "i" is the outermost memory hierarchy level which had its permutation updated right now
         i = nextPermutations(len(targets) - 1)
         
-        # True if any set of dimensions which with a cyclic shift can yield the previous permutation from the current one is entirely made of dims with a factor of 1,
-        # or true if of all dimensions involved in swaps between neighbouring nested loops to go from the previous permutation to the current one at least all except one have a factor of 1.
-        while (Settings.PERM_SKIP and i >= 0 and not isinstance(current_targets[i], SpatialLevel) and
-               (any(map(lambda dims : all([factors_at_one[i][dim] for dim in dims]), single_cyclic_shift(permutations[i][current_perms[i]], permutations[i][current_perms[i] - 1])))
-               or (lambda dims : sum([factors_at_one[i][dim] for dim in dims]) >= len(dims) - 1)(pairwise_swaps(permutations[i][current_perms[i]], permutations[i][current_perms[i] - 1])))):
+        def equiDataflow(new_perm : list[str], old_perm : list[str], level_idx : int) -> bool:
+            if not Settings.PERM_SKIP or level_idx < 0 or isinstance(current_targets[level_idx], SpatialLevel):
+                return False
+            # filtering out dimensions with a single iteration - flipping dataflow lists for ease of indexing
+            new_perm_effective, old_perm_effective = list(filter(lambda dim : not factors_at_one[level_idx][dim], new_perm[::-1])), list(filter(lambda dim : not factors_at_one[level_idx][dim], old_perm[::-1]))
+            if len(new_perm_effective) == 0:
+                return True
+            # Conditions for an equi-dataflow match (must hold for each operand independently):
+            # 1) all innermost iterated dimensions orthogonal to an operand must be the same, but not necessarily in the same order
+            # 2) the innermost non-orthogonal iterated dimension must be the same IFF it is part of a sum of indices and either no orthogonal dimension was iterated before it or multiple reuse types are supported on the level
+            i, j = next((i for i, dim in enumerate(new_perm_effective) if dim in arch.coupling.flat_in_coupling), 0), next((j for j, dim in enumerate(old_perm_effective) if dim in arch.coupling.flat_in_coupling), 0)
+            input_ok = i == j and set(new_perm_effective[:i]) == set(old_perm_effective[:j]) and ((new_perm_effective[i] == old_perm_effective[j] or (not arch.coupling.getDimSum('in', new_perm_effective[i], 2) and not arch.coupling.getDimSum('in', old_perm_effective[j], 2))) or (not arch[level_idx].multiple_reuses and i != 0))
+            i, j = next((i for i, dim in enumerate(new_perm_effective) if dim in arch.coupling.flat_w_coupling), 0), next((j for j, dim in enumerate(old_perm_effective) if dim in arch.coupling.flat_w_coupling), 0)
+            weights_ok = i == j and set(new_perm_effective[:i]) == set(old_perm_effective[:j]) and ((new_perm_effective[i] == old_perm_effective[j] or (not arch.coupling.getDimSum('w', new_perm_effective[i], 2) and not arch.coupling.getDimSum('w', old_perm_effective[j], 2))) or (not arch[level_idx].multiple_reuses and i != 0))
+            i, j = next((i for i, dim in enumerate(new_perm_effective) if dim in arch.coupling.flat_out_coupling), 0), next((j for j, dim in enumerate(old_perm_effective) if dim in arch.coupling.flat_out_coupling), 0)
+            output_ok = i == j and set(new_perm_effective[:i]) == set(old_perm_effective[:j]) and ((new_perm_effective[i] == old_perm_effective[j] or (not arch.coupling.getDimSum('out', new_perm_effective[i], 2) and not arch.coupling.getDimSum('out', old_perm_effective[j], 2))) or (not arch[level_idx].multiple_reuses and i != 0))
+            return input_ok and weights_ok and output_ok
+        
+        # Fast evaluation (re-optimization) of equi-dataflow matches
+        while equiDataflow(permutations[i][current_perms[i]], permutations[i][current_perms[i] - 1], i):
             if not Settings.HARD_PERM_SKIP:
                 current_targets[i].dataflow = permutations[i][current_perms[i]]
                 for j in range(i + 1, len(targets)):
