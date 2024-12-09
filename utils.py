@@ -171,21 +171,21 @@ def distinct_values(Xs : list[int], x_consts : list[int]):
         return next((X for X in Xs if X != 1), 1)
     elif all(x_const == 1 for x_const in x_consts): # all coefficients are 1
         return sum(Xs) - len(Xs) + 1
-    elif Settings.OVERESTIMATE_DISTINCT_VALUES and len(Xs) == 2: # simpler formula which slightly overestimates the count of distinct values (this is used by Timeloop)
-        return math.floor((x_consts[0]*(Xs[0] - 1) + x_consts[1]*(Xs[1] - 1))/math.gcd(x_consts[0], x_consts[1])) + 1
-    elif len(Xs) == 2 and (max_idx := x_consts[0]*(Xs[0]-1)+x_consts[1]*(Xs[1]-1)) >= 2*(f := x_consts[0]*x_consts[1] - x_consts[0] - x_consts[1]): # Frobenius coin problem approach - case z_max >= 2*f, no overlap between head and tail
-        return max_idx - (x_consts[0] - 1)*(x_consts[1] - 1) + 1 - (1 if max_idx == f else 0)
-    elif False and len(Xs) == 2: # Frobenius coin problem approach - case z_max < 2*f, overlap between head and tail
-        # INCORRECT
+    else:
         g = math.gcd(*x_consts)
-        return min((x_consts[0]//g)*(Xs[0] - 1) + (x_consts[1]//g)*(Xs[1] - 1) + 1, Xs[0]*Xs[1])
-    else: # general case, count all distinct values with dynamic programming
-        g = math.gcd(*x_consts)
-        step_0 = x_consts[0]//g
-        current_values = set(range(0, step_0*Xs[0], step_0))
-        for i in range(1, len(x_consts)):
-            step = x_consts[i]//g
-            X = Xs[i]
-            additions = {v + step*x for v in current_values for x in range(X)}
-            current_values.update(additions)
-        return len(current_values)
+        if Settings.OVERESTIMATE_DISTINCT_VALUES and len(Xs) == 2: # simpler formula which slightly overestimates the count of distinct values (this is used by Timeloop)
+            return (x_consts[0]*(Xs[0] - 1) + x_consts[1]*(Xs[1] - 1))//g + 1
+        elif len(Xs) == 2 and (max_idx := (x_consts[0]*(Xs[0] - 1) + x_consts[1]*(Xs[1] - 1))//g) >= 2*(f := (x_consts[0]*x_consts[1] - x_consts[0] - x_consts[1])//g): # Frobenius coin problem approach - case z_max >= 2*f, no overlap between head and tail
+            return max_idx - (x_consts[0]//g - 1)*(x_consts[1]//g - 1) + 1 - (1 if max_idx == f else 0)
+        elif False and len(Xs) == 2: # Frobenius coin problem approach - case z_max < 2*f, overlap between head and tail
+            # INCORRECT
+            return min((x_consts[0]//g)*(Xs[0] - 1) + (x_consts[1]//g)*(Xs[1] - 1) + 1, Xs[0]*Xs[1])
+        else: # general case, count all distinct values with dynamic programming
+            step_0 = x_consts[0]//g
+            current_values = set(range(0, step_0*Xs[0], step_0))
+            for i in range(1, len(x_consts)):
+                step = x_consts[i]//g
+                X = Xs[i]
+                additions = {v + step*x for v in current_values for x in range(X)}
+                current_values.update(additions)
+            return len(current_values)
