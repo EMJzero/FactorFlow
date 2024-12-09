@@ -74,7 +74,7 @@ Spatial architectures in FactorFlow are modeled as a hierarchy of levels. Level 
 <!--<img style="float: left; width: 400px; padding-right:15px" src="static/dataflows.png">-->
 <img src="static/dataflows.png" width="400px" padding-right="15px" align="left"/>
 
-All levels (memory ones in particular) significantly change their behaviour depending on the **dataflow** they employ. A dataflow specified how data moves in between two levels during each iteration of the computation, in particular determining which operands are loaded (read) from outer memories, which are offloaded (written/updated) to outer memories, and which may remain on inner memories. Dataflows are essential in determining how data reuse is exploited on SAs. <br>
+All levels (memory ones in particular) significantly change their behaviour depending on the **dataflow** they employ. A dataflow specifies how data moves in between two levels during each iteration of the computation, in particular determining which operands are loaded (read) from outer memories, which are offloaded (written/updated) to outer memories, and which may remain on inner memories. Dataflows are essential in determining how data reuse is exploited on SAs. <br>
 For each level of the memory hierarchy, we classify its dataflow according to which values are kept stationary and thus accessed more than once, or which sets of partial results are to be ready together for a single reduction:
 
 - **Weight stationary**: each weight, or set of weights, remains stationary on a memory while multiple input and output values pass by to complete multiple MACs involving the same weight(s). Weights thus leverage temporal and/or spatial multicast.

@@ -197,6 +197,7 @@ class MemLevel(Level):
     ideal_bandwidth_update = 0
     ideal_bandwidth_fill = 0
     ideal_bandwidth_drain = 0
+    bp_stationarity_solved_here: dict[bool] # tracks if this level’s loops are the ones dictating the dataflow for a bypassed operand going over it
 
     def __init__(self, name : str, size : int, value_access_energy : Optional[float] = None, wordline_access_energy : Optional[float] = None, word_bits : Optional[int] = None, value_bits : Optional[int] = None, leakage_energy : float = 0, area : Optional[float] = None, bandwidth : Optional[float] = None, dataflow : Optional[list[str]] = None, factors : Optional[Factors] = None, tile_sizes : Optional[Shape] = None, factors_constraints : Optional[dict[str, int]] = None, dataflow_constraints : Optional[list[str]] = None, bypasses : Optional[list[str]] = None, multiple_buffering : int = 1, multiple_reuses : bool = True, read_value_access_energy : Optional[float] = None, write_value_access_energy : Optional[float] = None, read_wordline_access_energy : Optional[float] = None, write_wordline_access_energy : Optional[float] = None, read_bandwidth : Optional[float] = None, write_bandwidth : Optional[float] = None):
         self.name = name
@@ -267,6 +268,7 @@ class MemLevel(Level):
         self.next_is_compute = False
         self.next_spatials = None
         self.next_levels_with_bypass = {'in': None, 'w': None, 'out': None}
+        self.bp_stationarity_solved_here = {'in': False, 'w': False, 'out': False}
 
     """
     Initializes the bypasses which start from this level.
@@ -505,11 +507,13 @@ class MemLevel(Level):
                     # bulid the inner-most dataflow, by piling one against the other all non-1 loops, then look at which is the innermost dimension, that is the one that matters!
                     # TL;DR: consider the dataflow only w.r.t. the innermost loop, ignoring those with 1 iteration!
                     stationarity_to_address = not (any(level.factors.dimProduct(dim) > 1 and dim in self.arch.coupling.flatCouplingByOperand(operand) for dim in level.dataflow) if self.multiple_reuses else any(level.factors.dimProduct(dim) > 1 for dim in level.dataflow))
+                    level.bp_stationarity_solved_here[operand] = not stationarity_to_address
                     for in_btwn in in_between[::-1]:
                         if isinstance(in_btwn, MemLevel):
                             # ignore loops at one
                             actual_dataflow_bp = list(filter(lambda dim : in_btwn.factors.dimProduct(dim) > 1, in_btwn.dataflow))
                             in_btwn_factors_full = in_btwn.factors.fullProduct()
+                            old_stationarity_to_address = stationarity_to_address
                             if in_reads_bp:
                                 if stationarity_to_address:
                                     # all inner loops were 1s or orthogonal, deal with the dataflow now!
@@ -565,12 +569,14 @@ class MemLevel(Level):
                                     out_reads_bp = in_btwn_factors_full*out_reads_bp
                                     out_writes_bp = in_btwn_factors_full*out_writes_bp
                                     out_reads_bp_factors *= prod(in_btwn.factors.dimProduct(dim) for dim in in_btwn.dataflow if dim not in self.arch.coupling.flat_out_coupling)
+                            in_btwn.bp_stationarity_solved_here[operand] = stationarity_to_address != old_stationarity_to_address
                         else:
                             in_reads_bp, w_reads_bp, out_reads_bp, out_writes_bp = in_btwn.mulByDim(in_reads_bp, w_reads_bp, out_reads_bp, out_writes_bp)
                             # do not update out_reads_bp_factors here, because in it go only iterations of which the first one is skipped,
                             # while in a fanout all fanned-out copies of the inner loop behave the same, there isn't a first different spatial iteration or anything
                         #print("IN BETWEEN BYPASS:\n", f"{in_btwn.name}:{chr(9) * (2 - len(in_btwn.name)//8)}{in_reads_bp} In_R, {w_reads_bp} W_R, {out_reads_bp} Our_R, {in_reads_bp + w_reads_bp + out_reads_bp} Tot_R, {out_writes_bp} Out_W, {out_reads_bp_factors} Out_R_Fac")
                     factors_full = self.factors.fullProduct()
+                    self.bp_stationarity_solved_here[operand] = stationarity_to_address
                     if in_reads_bp:
                         if stationarity_to_address:
                             # all inner loops were 1s or orthogonal, deal with the dataflow now!
