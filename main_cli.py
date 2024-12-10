@@ -219,7 +219,7 @@ if __name__ == "__main__":
         comp_BERT_large.pop("Out")
         comp_BERT_large.pop("FF2")
         table = PrettyTable(["Arch", "Comp", "EDP[J*cycle]", "MOPs", "Latency[cc]", "Energy[uJ]", "Utilization[/]", "Runtime"] + extra_constant_columns_names)
-        for arch_name, current_arch in zip(["Gemmini", "Eyeriss", "Simba", "TPUv1"], [arch_gemmini, arch_eyeriss, arch_simba, arch_tpu]):
+        for arch_name, current_arch in zip(["Gemmini", "Eyeriss", "Simba", "TPUv1"], [arch_gemmini, arch_eyeriss, arch_simba, arch_tpu] if supported_couplings[options["tryall"]] is gemm_coupling else [arch_gemmini_conv, arch_eyeriss_conv, arch_simba_conv, arch_tpu_conv]):
             for comp_name, current_comp in zip(supported_comp_groups[options["tryall"]].keys(), supported_comp_groups[options["tryall"]].values()):
                 current_arch_copy = copy.deepcopy(current_arch)
                 print(f"Now running FactorFlow on arch: {arch_name} and comp: {comp_name}...")
