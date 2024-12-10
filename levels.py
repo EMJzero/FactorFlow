@@ -530,6 +530,12 @@ class MemLevel(Level):
             return f"CONSTRAINTS VIOLATION: level {self.name}, memory used: {mem_footprint} VS memory available: {self.size/self.multiple_buffering:.0f}"
         return ""
 
+"""
+Abstract class for a level introducing multiple spatial instances.
+"""
+class SpatialLevel(Level):
+    dims: None
+    mesh: None
 
 """
 A Spatial Fanout Level within the architecture, the core of a spatial architecture,
@@ -572,7 +578,7 @@ Constructor arguments:
 # and spatial_reduction_support were True (if they were False to begin with, let them be False (&&)), for the second set
 # them both to false.
 # Obviously, in case N < |dims| you need to change the "iterate permutations" step to actually permute spatial loops!!!
-class FanoutLevel(Level):
+class FanoutLevel(SpatialLevel):
     def __init__(self, name, mesh, dim : str = None, dims : list[str] = None, pe_to_pe = False, spatial_multicast_support = True, spatial_reduction_support = True, power_gating_support = False, factors = None, tile_sizes = None, factors_constraints = None):
         self.name = name
         assert (dim and not dims) or (dims and not dim), f"Level: {name}: exactly one of dim ({dim}) or dims ({dims}) must be specified."
@@ -685,7 +691,7 @@ Constructor arguments:
                         fixed the relative order of constrained dimensions.
                         Valid strings are 'M', 'K', and 'N'.
 """
-class ComputeLevel(Level):
+class ComputeLevel(SpatialLevel):
     def __init__(self, name, size, compute_energy, cycles, leakage_energy = 0, dataflow = None, factors = None, tile_sizes = None, factors_constraints = None, dataflow_constraints = None):
         self.name = name
         # NOTE: this way of constructing the dataflow from the constraints is redundant, but useful if one wants to skip the

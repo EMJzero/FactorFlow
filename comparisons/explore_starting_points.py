@@ -313,7 +313,7 @@ if __name__ == "__main__":
             try:
                 assert not current_arch.findConstraintsViolation(False)
                 if STORE_INITIAL_CONDITIONS: initial_conditions.append(factorsString(current_arch))
-                current_arch, wart = factorFlow(current_arch, comp, bias_read, already_initialized = True)
+                current_arch, wart, _= factorFlow(current_arch, comp, bias_read, already_initialized = True)
                 edp = EDP(current_arch, bias_read, True)
             except AssertionError:
                 continue
@@ -330,7 +330,7 @@ if __name__ == "__main__":
         
         if not options["all_comps"]:
             print(f"FF INIT: {factorsString(arch)}")
-            arch, factorflow_wart = factorFlow(arch, comp, bias_read)
+            arch, factorflow_wart, _ = factorFlow(arch, comp, bias_read)
             print(f"FF FINAL: {factorsString(arch)}")
             factorflow_edp = EDP(arch, bias_read, True)
             
@@ -357,7 +357,7 @@ if __name__ == "__main__":
             arch_ff = copy.deepcopy(arch)
             if arch_ff.fitConstraintsToComp(comp, comp_name):
                 continue
-            arch_ff, factorflow_wart = factorFlow(arch_ff, comp, bias_read)
+            arch_ff, factorflow_wart, _ = factorFlow(arch_ff, comp, bias_read)
             factorflow_edp = EDP(arch_ff, bias_read, True)
             table.add_row([comp_name, arch_name.title(), f"{factorflow_edp:.3e}", f"{min(edps):.3e}", f"{max(edps):.3e}", f"{sum(edps)/len(edps):.3e}"])
     if options["all_comps"]:
