@@ -565,14 +565,14 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
             # 2) the innermost non-orthogonal iterated dimension must be the same IFF it is part of a sum of indices and either no orthogonal dimension was iterated before it or multiple reuse types are supported on the level
             # 3) for bypassed operands, only the level that first dictates a dataflow among those the bypass spans over, needs to have an equi-dataflow match, all others match by default
             i, j = next((i for i, dim in enumerate(new_perm_effective) if dim in arch.coupling.flat_in_coupling), 0), next((j for j, dim in enumerate(old_perm_effective) if dim in arch.coupling.flat_in_coupling), 0)
-            input_ok = not arch[level_idx].in_bp and not arch[level_idx].bp_stationarity_solved_here['in']
-            input_ok = input_ok or i == j and set(new_perm_effective[:i]) == set(old_perm_effective[:j]) and ((new_perm_effective[i] == old_perm_effective[j] or (not arch.coupling.getDimSum('in', new_perm_effective[i], 2) and not arch.coupling.getDimSum('in', old_perm_effective[j], 2))) or (not arch[level_idx].multiple_reuses and i != 0))
+            input_ok = not current_targets[level_idx].in_bp and not current_targets[level_idx].bp_stationarity_solved_here['in']
+            input_ok = input_ok or i == j and set(new_perm_effective[:i]) == set(old_perm_effective[:j]) and ((new_perm_effective[i] == old_perm_effective[j] or (not arch.coupling.getDimSum('in', new_perm_effective[i], 2) and not arch.coupling.getDimSum('in', old_perm_effective[j], 2))) or (not current_targets[level_idx].multiple_reuses and i != 0))
             i, j = next((i for i, dim in enumerate(new_perm_effective) if dim in arch.coupling.flat_w_coupling), 0), next((j for j, dim in enumerate(old_perm_effective) if dim in arch.coupling.flat_w_coupling), 0)
-            weights_ok = not arch[level_idx].w_bp and not arch[level_idx].bp_stationarity_solved_here['w']
-            weights_ok = weights_ok or i == j and set(new_perm_effective[:i]) == set(old_perm_effective[:j]) and ((new_perm_effective[i] == old_perm_effective[j] or (not arch.coupling.getDimSum('w', new_perm_effective[i], 2) and not arch.coupling.getDimSum('w', old_perm_effective[j], 2))) or (not arch[level_idx].multiple_reuses and i != 0))
+            weights_ok = not current_targets[level_idx].w_bp and not current_targets[level_idx].bp_stationarity_solved_here['w']
+            weights_ok = weights_ok or i == j and set(new_perm_effective[:i]) == set(old_perm_effective[:j]) and ((new_perm_effective[i] == old_perm_effective[j] or (not arch.coupling.getDimSum('w', new_perm_effective[i], 2) and not arch.coupling.getDimSum('w', old_perm_effective[j], 2))) or (not current_targets[level_idx].multiple_reuses and i != 0))
             i, j = next((i for i, dim in enumerate(new_perm_effective) if dim in arch.coupling.flat_out_coupling), 0), next((j for j, dim in enumerate(old_perm_effective) if dim in arch.coupling.flat_out_coupling), 0)
-            output_ok = not arch[level_idx].out_bp and not arch[level_idx].bp_stationarity_solved_here['out']
-            output_ok = output_ok or i == j and set(new_perm_effective[:i]) == set(old_perm_effective[:j]) and ((new_perm_effective[i] == old_perm_effective[j] or (not arch.coupling.getDimSum('out', new_perm_effective[i], 2) and not arch.coupling.getDimSum('out', old_perm_effective[j], 2))) or (not arch[level_idx].multiple_reuses and i != 0))
+            output_ok = not current_targets[level_idx].out_bp and not current_targets[level_idx].bp_stationarity_solved_here['out']
+            output_ok = output_ok or i == j and set(new_perm_effective[:i]) == set(old_perm_effective[:j]) and ((new_perm_effective[i] == old_perm_effective[j] or (not arch.coupling.getDimSum('out', new_perm_effective[i], 2) and not arch.coupling.getDimSum('out', old_perm_effective[j], 2))) or (not current_targets[level_idx].multiple_reuses and i != 0))
             return input_ok and weights_ok and output_ok
         
         # Fast evaluation (re-optimization) of equi-dataflow matches
@@ -635,7 +635,7 @@ Mapper entry point.
 """
 def run_engine(arch : Arch, comp : Shape, coupling : Coupling, bias_read : bool, verbose : bool = False) -> tuple[float, int, float, int, float, float, Arch]:
     #Here changing settings does not propagate to processes, which reimport and reset settings.py, therefore 'forcedSettingsUpdate' is called again in 'optimizeDataflows'.
-    forcedSettingsUpdate(arch)
+    forcedSettingsUpdate(arch, verbose = verbose)
     start_time = time.time()
     
     if Settings.MULTITHREADED:
