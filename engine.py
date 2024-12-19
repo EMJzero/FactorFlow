@@ -353,10 +353,7 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, already_initialized 
     if not already_initialized:
         arch.initFactors(comp)
         arch.enforceFactorsConstraints(Settings.PADDED_MAPPINGS, Settings.VERBOSE_PADDED_MAPPINGS)
-    assert not arch.findConstraintsViolation(), f"Arch: {arch.name}: factor constraints violation in the given architecture."
-    constraints_check = [level.checkConstraints() for level in arch]
-    assert all(constraints_check), f"Ill-posed constraints:\n{arch[constraints_check.index(False)].logConstraintsViolation()}"
-    assert arch.checkDataflowConstraints(), f"Arch: {arch.name}: dataflow constraints violation."
+    assert arch.checkFactorsConstraints() and arch.checkDataflowConstraints(), ("Ill-posed constraints:" if not already_initialized else "Improperly initialized arch:") + f"\n{arch.logConstraintsViolations()}"
     if verbose: print(f"Initial condition (Wart: {Wart(arch, comp, bias_read):.3e}):")
     if verbose: printFactors(arch)
     
@@ -445,6 +442,10 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, already_initialized 
 """
 Mapper Step 1: exhaustively iterate loop permutations/dataflows.
 
+IDEA: pre-exclude some permutations!
+HOW-TO: exploit equi-dataflow matches to skip redundant permutations. However we cannot truly skip permutations,
+but we can re-start the factorFlow exploration from where it was left -> adaptive programming!
+
 Adaptive (memory) programming: a permutation is in equi-dataflow with an already
          tried one if they have the same order of loops with more than one iteration.
          That is an equi-dataflow match, and we restart step 3 from the mapping known
@@ -463,11 +464,18 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
         forcedSettingsUpdate(arch, False)
     
     if verbose and thread_idx <= 0: print("-------- optimizeDataflows --------")
+    # levels on which to explore dataflow permutations
     targets = list(filter(lambda l : isinstance(l, MemLevel) or (Settings.ONLY_MAXIMIZE_ONE_FANOUT_DIM and isinstance(l, SpatialLevel) and len(l.dataflow) > 1), arch))
-    # IDEA: pre-exclude some permutations!
-    # HOW-TO: exploit equi-dataflow matches to skip redundant permutations. However we cannot truly skip permutations,
-    # but we can re-start the factorFlow exploration from where it was left -> adaptive programming!
-    permutations = [[perm for perm in interleave(level.dataflow_constraints, [dim for dim in level.dataflow if dim not in level.dataflow_constraints])] if not isinstance(level, SpatialLevel) else [rot + [dim for dim in level.dims if dim in level.factors_constraints] for rot in rotations([dim for dim in level.dims if dim not in level.factors_constraints])] for level in targets]
+    def gen_permutations(level):
+        if isinstance(level, MemLevel):
+            if '_' in level.dataflow_constraints:
+                return [perm for perm in slot_in(level.dataflow_constraints, level.dataflow, '_')]
+            else:
+                return [perm for perm in interleave(level.dataflow_constraints, [dim for dim in level.dataflow if dim not in level.dataflow_constraints])]
+        elif isinstance(level, SpatialLevel):
+            return [rot + [dim for dim in level.dims if dim in level.factors_constraints] for rot in rotations([dim for dim in level.dims if dim not in level.factors_constraints])]
+    # list of lists of all valid permutations for each targeted level
+    permutations = list(map(gen_permutations, targets))
     
     # divide permutations across threads (if multithreading is enabled)
     if thread_idx != -1:
@@ -635,7 +643,7 @@ Mapper entry point.
 """
 def run_engine(arch : Arch, comp : Shape, coupling : Coupling, bias_read : bool, verbose : bool = False) -> tuple[float, int, float, int, float, float, Arch]:
     #Here changing settings does not propagate to processes, which reimport and reset settings.py, therefore 'forcedSettingsUpdate' is called again in 'optimizeDataflows'.
-    forcedSettingsUpdate(arch, verbose = verbose)
+    forcedSettingsUpdate(arch, verbose = Settings.VERBOSE)
     start_time = time.time()
     
     if Settings.MULTITHREADED:

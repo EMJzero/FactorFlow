@@ -72,24 +72,27 @@ class Level(LevelCore):
         return self.factors.removeFactor(dimension, factor, amount)
 
     """
-    Returns True iif factors present on this level satisfy all of
-    its constraints.
+    Returns True iif factors present on this level satisfy all of its constraints.
     """
-    def checkConstraints(self) -> bool:
-        return (all([(dim not in self.factors_constraints or self.factors_constraints[dim] == self.factors.dimProduct(dim)) for dim in self.dataflow]) and
-                all([(dim + '<=' not in self.factors_constraints or self.factors_constraints[dim + '<='] >= self.factors.dimProduct(dim)) for dim in self.dataflow]) and
-                all([(dim + '>=' not in self.factors_constraints or self.factors_constraints[dim + '>='] <= self.factors.dimProduct(dim)) for dim in self.dataflow]))
+    def checkFactorsConstraints(self) -> bool:
+        # NOTE: full condition kept for readability:
+        #return (all([(dim not in self.factors_constraints or self.factors_constraints[dim] == self.factors.dimProduct(dim)) for dim in self.dataflow]) and
+        #        all([((dim + '<=') not in self.factors_constraints or self.factors_constraints[dim + '<='] >= self.factors.dimProduct(dim)) for dim in self.dataflow]) and
+        #        all([((dim + '>=') not in self.factors_constraints or self.factors_constraints[dim + '>='] <= self.factors.dimProduct(dim)) for dim in self.dataflow]) and
+        #        all([len(self.factors[dim]) == 0 for dim in self.arch.coupling.dims if dim not in self.dataflow]))
+        return (all((constr == self.factors.dimProduct(dim) if len(dim) == 1 else (constr >= self.factors.dimProduct(dim[0]) if dim[1] == '<' else constr <= self.factors.dimProduct(dim[0]))) for dim, constr in self.factors_constraints.items()) and
+                all(len(self.factors[dim]) == 0 for dim in self.arch.coupling.dims if dim not in self.dataflow))
 
     """
-    Returns a string describing the current violation of constraints,
-    if any.
+    Returns a string describing the current violation of constraints, if any.
     """
     def logConstraintsViolation(self) -> str:
-        if not self.checkConstraints():
+        if not self.checkFactorsConstraints():
             return (f"CONSTRAINTS VIOLATION: Arch: {self.arch.name} -> Level: {self.name}: "
-                + ', '.join([f"constrained {dim} == {self.factors_constraints[dim]} VS obtained {dim}: {self.factors.dimProduct(dim)}, " for dim in self.dataflow if (dim in self.factors_constraints and self.factors_constraints[dim] != self.factors.dimProduct(dim))])
-                + ', '.join([f"constrained {dim} <= {self.factors_constraints[dim + '<=']} VS obtained {dim}: {self.factors.dimProduct(dim)}, " for dim in self.dataflow if (dim + '<=' in self.factors_constraints and self.factors_constraints[dim + '<='] >= self.factors.dimProduct(dim))])
-                + ', '.join([f"constrained {dim} >= {self.factors_constraints[dim + '>=']} VS obtained {dim}: {self.factors.dimProduct(dim)}, " for dim in self.dataflow if (dim + '>=' in self.factors_constraints and self.factors_constraints[dim + '>='] <= self.factors.dimProduct(dim))]))
+                + ', '.join(f"constrained {dim} == {self.factors_constraints[dim]} VS obtained {dim}: {self.factors.dimProduct(dim)}, " for dim in self.dataflow if (dim in self.factors_constraints and self.factors_constraints[dim] != self.factors.dimProduct(dim)))
+                + ', '.join(f"constrained {dim} <= {self.factors_constraints[dim + '<=']} VS obtained {dim}: {self.factors.dimProduct(dim)}, " for dim in self.dataflow if (dim + '<=' in self.factors_constraints and self.factors_constraints[dim + '<='] < self.factors.dimProduct(dim)))
+                + ', '.join(f"constrained {dim} >= {self.factors_constraints[dim + '>=']} VS obtained {dim}: {self.factors.dimProduct(dim)}, " for dim in self.dataflow if (dim + '>=' in self.factors_constraints and self.factors_constraints[dim + '>='] > self.factors.dimProduct(dim)))
+                + ', '.join(f"dimension {dim} is not in the dataflow ({self.dataflow}), but still received some iterations ({dim}: {self.factors.dimProduct(dim)}) due to constraints." for dim in self.arch.coupling.dims if dim not in self.dataflow and len(self.factors[dim]) != 0))
         return ""
 
     def __getitem__(self, key : str) -> Any:
@@ -138,10 +141,16 @@ Constructor arguments:
                           - 'M>=', 'K>=', and 'N>=' for lower bounds;
                       NOTE: the use of the '<=' and '>=' constraints does not shorten the
                             mapper's runtime as much as exact constraints.
-- dataflow_constraints: constraints for the order of loops at this level, for any dim
-                        not specified here, all permutations are tried while keeping
-                        fixed the relative order of constrained dimensions.
-                        E.g., for GEMMs, valid strings are 'M', 'K', and 'N'.
+- dataflow_constraints: constraints for the order of loops at this level, for any dim not
+                        specified here, all permutations are tried while keeping fixed the
+                        relative order of constrained dimensions. A placeholder "_" can be
+                        used to mark the place where non-specified dimensions are allowed
+                        to be inserted. If any "_" is used, the total number of specified
+                        dimensions or placeholders must be equal to those in the coupling.
+                        E.g., for GEMMs, valid strings are 'M', 'K', 'N', and "_", ["N", "M"]
+                        and ["N", "_", "_"] are valid constraints, while ["_", "N"] is not.
+                        With ["N", "M"], valid dataflows are NMK, NKM, and KNM.
+                        With ["N", "_", "_"] valid dataflows are NMK, NKM.
 - bypasses: list of operands which should bypass this level (i.o.w. not be stored here),
             valid strings are 'in', 'w', and 'out'.
 - multiple_buffering: factor of multiple buffering employed by this level, must be >1
@@ -233,9 +242,7 @@ class MemLevel(Level):
     """
     def initArch(self, arch : Arch):
         self.arch = arch
-        # NOTE: this way of constructing the dataflow from the constraints is redundant, but useful if one wants to skip the
-        # exploration of permutations since with this method the dataflow will be immediately consistent with constraints.
-        self.dataflow = self.dataflow if self.dataflow else (self.dataflow_constraints + [dim for dim in arch.coupling.dims if dim not in self.dataflow_constraints] if self.dataflow_constraints else arch.coupling.dims) # dimensions over which to iterate
+        self.dataflow = self.dataflow if self.dataflow else arch.coupling.dims # dimensions over which to iterate
         assert all(dim in arch.coupling.dims for dim in self.dataflow), f"Arch: {arch.name} -> Level: {self.name}: accepted names for dimensions, as per the present coupling, are solely {arch.coupling.dims} provided ones were {self.dataflow}."
         assert self.size >= 0, f"Arch: {arch.name} -> Level: {self.name}: a negative size ({self.size}) does not mean anything."
         # read_access_energy and write_access_energy are intended always for one value, remember to bring accessed values to a multiple of values_per_wordline for the correct total energy
@@ -261,9 +268,18 @@ class MemLevel(Level):
         self.tile_sizes = self.tile_sizes if self.tile_sizes else Shape({dim: 1 for dim in arch.coupling.dims})
         assert self.read_bandwidth >= 0 and self.write_bandwidth >= 0, f"Arch: {arch.name} -> Level: {self.name}: a negative bandwidth ({self.read_bandwidth} R, {self.write_bandwidth} W) does not mean anything."
         assert all([constr[0] in self.dataflow and constr[1:] in ['', '>=', '<='] for constr in self.factors_constraints.keys()]), f"Arch: {arch.name} -> Level: {self.name}: all keys within factor constraints ({list(self.factors_constraints.keys())}) must be a dimension of the dataflow ({self.dataflow}) and in the form 'dim', 'dim<=', or 'dim>='."
-        assert all([sum(constr[0] == dim for constr in self.factors_constraints.keys()) <= 1 for dim in self.dataflow]), f"Arch: {arch.name} -> Level: {self.name}: each dimension must occur at most once in constraints ({list(self.factors_constraints.keys())}), regardless of the use of '>=' or '<='."
-        assert all([value > 0 for value in self.factors_constraints.values()]), f"Arch: {arch.name} -> Level: {self.name}: all constraints ({self.factors_constraints}) must have a value strictly > 0."
-        assert all([constr in self.dataflow for constr in self.dataflow_constraints]), f"Arch: {arch.name} -> Level: {self.name}: all dims specified as dataflow constraints ({self.dataflow_constraints}) must be part of the dataflow ({self.dataflow})."
+        assert all([sum(constr[0] == dim for constr in self.factors_constraints.keys()) <= 1 for dim in self.dataflow]), f"Arch: {arch.name} -> Level: {self.name}: each dimension must occur at most once in factor constraints ({list(self.factors_constraints.keys())}), regardless of the use of '>=' or '<='."
+        assert all([value > 0 for value in self.factors_constraints.values()]), f"Arch: {arch.name} -> Level: {self.name}: all factor constraints ({self.factors_constraints}) must have a value strictly > 0."
+        assert all([constr == '_' or constr in self.dataflow for constr in self.dataflow_constraints]), f"Arch: {arch.name} -> Level: {self.name}: all dims specified as dataflow constraints ({self.dataflow_constraints}) must be part of the dataflow ({self.dataflow}) or be placeholders ('_')."
+        assert all([sum(constr == dim for constr in self.dataflow_constraints) <= 1 for dim in self.dataflow]), f"Arch: {arch.name} -> Level: {self.name}: each dimension must appear at most once in dataflow constraints ({self.dataflow_constraints})."
+        assert '_' not in self.dataflow_constraints or len(self.dataflow_constraints) == len(self.dataflow), f"Arch: {arch.name} -> Level: {self.name}: when using placeholders ('_') in dataflow constraints ({self.dataflow_constraints}), the total number of specified dimensions or placeholders ({len(self.dataflow_constraints)}) must be equal to those in the dataflow ({len(self.dataflow)})."
+        # NOTE: this way of constructing the dataflow from the constraints is redundant, but useful if one wants to skip the
+        # exploration of permutations since with this method the dataflow will be immediately consistent with constraints.
+        if self.dataflow_constraints and '_' not in self.dataflow_constraints:
+            self.dataflow = self.dataflow_constraints + [dim for dim in self.dataflow if dim not in self.dataflow_constraints]
+        elif self.dataflow_constraints and '_' in self.dataflow_constraints:
+            gen = (dim for dim in self.dataflow if dim not in self.dataflow_constraints)
+            self.dataflow = [dim if dim != '_' else next(gen) for dim in self.dataflow_constraints]
         assert self.multiple_buffering >= 1, f"Arch: {arch.name} -> Level: {self.name}: multiple buffering ({self.multiple_buffering}) must be at least 1."
         self.next_is_compute = False
         self.next_spatials = None
@@ -656,18 +672,40 @@ class MemLevel(Level):
     Returns True iif factors present on this level satisfy all of
     its constraints, including fitting in the available memory.
     """
-    def checkConstraints(self) -> bool:
-        return self.factors.memFootprint(self.tile_sizes, self.arch.coupling, not self.bypasses or 'in' not in self.bypasses, not self.bypasses or 'w' not in self.bypasses, not self.bypasses or 'out' not in self.bypasses) <= self.size/self.multiple_buffering and super().checkConstraints()
+    def checkFactorsConstraints(self) -> bool:
+        return self.factors.memFootprint(self.tile_sizes, self.arch.coupling, not self.bypasses or 'in' not in self.bypasses, not self.bypasses or 'w' not in self.bypasses, not self.bypasses or 'out' not in self.bypasses) <= self.size/self.multiple_buffering and super().checkFactorsConstraints()
+
+    """
+    Returns True iif this level's dataflow satisfies all of its constraints.
+    """
+    def checkDataflowConstraints(self) -> bool:
+        # no "_" in dataflow constraints, enforce only the relative order of constrained dimensions
+        if '_' not in self.dataflow_constraints:
+            dim_idx = 0
+            for dim in self.dataflow_constraints:
+                while dim_idx < len(self.dataflow):
+                    if dim == self.dataflow[dim_idx]:
+                        break
+                    dim_idx += 1
+                if dim_idx == len(self.dataflow):
+                    return False
+        else: # "_" in dataflow constraints, enforce unspecified dimensions in the position of placeholders
+            for i in range(len(self.dataflow)):
+                if self.dataflow_constraints[i] != '_' and self.dataflow[i] != self.dataflow_constraints[i]:
+                    return False
+        return True
 
     """
     Returns a string describing the current violation of constraints, if any.
     """
     def logConstraintsViolation(self) -> str:
-        if not super().checkConstraints():
+        if not super().checkFactorsConstraints():
             return super().logConstraintsViolation()
-        elif not self.checkConstraints():
+        elif not self.checkFactorsConstraints():
             mem_footprint = self.factors.memFootprint(self.tile_sizes, self.arch.coupling, not self.bypasses or 'in' not in self.bypasses, not self.bypasses or 'w' not in self.bypasses, not self.bypasses or 'out' not in self.bypasses)
             return f"CONSTRAINTS VIOLATION: Arch: {self.arch.name} -> Level: {self.name}: memory used: {mem_footprint} VS memory available: {self.size/self.multiple_buffering:.0f}"
+        elif not self.checkDataflowConstraints():
+            return f"CONSTRAINTS VIOLATION: Arch: {self.arch.name} -> Level: {self.name}: dataflow: {self.dataflow} VS " + (f"dataflow constraints for relative order: {self.dataflow_constraints}" if '_' not in self.dataflow_constraints else f"positional dataflow constraints: {self.dataflow_constraints} ('_' are placeholders)")
         return ""
 
     def __str__(self) -> str:
@@ -781,8 +819,8 @@ class FanoutLevel(SpatialLevel):
         self.factors = self.factors if self.factors else Factors(arch.coupling.dims)
         self.tile_sizes = self.tile_sizes if self.tile_sizes else Shape({dim: 1 for dim in arch.coupling.dims})
         assert all([constr[0] in self.dataflow and constr[1:] in ['', '>=', '<='] for constr in self.factors_constraints.keys()]), f"Arch: {arch.name} -> Level: {self.name}: all keys within factor constraints ({list(self.factors_constraints.keys())}) must be a dimension of the dataflow ({self.dataflow}) and in the form 'dim', 'dim<=', or 'dim>='."
-        assert all([sum(constr[0] == dim for constr in self.factors_constraints.keys()) <= 1 for dim in self.dataflow]), f"Arch: {arch.name} -> Level: {self.name}: each dimension must occur at most once in constraints ({list(self.factors_constraints.keys())}), regardless of the use of '>=' or '<='."
-        assert all([value > 0 for value in self.factors_constraints.values()]), f"Arch: {arch.name} -> Level: {self.name}: all constraints ({self.factors_constraints}) must have a value strictly > 0."
+        assert all([sum(constr[0] == dim for constr in self.factors_constraints.keys()) <= 1 for dim in self.dataflow]), f"Arch: {arch.name} -> Level: {self.name}: each dimension must occur at most once in factor constraints ({list(self.factors_constraints.keys())}), regardless of the use of '>=' or '<='."
+        assert all([value > 0 for value in self.factors_constraints.values()]), f"Arch: {arch.name} -> Level: {self.name}: all factor constraints ({self.factors_constraints}) must have a value strictly > 0."
 
     """
     Let inputs be the amount of operations occuring on a level below this fanout,
@@ -853,16 +891,16 @@ class FanoutLevel(SpatialLevel):
     Returns True iif factors present on this level satisfy all of its constraints,
     including not exceeding the physical mesh.
     """
-    def checkConstraints(self) -> bool:
-        return self.factors.fullProduct() <= self.mesh and super().checkConstraints()
+    def checkFactorsConstraints(self) -> bool:
+        return self.factors.fullProduct() <= self.mesh and super().checkFactorsConstraints()
 
     """
     Returns a string describing the current violation of constraints, if any.
     """
     def logConstraintsViolation(self) -> str:
-        if not super().checkConstraints():
+        if not super().checkFactorsConstraints():
             return super().logConstraintsViolation()
-        elif not self.checkConstraints():
+        elif not self.checkFactorsConstraints():
             return f"CONSTRAINTS VIOLATION: Arch: {self.arch.name} -> Level: {self.name}: spatial iterations used: {self.factors.fullProduct()} VS available instances (mesh): {self.mesh}"
         return ""
 
@@ -970,8 +1008,8 @@ class ComputeLevel(SpatialLevel):
         self.factors = self.factors if self.factors else Factors(arch.coupling.dims)
         self.tile_sizes = self.tile_sizes if self.tile_sizes else Shape({dim: 1 for dim in arch.coupling.dims})
         assert all([constr[0] in self.dataflow and constr[1:] in ['', '>=', '<='] for constr in self.factors_constraints.keys()]), f"Arch: {arch.name} -> Level: {self.name}: all keys within factor constraints ({list(self.factors_constraints.keys())}) must be a dimension of the dataflow ({self.dataflow}) and in the form 'dim', 'dim<=', or 'dim>='."
-        assert all([sum(constr[0] == dim for constr in self.factors_constraints.keys()) <= 1 for dim in self.dataflow]), f"Arch: {arch.name} -> Level: {self.name}: each dimension must occur at most once in constraints ({list(self.factors_constraints.keys())}), regardless of the use of '>=' or '<='."
-        assert all([value > 0 for value in self.factors_constraints.values()]), f"Arch: {arch.name} -> Level: {self.name}: all constraints ({self.factors_constraints}) must have a value strictly > 0."
+        assert all([sum(constr[0] == dim for constr in self.factors_constraints.keys()) <= 1 for dim in self.dataflow]), f"Arch: {arch.name} -> Level: {self.name}: each dimension must occur at most once in factor constraints ({list(self.factors_constraints.keys())}), regardless of the use of '>=' or '<='."
+        assert all([value > 0 for value in self.factors_constraints.values()]), f"Arch: {arch.name} -> Level: {self.name}: all factor constraints ({self.factors_constraints}) must have a value strictly > 0."
 
     """
     Returns the clock cycles required by this compute level to perform ALL its
@@ -1002,16 +1040,16 @@ class ComputeLevel(SpatialLevel):
     Returns True iif factors present on this level satisfy all of its constraints,
     including not exceeding the phisical number of concurrent MACs performed here.
     """
-    def checkConstraints(self) -> bool:
-        return self.factors.fullProduct() <= self.mesh and super().checkConstraints()
+    def checkFactorsConstraints(self) -> bool:
+        return self.factors.fullProduct() <= self.mesh and super().checkFactorsConstraints()
 
     """
     Returns a string describing the current violation of constraints, if any.
     """
     def logConstraintsViolation(self) -> str:
-        if not super().checkConstraints():
+        if not super().checkFactorsConstraints():
             return super().logConstraintsViolation()
-        elif not self.checkConstraints():
+        elif not self.checkFactorsConstraints():
             return f"CONSTRAINTS VIOLATION: Arch: {self.arch.name} -> Level: {self.name}: concurrent MACs used: {self.factors.fullProduct()} VS concurrent MACs available: {self.mesh}"
         return ""
 

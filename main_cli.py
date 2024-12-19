@@ -64,6 +64,7 @@ def args_match_and_remove(flag, with_value = False, value_type = str):
 def parse_options():
     options = {
         "help": args_match_and_remove("-h") or args_match_and_remove("--help"),
+        "quiet": args_match_and_remove("-q") or args_match_and_remove("--quiet"),
         "bias": args_match_and_remove("-b") or args_match_and_remove("--bias"),
         "processes": v if (v := args_match_and_remove("-p", True, int)) != False else args_match_and_remove("--processes", True, int),
         "accelergy-data": args_match_and_remove("-ad") or args_match_and_remove("--accelergy-data"),
@@ -75,6 +76,7 @@ def parse_options():
 def help_options():
     print("Supported options:")
     print("-h, --help\t\tDisplay this help menu.")
+    print("-q --quiet\t\tReduces CLI output to final results and errors.")
     print("-b --bias\t\tIf set, the bias is considered present in the GEMM, otherwise it is assumed absent.")
     print("-p --processes\t\tSets the number of concurrent processes to use.")
     print("-ad --accelergy-data\tQuery Accelergy instead of using hardcoded component level estimates, effective only if arg. 1 is an architecture name.")
@@ -96,6 +98,10 @@ def help_comp(supported_comp_groups):
             print(f"- {group_name}-{comp_name} ->", ", ".join(f"{k}: {v}" for k, v in comp.items()))
     print("Alternatively, provide a \"path/to/a/file.py\" where the variables \"coupling\" and \"comp\" are defined. An example of such a file is provided under \"architectures/example_comp.py\".")
     print("Be wary that the coupling must be compatible with the one used for the selected architecture.")
+
+def printopt(*argv, **kwargs):
+    if not options["quiet"]:
+        print(*argv, **kwargs)
 
 
 # DEFAULT SPECIFICATION:
@@ -132,39 +138,41 @@ if __name__ == "__main__":
         sys.exit(1)
     
     if options["tryall"] == False:
-        print("-------- architecture --------")
+        printopt("-------- architecture --------")
         if not (len(sys.argv) >= 2 and (sys.argv[1] in supported_archs or os.path.exists(sys.argv[1]) and sys.argv[1][-3:] == '.py')):
-            help_arch(supported_archs)
+            if not options["quiet"]:
+                help_arch(supported_archs)
             #sys.exit(1)
             print("WARNING: no valid architecture provided, defaulting to \"eyeriss\"...")
         if len(sys.argv) >= 2:
             if sys.argv[1] in supported_archs:
                 if options["accelergy-data"]:
                     arch = supported_archs_accelergy[sys.argv[1]]()
-                    print()
+                    printopt()
                 else:
                     arch = supported_archs[sys.argv[1]]
-                    print("Architecture:", sys.argv[1])
+                    printopt("Architecture:", sys.argv[1])
             elif sys.argv[1][-3:] == '.py':
                 arch_file = importlib.util.spec_from_file_location("user_arch", sys.argv[1])
                 arch_module = importlib.util.module_from_spec(arch_file)
                 sys.modules["user_arch"] = arch_module
                 arch_file.loader.exec_module(arch_module)
                 arch = getattr(arch_module, "arch")
-                print("Architecture:", sys.argv[1], "-> arch")
+                printopt("Architecture:", sys.argv[1], "-> arch")
             sys.argv.pop(1)
         
-        print("-------- computation  --------")
+        printopt("-------- computation  --------")
         if not ((len(sys.argv) >= 2 and ((len(split_comp_name := sys.argv[1].split('-')) == 2 and split_comp_name[0] in supported_comp_groups and split_comp_name[1] in supported_comp_groups[split_comp_name[0]]) or os.path.exists(sys.argv[1]) and sys.argv[1][-3:] == '.py')) or (len(sys.argv) == 4 and all([d.isdigit() and d[0] != '-' for d in sys.argv[1:4]])) or (len(sys.argv) >= 7 and all([d.isdigit() and d[0] != '-' for d in sys.argv[1:7]]))):
-            help_comp(supported_comp_groups)
-            print("WARNING: no valid computation provided, defaulting to GEMM: \"KQV\"...")
+            if not options["quiet"]:
+                help_comp(supported_comp_groups)
             #sys.exit(1)
+            print("WARNING: no valid computation provided, defaulting to GEMM: \"BERT-KQV\"...")
         if len(sys.argv) == 2:
             if len(split_comp_name := sys.argv[1].split('-')) == 2 and split_comp_name[0] in supported_comp_groups and split_comp_name[1] in supported_comp_groups[split_comp_name[0]]:
                 comp = supported_comp_groups[split_comp_name[0]][split_comp_name[1]]
                 coupling = supported_couplings[split_comp_name[0]]
-                print("Computation:", sys.argv[1]+":", comp)
-                print("Coupling:", coupling.compactStr())
+                printopt("Computation:", sys.argv[1]+":", comp)
+                printopt("Coupling:", coupling.compactStr())
             elif sys.argv[1][-3:] == '.py':
                 comp_file = importlib.util.spec_from_file_location("user_comp", sys.argv[1])
                 comp_module = importlib.util.module_from_spec(comp_file)
@@ -172,8 +180,8 @@ if __name__ == "__main__":
                 comp_file.loader.exec_module(comp_module)
                 comp = getattr(comp_module, "comp")
                 coupling = getattr(comp_module, "coupling")
-                print("Computation:", sys.argv[1], "-> comp:", comp)
-                print("Coupling:", sys.argv[1], "-> coupling:", coupling.compactStr())
+                printopt("Computation:", sys.argv[1], "-> comp:", comp)
+                printopt("Coupling:", sys.argv[1], "-> coupling:", coupling.compactStr())
         elif len(sys.argv) > 2:
             if len(sys.argv) == 4:
                 comp = Shape(M = int(sys.argv[1]), K = int(sys.argv[2]), N = int(sys.argv[3]))
@@ -184,30 +192,33 @@ if __name__ == "__main__":
             elif len(sys.argv) >= 11:
                 comp = Shape(M = int(sys.argv[1]), P = int(sys.argv[2]), Q = int(sys.argv[3]), C = int(sys.argv[4]), R = int(sys.argv[5]), S = int(sys.argv[6]), Pstride = int(sys.argv[7]), Qstride = int(sys.argv[8]), Rdilation = int(sys.argv[9]), Sdilation = int(sys.argv[10]))
                 coupling = conv_coupling_with_stride
-            print("Computation:", comp)
-            print("Coupling:", coupling.compactStr())
+            printopt("Computation:", comp)
+            printopt("Coupling:", coupling.compactStr())
     else:
-        print("-------- try all mode --------")
+        printopt("-------- try all mode --------")
         if options["tryall"] not in supported_comp_groups:
             print(f"Invalid <name> argument provided for the 'tryall' option ({options['tryall']}). Valid group names are:")
             for group_name in supported_comp_groups.keys():
                 print(f"- {group_name}")
             sys.exit(1)
         else:
-            print("Comp group:", options["tryall"])
+            printopt("Comp group:", options["tryall"])
     
     bias_read = options["bias"]
-    print("Bias present:", bias_read)
+    printopt("Bias present:", bias_read)
     
-    print("------------------------------")
-    print("----- running FactorFlow -----")
-    print("------------------------------\n")
+    printopt("------------------------------")
+    printopt("----- running FactorFlow -----")
+    printopt("------------------------------\n")
 
     if options["processes"]:
         Settings.THREADS_COUNT = options["processes"]
         if options["processes"] == 1:
             Settings.MULTITHREADED = False
-    print("Processes:", Settings.THREADS_COUNT)
+    printopt("Processes:", Settings.THREADS_COUNT)
+    
+    if options["quiet"]:
+        Settings.VERBOSE = False
     
     # EXECUTION
     
@@ -222,23 +233,23 @@ if __name__ == "__main__":
         for arch_name, current_arch in zip(["Gemmini", "Eyeriss", "Simba", "TPUv1"], [arch_gemmini, arch_eyeriss, arch_simba, arch_tpu] if supported_couplings[options["tryall"]] is gemm_coupling else [arch_gemmini_conv, arch_eyeriss_conv, arch_simba_conv, arch_tpu_conv]):
             for comp_name, current_comp in zip(supported_comp_groups[options["tryall"]].keys(), supported_comp_groups[options["tryall"]].values()):
                 current_arch_copy = copy.deepcopy(current_arch)
-                print(f"Now running FactorFlow on arch: {arch_name} and comp: {comp_name}...")
+                printopt(f"Now running FactorFlow on arch: {arch_name} and comp: {comp_name}...")
                 if not current_arch_copy.fitConstraintsToComp(current_comp, comp_name):
                     continue
                 edp, mops, energy, latency, utilization, end_time, _ = run_engine(current_arch_copy, current_comp, gemm_coupling, bias_read, verbose = False)
                 table.add_row([arch_name, comp_name, f"{edp:.3e}", f"{mops[0]+mops[1]:.0f}", f"{latency:.3e}", f"{energy:.3e}", f"{utilization:.3e}", f"{end_time:.3f}"] + extra_constant_columns_values)
         print(table)
-        
+    
     elif options["gen-tests"]:
-        arch.checkCouplingCompatibility(coupling, comp, verbose = True)
+        arch.checkCouplingCompatibility(coupling, comp, verbose = not options["quiet"])
         arch.fitConstraintsToComp(comp, enforce = True)
-        edp, mops, energy, latency, utilization, _, arch = run_engine(arch, comp, coupling, bias_read, verbose = True)
+        edp, mops, energy, latency, utilization, _, arch = run_engine(arch, comp, coupling, bias_read, verbose = not options["quiet"])
         from test import generateTestMOPs, generateTestLatency
         print("\nGenerated tests:")
         generateTestMOPs(arch)
         generateTestLatency(arch)
     
     else:
-        arch.checkCouplingCompatibility(coupling, comp, verbose = True)
+        arch.checkCouplingCompatibility(coupling, comp, verbose = not options["quiet"])
         arch.fitConstraintsToComp(comp, enforce = True)
         run_engine(arch, comp, coupling, bias_read, verbose = True)
