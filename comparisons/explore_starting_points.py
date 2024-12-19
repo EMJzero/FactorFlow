@@ -308,7 +308,7 @@ if __name__ == "__main__":
         print(f"Starting optimization of {MAX_TRIES} different starting points:")
         for current_arch in random_archs:
             try:
-                assert not current_arch.findConstraintsViolation(False)
+                assert current_arch.checkFactorsConstraints()
                 if STORE_INITIAL_CONDITIONS: initial_conditions.append(factorsString(current_arch))
                 current_arch, wart = factorFlow(current_arch, comp, bias_read, already_initialized = True)
                 edp = EDP(current_arch, bias_read, True)

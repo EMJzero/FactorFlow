@@ -241,7 +241,7 @@ if __name__ == "__main__":
         print(f"Starting generation of {MAX_TRIES} random mappings:")
         for current_arch in random_archs:
             try:
-                assert not current_arch.findConstraintsViolation(False)
+                assert current_arch.checkFactorsConstraints()
                 if STORE_INITIAL_CONDITIONS: initial_conditions.append(factorsString(current_arch))
                 edp = EDP(current_arch, bias_read, True)
                 wart = Wart(current_arch, comp, bias_read)

@@ -65,21 +65,6 @@ class Arch(list[Level]):
         comp.fitToCoupling(coupling)
 
     """
-    Checks factors allocation constraints. Returns True if a violation is found.
-    """
-    def findConstraintsViolation(self, verbose : bool = True) -> bool:
-        violation = False
-        for level in self:
-            for dim in self.coupling.dims:
-                if dim not in level.dataflow and len(level.factors[dim]) != 0:
-                    if verbose: print(f"Arch: {self.name} -> Level: {level.name}: dimension {dim} was not in dataflow, but still received some iterations ({dim}: {level.factors.dimProduct(dim)}) due to constraints.")
-                    violation = True
-                if dim in level.factors_constraints and level.factors_constraints[dim] != level.factors.dimProduct(dim):
-                    if verbose: print(f"Arch: {self.name} -> Level: {level.name}: constraint violation, desired was ({dim}: {level.factors_constraints[dim]}), obtained was ({dim}: {level.factors.dimProduct(dim)}).")
-                    violation = True
-        return violation
-
-    """
     Moves a factor between the same dimension of two levels, transitioning
     between adjacent mappings. It also updates tile sizes accordingly for all levels
     between the affected ones.
@@ -102,7 +87,7 @@ class Arch(list[Level]):
         if not self[src_level_idx].removeFactor(dimension, factor, amount):
             return False
         # check src constraints
-        if not self[src_level_idx].checkConstraints() and not skip_src_constraints:
+        if not self[src_level_idx].checkFactorsConstraints() and not skip_src_constraints:
             self[src_level_idx].addFactor(dimension, factor, amount)
             return False   
         self[dst_level_idx].addFactor(dimension, factor, amount)
@@ -115,7 +100,7 @@ class Arch(list[Level]):
             for i in range(dst_level_idx, src_level_idx):
                 self[i].tile_sizes[dimension] //= factor_to_amount
         # check dst and all in between constraints
-        constraints_check = [level.checkConstraints() for level in (self[src_level_idx:dst_level_idx+1] if src_level_idx < dst_level_idx else self[dst_level_idx:src_level_idx+1])]
+        constraints_check = [level.checkFactorsConstraints() for level in (self[src_level_idx:dst_level_idx+1] if src_level_idx < dst_level_idx else self[dst_level_idx:src_level_idx+1])]
         if not all(constraints_check) and not skip_dst_constraints:
             self[src_level_idx].addFactor(dimension, factor, amount)
             assert self[dst_level_idx].removeFactor(dimension, factor, amount) # something is broken, cannot undo the move
@@ -169,23 +154,71 @@ class Arch(list[Level]):
                         self[0].factors[dim] = prime_factors(padded_dim_size)
                         self[0].factors.resetDimProducts([dim])
                         for fact, amount in constr_factors[dim].items():
-                            # be wary that here we skip constraints checks in moveFactor, so one must follow up this method with findConstraintsViolation
+                            # be wary that here we skip constraints checks in moveFactor, so one must follow up this method with checkFactorsConstraints
                             assert self.moveFactor(0, i, dim, fact, amount, True, True), f"Arch: {self.name} -> Level: {level.name}: Failed to enforce constraints even with padding..."
+
+    """
+    NOTE: DEPRECATED!!
+    Checks factors allocation constraints. Returns True if no violation is found.
+    """
+    def checkFactorsConstraintsOLD(self, verbose : bool = True) -> bool:
+        for level in self:
+            for dim in self.coupling.dims:
+                if dim not in level.dataflow and len(level.factors[dim]) != 0:
+                    if verbose: print(f"Arch: {self.name} -> Level: {level.name}: dimension {dim} is not in the dataflow ({level.dataflow}), but still received some iterations ({dim}: {level.factors.dimProduct(dim)}) due to constraints.")
+                    return False
+                elif dim in level.factors_constraints and level.factors_constraints[dim] != level.factors.dimProduct(dim):
+                    if verbose: print(f"Arch: {self.name} -> Level: {level.name}: factor constraints violation, desired was ({dim}: {level.factors_constraints[dim]}), obtained was ({dim}: {level.factors.dimProduct(dim)}).")
+                    return False
+                elif (s := dim + '<=') in level.factors_constraints and level.factors_constraints[s] < level.factors.dimProduct(dim):
+                    if verbose: print(f"Arch: {self.name} -> Level: {level.name}: factor constraints violation, desired was ({s}: {level.factors_constraints[s]}), obtained was ({dim}: {level.factors.dimProduct(dim)}).")
+                    return False
+                elif (s := dim + '>=') in level.factors_constraints and level.factors_constraints[s] > level.factors.dimProduct(dim):
+                    if verbose: print(f"Arch: {self.name} -> Level: {level.name}: factor constraints violation, desired was ({s}: {level.factors_constraints[s]}), obtained was ({dim}: {level.factors.dimProduct(dim)}).")
+                    return False
+        return True
+
+    """
+    Checks factors allocation constraints. Returns True if no violation is found.
+    """
+    def checkFactorsConstraints(self) -> bool:
+        return all(level.checkFactorsConstraints() for level in self)
+
+    """
+    NOTE: DEPRECATED!!
+    Checks dataflow (loop ordering) constraints. Returns False if a violation is found.
+    """
+    def checkDataflowConstraintsOLD(self, verbose : bool = False) -> bool:
+        for level in filter(lambda l : isinstance(l, MemLevel), self):
+            # no "_" in dataflow constraints, enforce only the relative order of constrained dimensions
+            if '_' not in level.dataflow_constraints:
+                dim_idx = 0
+                for dim in level.dataflow_constraints:
+                    while dim_idx < len(level.dataflow):
+                        if dim == level.dataflow[dim_idx]:
+                            break
+                        dim_idx += 1
+                    if dim_idx == len(level.dataflow):
+                        if verbose: print(f"Arch: {self.name} -> Level: {level.name}: dataflow constraints violation, the dataflow ({level.dataflow}) violates the required relative order ({level.dataflow_constraints}).")
+                        return False
+            else: # "_" in dataflow constraints, enforce unspecified dimensions in the position of placeholders
+                for i in range(len(level.dataflow)):
+                    if level.dataflow_constraints[i] != '_' and level.dataflow[i] != level.dataflow_constraints[i]:
+                        if verbose: print(f"Arch: {self.name} -> Level: {level.name}: dataflow constraints violation, the dataflow ({level.dataflow}) violates the templated ({level.dataflow_constraints}).")
+                        return False
+        return True
 
     """
     Checks dataflow (loop ordering) constraints. Returns False if a violation is found.
     """
     def checkDataflowConstraints(self) -> bool:
-        for level in filter(lambda l : isinstance(l, MemLevel), self):
-            dim_idx = 0
-            for dim in level.dataflow_constraints:
-                if dim_idx == len(level.dataflow):
-                    return False
-                while dim_idx < len(level.dataflow):
-                    if dim == level.dataflow[dim_idx]:
-                        break
-                    dim_idx += 1
-        return True
+        return all(level.checkDataflowConstraints() for level in self if isinstance(level, MemLevel))
+
+    """
+    Returns a string describing the current violations of constraints, if any.
+    """
+    def logConstraintsViolations(self) -> bool:
+        return '\n'.join(filter(lambda s : len(s) > 0, (level.logConstraintsViolation() for level in self)))
 
     """
     Initializes bypasses between MemLevels of the architecture.

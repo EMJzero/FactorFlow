@@ -1,3 +1,4 @@
+from computations import gemm_coupling
 from levels import *
 from arch import *
 
@@ -53,4 +54,4 @@ arch = Arch([
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {}
-    )], name="Example Architecture")
+    )], coupling=gemm_coupling, name="Example Architecture")

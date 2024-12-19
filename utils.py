@@ -1,4 +1,4 @@
-from itertools import chain, combinations
+from itertools import chain, combinations, permutations
 from functools import reduce
 import math
 
@@ -65,6 +65,26 @@ def interleave(array : list[T], elements : list[T]) -> list[list[T]]:
             results.extend(recursive_insert(new_arr, elems[1:]))
         return results
     return recursive_insert(array, elements)
+
+"""
+Given a 'template' containing some entries of 'elements' and some
+placeholder elements (having value 'placeholder'), inserts in all
+possible ways the remaining entries of 'elements' in the template.
+"""
+def slot_in(template : list[T], elements : list[T], placeholder: T) -> list[list[T]]:
+    placeholder_indices = [i for i, x in enumerate(template) if x == placeholder]
+    num_placeholders = len(placeholder_indices)
+    remaining_elements = [x for x in elements if x not in template]
+    if len(remaining_elements) < num_placeholders:
+        raise ValueError("Not enough elements to fill placeholders.")
+    permutations_of_elements = permutations(remaining_elements, num_placeholders)
+    results = []
+    for perm in permutations_of_elements:
+        filled_template = template[:]
+        for idx, value in zip(placeholder_indices, perm):
+            filled_template[idx] = value
+        results.append(filled_template)
+    return results
 
 """
 Returns a list of all versions of 'array' that differ by a rotation (or shift).
