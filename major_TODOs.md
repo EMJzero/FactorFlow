@@ -1,6 +1,7 @@
 - improve latency modeling by dividing it per-operand (in updateStats)
 - ~~maximize SA usage before MSE (in factorFlow)~~
 - ~~prune some dataflow permutations via the work on derivatives~~
+- ~~create the dump of a mapping functionality within the new Arch class! => NEW FILE arch.py containing two classes, Arch and (maybe) Mapping (which shall also store top metrics: EDP and Wart, shall also have the factorsAtOne method)~~
 - in case of padding, ignore the MAC cost for padding values
 - ~~decide whether to treat ComputeLevels as FanoutLevels or MemLevels in fanoutMaximization and optimizeDataflows!!!~~
 - could unify part of level constructors (like the constraints asserts)!

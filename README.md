@@ -18,7 +18,7 @@ Marco Ronzani and Cristina Silvano. 2025. **FactorFlow: Mapping GEMMs on Spatial
 
 ## Setup
 
-Requires **Python 3.9** or newer (Python 3.13 highly recommended).
+Requires [**Python 3.13 (with free-threading)**](https://docs.python.org/3/whatsnew/3.13.html#whatsnew313-free-threaded-cpython) or newer.
 
 To setup FactorFlow run:
 ```bash
@@ -31,6 +31,7 @@ pip install -r requirements.txt
 python test.py
 python main.py
 ```
+> **Important**: to take advantage of free-threading in Python 3.13, replace `python` with `python3.13t` in any of the shown commands. The resulting removal of the global interpreter lock will allow threads to truly run concurrenlty.
 
 Optionally install Accelergy through the instructions for the [Timeloop Infrastructure (native install)](https://timeloop.csail.mit.edu/v4/installation). Install solely Accelergy, there is no need for Timeloop.<br>
 This isn't required to used FactorFlow as long as you provide the component-level energy estimates yourself or use the provided examples in [`architectures.py`](architectures/architectures.py) or [`solutions_db.py`](architectures/solutions_db.py). Installing Accelergy is instead mandatory whenever you intend for it to provide component level energy estimates (that is, whenever importing [`accelergy_hw_data.py`](architectures/accelergy_hw_data.py), like shown in [`architectures_hw_data.py`](architectures/architectures_hw_data.py)).<br>

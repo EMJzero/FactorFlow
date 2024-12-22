@@ -41,7 +41,6 @@ class LevelCore:
     def __str__(self) -> str:
         return f"dataflow: {self.dataflow}, factors: {self.factors}, tile_sizes: {self.tile_sizes}"
 
-
 """
 Abstract class representing a level of the accelerator's architecture.
 

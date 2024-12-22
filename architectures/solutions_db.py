@@ -2,6 +2,7 @@ from architectures.architectures import WS, OS, IS
 from computations import gemm_coupling, conv_coupling, conv_coupling_with_stride
 from levels import *
 from arch import *
+from arch import *
 
 
 # >>> GEMMINI <<<

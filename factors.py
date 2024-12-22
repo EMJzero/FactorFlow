@@ -191,10 +191,14 @@ class Shape(dict[str, int]):
     def FLOPs(self) -> int:
         return 2*prod(self.values())
 
-    def fitToCoupling(self, coupling : Coupling):
+    def fitToCoupling(self, coupling : Coupling) -> None:
         for dim in coupling.dims:
             if dim not in self:
                 self[dim] = 1
+
+    def clear(self) -> None:
+        for dim in self.keys():
+            self[dim] = 1
 
     def __str__(self) -> str:
         return "{" + ", ".join(f"{k}: {v}" for k, v in self.items()) + "}"

@@ -2,6 +2,7 @@ from architectures.architectures import WS, OS, IS
 from computations import gemm_coupling
 from levels import *
 from arch import *
+from arch import *
 
 # ZigZag conversions:
 # K -> M

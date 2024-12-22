@@ -10,6 +10,8 @@ from utils import *
 
 """
 Class wrapping a list of levels into an architecture.
+In FF, the terms outermost and innermost refer to the first and last elements
+in the list, in accordance with the HW componenets represented by levels.
 
 Constructor arguments:
 - levels: the list of levels for the architecture
@@ -19,11 +21,12 @@ Constructor arguments:
 class Arch(list[Level]):
     def __init__(self, levels : list[Level], coupling : Coupling, name : str ="<unnamed architecture>"):
         self.name : str = name
+        # TODO: maybe store Wart, EDP, etc. here?
         self.coupling : Coupling = coupling
         self.stride_values : dict[str, int] = {}
         
         super().__init__(levels)
-        
+
         assert len(self) >= 2, f"Arch: {self.name}: at least two levels (one 'MemLevel', one 'ComputeLevel') are required for an architecture, {len(self)} provided."
         assert all(isinstance(item, Level) for item in self), f"Arch: {self.name}: all architecture entries must be levels (instances of the 'Level' class), provided ones are {list(map(lambda x : type(x).__name__, self))}."
         assert isinstance(self[0], MemLevel), f"Arch: {self.name}: the outermost (idx 0) level must be a memory level ('MemLevel' instance), {type(self[0]).__name__} provided."
@@ -39,16 +42,27 @@ class Arch(list[Level]):
         next((level for level in self[::-1] if isinstance(level, MemLevel)), None).next_is_compute = True
 
     """
-    Returns a deep-copied compact representation of the current mapping.
+    Returns a compact representation of the current mapping.
+    
+    Arguments:
+    - copy: if True, the returned mapping is a deep-copy of the current one
     """
-    def exportMapping(self) -> list[LevelCore]:
-        return [LevelCore(deepcopy(level.dataflow), deepcopy(level.factors), deepcopy(level.tile_sizes)) for level in self]
+    def exportMapping(self, copy : bool = False) -> list[LevelCore]:
+        if copy:
+            return [LevelCore(deepcopy(level.dataflow), deepcopy(level.factors), deepcopy(level.tile_sizes)) for level in self]
+        else:
+            return [LevelCore(level.dataflow, level.factors, level.tile_sizes) for level in self]
 
     """
     Loads a mapping (preferably coming from "exportMapping") into the architecture.
+    
+    Arguments:
+    - mapping: the mapping to be loaded
+    - from_level: optional outermost level included in the copy
+    - to_level: optional innermost level included in the copy
     """
-    def importMapping(self, mapping : list[LevelCore]) -> None:
-        for i in range(len(self)):
+    def importMapping(self, mapping : list[LevelCore], from_level : int = 0, to_level : int = -1) -> None:
+        for i in range(from_level, to_level % len(self)):
             self[i].dataflow = mapping[i].dataflow
             self[i].factors = mapping[i].factors
             self[i].tile_sizes = mapping[i].tile_sizes
@@ -122,6 +136,23 @@ class Arch(list[Level]):
         # initialize with all factors on first level, all tile sizes of 1!
         self[0].factors = Factors({dim: prime_factors(comp[dim]) for dim in self.coupling.dims})
         self.stride_values = {dim: (comp[dim] if dim in comp else 1) for dim in list(self.coupling.in_strides.values()) + list(self.coupling.w_strides.values()) + list(self.coupling.out_strides.values())}
+
+    """
+    Resets the architecture's mapping to a blank state.
+    [Dataflows are not affected, and remain arbitrary]
+    
+    Arguments:
+    - copy: if True, it does not overwrite the previous state's
+            datastructures, but creates new blank instances of them.
+    """
+    def resetFactors(self, copy : bool = False) -> None:
+        for level in self:
+            if copy:
+                level.factors = Factors(self.coupling.dims)
+                level.tile_sizes = Shape({dim: 1 for dim in self.coupling.dims})
+            else:
+                level.factors.clear()
+                level.tile_sizes.clear()
 
     """
     This function must start from arch having all factors on its first level,
@@ -256,7 +287,7 @@ class Arch(list[Level]):
     spatial (fanouts and compute) levels which may follow it.
     The "next_is_compute" is also set on the last memory level before compute.
     """
-    def setupSpatialLevelPointers(self):
+    def setupSpatialLevelPointers(self) -> None:
         for i in range(len(self)):
             level = self[i]
             if isinstance(level, MemLevel):
@@ -302,7 +333,6 @@ class Arch(list[Level]):
     """
     Reduces constraints to the largest possible ones that can be satisfied
     by the present computations. Returns True if the fitting was possible.
-
     If enforce is False, in case of usatisfiable constraints an error is
     printed and the return value must be checked for failure. Otherwise,
     an assertion enforces constraints to comply.
