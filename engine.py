@@ -658,6 +658,7 @@ def optimizeDataflows(arch, comp, bias_read, thread_idx = -1, threads_count = 1,
                     try:
                         perm = past_perms[current_key]
                     except KeyError:
+                        i -= 1
                         continue
                     with perm:
                         if current_key in past_perms:
