@@ -44,6 +44,17 @@ class Settings():
     # it entirely. Setting it to False can slightly improve the best found mapping.
     # NOTE: unless PERM_SKIP is True, this setting is useless.
     HARD_PERM_SKIP = False
+    # If True, rules are built based on the best selected permutations throughout the exploration,
+    # and these rules are subsequently enforced to prune the remaining permutations, speeding up
+    # the exploration under the assumption that there is some consistency between optimal choices.
+    PERM_PRUNING = True
+    # When PERM_PRUNING is True, the following 3 settings determine the number of times a dimension
+    # needs to (1) have a single iteration, (2) be in a certain relative order with another, and
+    # (3) occupy a specific position in the ordering of the best mapping found for a subset of
+    # permutations, before such occurrance becomes a rule that is enforced to prune later permutations.
+    DIM_AT_1_COUNT_BEFORE_LOCK = 2
+    RELATIVE_ORDER_COUNT_BEFORE_LOCK = 2
+    POSITIONAL_COUNT_BEFORE_LOCK = 2
     # If True, the Wart will be multiplied by the utilization of the fanouts in the spatial architecture,
     # punishing mappings which underutilize fanouts.
     UTILIZATION_IN_WART = True

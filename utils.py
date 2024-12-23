@@ -1,4 +1,5 @@
 from itertools import chain, combinations, permutations
+from collections import defaultdict, deque
 from functools import reduce
 import math
 
@@ -127,6 +128,43 @@ def pairwise_swaps(arr1 : list[T], arr2 : list[T]) -> set[T]:
                 swaps.add(arr1[j - 1])
                 j -= 1
     return swaps
+
+"""
+Generates all ordered pairs which can be sampled from a list.
+"""
+def ordered_pairs(lst : list[T]) -> Iterator[tuple[T, T]]:
+    for i in range(len(lst)):
+        for j in range(i + 1, len(lst)):
+            yield (lst[i], lst[j])
+
+"""
+Generates a valid ordering of elements based on the given relative
+order pairs. Let 'pairs' be a list of tuples each representing the
+relative order between two elements. The result will be a list
+containing a valid ordering of elements that satisfies all constraints.
+"""
+def satisfy_relative_order(pairs : list[tuple[T, T]]) -> list[T]:
+    elements = set()
+    for a, b in pairs:
+        elements.add(a)
+        elements.add(b)
+    graph = defaultdict(list)
+    in_degree = {element: 0 for element in elements}
+    for a, b in pairs:
+        graph[a].append(b)
+        in_degree[b] += 1
+    queue = deque([node for node in elements if in_degree[node] == 0])
+    result = []
+    while queue:
+        current = queue.popleft()
+        result.append(current)
+        for neighbor in graph[current]:
+            in_degree[neighbor] -= 1
+            if in_degree[neighbor] == 0:
+                queue.append(neighbor)
+    if len(result) != len(elements):
+        raise ValueError("The input pairs contain a cycle or are otherwise invalid.")
+    return result
 
 """
 Finds the subarray of 'arr', if any, whose product exceeds 'target' by

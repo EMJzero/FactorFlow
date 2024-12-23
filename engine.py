@@ -617,7 +617,7 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
     last_iterated_perm = len(current_perms) - 1
     # The empty list (tuple([])) key contains the list for the permutations on the first level, each subsequent list is
     # assigned as key the hash of the sublist current_perms[0, level_idx] (after it is converted in a tuple for hashing)!
-    # Remember, each list is ordered from best to worse mapping (TODO: manage them as a max-heap)!
+    # Remember, each list is ordered from best to worse mapping (managed as a max-heap)!
     # NOTE: since we check equi-dataflow matches on the last permuted level, which thus follows an inner-levels-first order, and skip entirely inner permutations of an outer permutation
     #       when there is a match, we never end up in a situation where equi-dataflow matches need to be checked on a level other than the last permuted one, as outer ones have always
     #       been already checked, while inner ones already skipped if needed!
@@ -625,7 +625,20 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
     past_perms = past_perms if past_perms else {}
     # counts explored permutations
     tried_perms = 0
-    #skipped_perms_total = 0
+    skipped_perms_total = 0
+    pruned_perms_total = 0
+    
+    # TODO: SHARE THEM AMONG THREADS SOMEHOW!
+    # Pruning conditions:
+    # 1) any dimensions which ends up with 1 iteration after X non-equi-dataflow match explorations can be locked as an outermost (or even innermost) dimension on a level
+    # 2) any pair of dimensions which maintains a certain relative order Y times in the best permutation found when going up from a level can be locked in that order
+    # NOTE: store a tuple for each ordered pair; NOTE: locking can be realized either with a datastructure of "perm skip rules" shared among threads, or by removing entries from "permutations" in all threads
+    # 3) any dimension which maintains a certain absolute position Z times in the best permutation found when going up from a level can be locked in that position
+    # NOTE: a good value for X, Y, and Z is 2; NOTE: pruning conditions apply per-level regardless of the above permutations
+    tentative_positional_locks = [{} for _ in targets] # here is where we keep the count of the conditions that need to occur to insert a new positional rule
+    tentative_order_locks = [{} for _ in targets] # here is where we keep the count of the conditions that need to occur to insert a new ordering rule
+    positional_locks = [{} for _ in targets] # list of dictionaries dim:idx
+    relative_order_locks = [[] for _ in targets] # list of lists of ordered pairs
     
     # initialize shared data structures
     lock = OptionalLock(lock)
@@ -640,7 +653,7 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
     """
     Returns a dictionary indicating for each dimension of dimension if it has only a single iteration on level 'level_idx' of 'mapping'.
     """
-    def factorsAtOne(mapping, level_idx):
+    def factorsAtOne(mapping : Union[list[LevelCore], Arch], level_idx : int) -> dict[str, bool]:
         return {dim:  mapping[level_idx].factors.dimProduct(dim) == 1 for dim in arch.coupling.dims}
     
     """
@@ -659,17 +672,20 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
             # 1) all innermost iterated dimensions orthogonal to an operand must be the same, but not necessarily in the same order
             # 2) the innermost non-orthogonal iterated dimension must be the same IFF it is part of a sum of indices and either no orthogonal dimension was iterated before it or multiple reuse types are supported on the level
             # 3) for bypassed operands, only the level that first dictates a dataflow among those the bypass spans over, needs to have an equi-dataflow match, all others match by default
+            # NOTE: (3) is currently disabled, and does not help with many matches because the non-bypassed operands prevent it!
             i, j = next((i for i, dim in enumerate(new_perm_effective) if dim in arch.coupling.flat_in_coupling), 0), next((j for j, dim in enumerate(old_perm_effective) if dim in arch.coupling.flat_in_coupling), 0)
             #input_ok = not targets[level_idx].in_bp and not targets[level_idx].bp_stationarity_solved_here['in']
             input_ok = i == j and set(new_perm_effective[:i]) == set(old_perm_effective[:j]) and ((new_perm_effective[i] == old_perm_effective[j] or (not arch.coupling.getDimSum('in', new_perm_effective[i], 2) and not arch.coupling.getDimSum('in', old_perm_effective[j], 2))) or (not targets[level_idx].multiple_reuses and i != 0))
-            i, j = next((i for i, dim in enumerate(new_perm_effective) if dim in arch.coupling.flat_w_coupling), 0), next((j for j, dim in enumerate(old_perm_effective) if dim in arch.coupling.flat_w_coupling), 0)
-            #weights_ok = not targets[level_idx].w_bp and not targets[level_idx].bp_stationarity_solved_here['w']
-            weights_ok = i == j and set(new_perm_effective[:i]) == set(old_perm_effective[:j]) and ((new_perm_effective[i] == old_perm_effective[j] or (not arch.coupling.getDimSum('w', new_perm_effective[i], 2) and not arch.coupling.getDimSum('w', old_perm_effective[j], 2))) or (not targets[level_idx].multiple_reuses and i != 0))
-            i, j = next((i for i, dim in enumerate(new_perm_effective) if dim in arch.coupling.flat_out_coupling), 0), next((j for j, dim in enumerate(old_perm_effective) if dim in arch.coupling.flat_out_coupling), 0)
-            #output_ok = not targets[level_idx].out_bp and not targets[level_idx].bp_stationarity_solved_here['out']
-            output_ok = i == j and set(new_perm_effective[:i]) == set(old_perm_effective[:j]) and ((new_perm_effective[i] == old_perm_effective[j] or (not arch.coupling.getDimSum('out', new_perm_effective[i], 2) and not arch.coupling.getDimSum('out', old_perm_effective[j], 2))) or (not targets[level_idx].multiple_reuses and i != 0))
-            if input_ok and weights_ok and output_ok:
-                return mapping
+            if input_ok:
+                i, j = next((i for i, dim in enumerate(new_perm_effective) if dim in arch.coupling.flat_w_coupling), 0), next((j for j, dim in enumerate(old_perm_effective) if dim in arch.coupling.flat_w_coupling), 0)
+                #weights_ok = not targets[level_idx].w_bp and not targets[level_idx].bp_stationarity_solved_here['w']
+                weights_ok = i == j and set(new_perm_effective[:i]) == set(old_perm_effective[:j]) and ((new_perm_effective[i] == old_perm_effective[j] or (not arch.coupling.getDimSum('w', new_perm_effective[i], 2) and not arch.coupling.getDimSum('w', old_perm_effective[j], 2))) or (not targets[level_idx].multiple_reuses and i != 0))
+                if weights_ok:
+                    i, j = next((i for i, dim in enumerate(new_perm_effective) if dim in arch.coupling.flat_out_coupling), 0), next((j for j, dim in enumerate(old_perm_effective) if dim in arch.coupling.flat_out_coupling), 0)
+                    #output_ok = not targets[level_idx].out_bp and not targets[level_idx].bp_stationarity_solved_here['out']
+                    output_ok = i == j and set(new_perm_effective[:i]) == set(old_perm_effective[:j]) and ((new_perm_effective[i] == old_perm_effective[j] or (not arch.coupling.getDimSum('out', new_perm_effective[i], 2) and not arch.coupling.getDimSum('out', old_perm_effective[j], 2))) or (not targets[level_idx].multiple_reuses and i != 0))
+                    if output_ok:
+                        return mapping
         return None
     
     """
@@ -677,7 +693,7 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
     If "reset" is True, it steps forward by iterating the innermost level.
     """
     def nextPermutations():
-        nonlocal last_iterated_perm
+        nonlocal last_iterated_perm, pruned_perms_total
         i = last_iterated_perm
         while i >= 0:
             if current_perms[i] + 1 == perms_ranges[i][1]:
@@ -694,13 +710,41 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
                         if current_key in past_perms:
                             wart, mapping = perm.peek()
                             outer_perm = past_perms[current_key[:-1]]
-                            outer_perm.push(wart, mapping) # increase_counter = True (wrong because with some thread partitioning inner permutations, some on this level may get replicated)
-                            if perm.getCounter() == len(permutations[i])*threads_per_range[i]:
-                                #outer_perm.increaseCounter()
+                            outer_perm.push(wart, mapping)
+                            if perm.getCounter() == len(permutations[i])*threads_per_range[i]: # be wary: with some thread partitioning inner permutations, some results added on this level may get replicated, hence the *threads_per_range to correct the count by the number of threads working on inner levels
                                 del past_perms[current_key]
+                            # update pruning condition (2) and (3) about repeated relative order and absolute position
+                            if Settings.PERM_PRUNING:
+                                for pair in ordered_pairs(mapping[i].dataflow):
+                                    tentative_order_locks[i][pair] = tentative_order_locks[i][pair] + 1 if pair in tentative_order_locks[i] else 1
+                                relative_order_locks[i] = satisfy_relative_order([pair for pair, count in tentative_order_locks[i].items() if count >= Settings.RELATIVE_ORDER_COUNT_BEFORE_LOCK])
+                                for idx, dim in enumerate(mapping[i].dataflow):
+                                    if (key := (idx, dim)) not in positional_locks[i]:
+                                        tentative_positional_locks[i][key] = tentative_positional_locks[i][key] + 1 if key in tentative_positional_locks[i] else 1
+                                        if tentative_positional_locks[i][key] == Settings.POSITIONAL_COUNT_BEFORE_LOCK:
+                                            actual_idx = min(actual_idx for actual_idx in range(idx, len(arch[last_iterated_perm].dataflow) + 1) if actual_idx not in positional_locks[last_iterated_perm].values())
+                                            if actual_idx < len(arch[last_iterated_perm].dataflow):
+                                                positional_locks[i][dim] = actual_idx
+                                            tentative_positional_locks[i].pop(key)
                 i -= 1
             else:
                 current_perms[i] += 1
+                # enforce pruning rules
+                if Settings.PERM_PRUNING:
+                    new_perm = permutations[i][current_perms[i]]
+                    prune = any(new_perm[idx] != dim for dim, idx in positional_locks[i].items())
+                    if not prune:
+                        j, k = 0, 0
+                        while j < len(new_perm) and k < len(relative_order_locks[i]):
+                            k = k + 1 if new_perm[j] == relative_order_locks[i][k] else k
+                            j += 1
+                        prune = k != len(relative_order_locks[i])
+                    if prune:
+                        pruned_perms = reduce(lambda tot, range : tot * (range[1] - range[0]), perms_ranges[i + 1:len(perms_ranges)], 1)
+                        pruned_perms_total += pruned_perms
+                        past_perms[tuple(current_perms[:i])].increaseCounter()
+                        updateTriedCount(pruned_perms)
+                        continue
                 # if there is an equi-dataflow match, permute the same level again, otherwise re-start from the innermost one
                 eq_match = equiDataflowMatch(i) if Settings.PERM_SKIP else None
                 if eq_match:
@@ -714,6 +758,13 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
                                 past_perms[inner_key] = ThreadSafeHeap()
                 return eq_match
         last_iterated_perm = i
+    
+    def updateTriedCount(amount : int = 1) -> None:
+        nonlocal tried_perms
+        tried_perms += amount
+        if verbose and math.floor((tried_perms/total_perms)*10) > math.floor(((tried_perms - amount)/total_perms)*10):
+            if thread_idx == -1: print(f"Progress: {tried_perms}/{total_perms} tried...")
+            else: print(f"Progress in thread {thread_idx}: {tried_perms}/{total_perms} tried...")
     
     equidataflow_past_solution = nextPermutations()
     
@@ -734,30 +785,27 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
         if not equidataflow_past_solution:
             # store past solutions (in order of Wart)
             past_perms[key].push(wart, arch.exportMapping(copy = True))
-            tried_perms += 1
-            if verbose and math.floor((tried_perms/total_perms)*10) > math.floor(((tried_perms - 1)/total_perms)*10):
-                if thread_idx == -1: print(f"Progress: {tried_perms}/{total_perms} tried...")
-                else: print(f"Progress in thread {thread_idx}: {tried_perms}/{total_perms} tried...")
+            # update pruning condition (1) for dimensions with always a single iteration
+            for dim, at_one in factorsAtOne(arch, last_iterated_perm).items():
+                if at_one and Settings.PERM_PRUNING and dim not in positional_locks[last_iterated_perm]:
+                    tentative_positional_locks[last_iterated_perm][dim] = tentative_positional_locks[last_iterated_perm][dim] + 1 if dim in tentative_positional_locks[last_iterated_perm] else 1
+                    if tentative_positional_locks[last_iterated_perm][dim] == Settings.DIM_AT_1_COUNT_BEFORE_LOCK:
+                        positional_locks[last_iterated_perm][dim] = min(idx for idx in range(len(arch[last_iterated_perm].dataflow)) if idx not in positional_locks[last_iterated_perm].values()) # lock always-at-one dimensions in the outermost spot
+                        tentative_positional_locks[last_iterated_perm].pop(dim)
+            updateTriedCount()
         else:
             # store past solutions (in order of Wart)
-            # TODO: store IFF you moved at least one factor!
             if moves_count > 0:
                 past_perms[key].push(wart, arch.exportMapping(copy = True))
             else:
                 past_perms[key].increaseCounter()
             skipped_perms = reduce(lambda tot, range : tot * (range[1] - range[0]), perms_ranges[last_iterated_perm + 1:len(perms_ranges)], 1)
-            tried_perms += skipped_perms
-            #skipped_perms_total += skipped_perms
-            if verbose and math.floor((tried_perms/total_perms)*10) > math.floor(((tried_perms - skipped_perms)/total_perms)*10):
-                if thread_idx == -1: print(f"Progress: {tried_perms}/{total_perms} tried...")
-                else: print(f"Progress in thread {thread_idx}: {tried_perms}/{total_perms} tried...")
+            skipped_perms_total += skipped_perms
+            updateTriedCount(skipped_perms)
         
         equidataflow_past_solution = nextPermutations()
     
-    #print(f"SKIPPED (thread {thread_idx}):", skipped_perms_total)
-    
-    if verbose and thread_idx != -1: print(f"Terminating thread {thread_idx}")
-    #print(f"Terminating thread {thread_idx} with skipped permutations (total): {skipped_perms_total}")
+    if verbose and thread_idx != -1: print(f"Terminating thread {thread_idx}, eq-matched perms: {skipped_perms_total}, pruned perms: {pruned_perms_total}.")
     
     if thread_idx == -1:
         known_wart, mapping = past_perms[()].peek()
