@@ -1,8 +1,6 @@
 from __future__ import annotations
 from copy import deepcopy
 
-from typing import Iterable
-
 from settings import *
 from factors import *
 from levels import *
@@ -256,7 +254,7 @@ class Arch(list[Level]):
     spatial (fanouts and compute) levels which may follow it.
     The "next_is_compute" is also set on the last memory level before compute.
     """
-    def setupSpatialLevelPointers(self):
+    def setupSpatialLevelPointers(self) -> None:
         for i in range(len(self)):
             level = self[i]
             if isinstance(level, MemLevel):

@@ -2,7 +2,7 @@ from itertools import chain, combinations, permutations
 from functools import reduce
 import math
 
-from typing import Iterable, Iterator, TypeVar
+from typing import Iterable, Iterator, TypeVar, Union
 T = TypeVar('T')
 
 from settings import *
@@ -165,13 +165,13 @@ def largest_product_less_than(arr : list[T], target : T) -> tuple[list[T], T]:
 """
 Flattens a list by up to two levels of nesting.
 """
-def flatten_two_levels_list(lst):
+def flatten_two_levels_list(lst : list[Union[list[T], T]]) -> list[T]:
     return [subitem for item in lst for subitem in (item if isinstance(item, list) else [item])]
 
 """
 Checks if a list has at most two levels of nesting.
 """
-def is_two_levels_list(lst):
+def is_two_levels_list(lst : list[Union[list[T], T]]) -> bool:
     return all(not (isinstance(item, list) and any(isinstance(subitem, list) for subitem in item)) for item in lst)
 
 """
@@ -182,7 +182,7 @@ provides the number of distinct elements of V which can be accessed
 from at least one combination of valid x_i-s.
 Here 'Xs' and 'x_consts' are lists containing the above n values.
 """
-def distinct_values(Xs : list[int], x_consts : list[int]):
+def distinct_values(Xs : list[int], x_consts : list[int]) -> int:
     if len(Xs) == 1: # trivial case
         return Xs[0]
     elif (cnt := Xs.count(1)) == len(Xs): # all x_i ranges contain only 0
@@ -193,18 +193,20 @@ def distinct_values(Xs : list[int], x_consts : list[int]):
         return sum(Xs) - len(Xs) + 1
     else:
         g = math.gcd(*x_consts)
-        if Settings.OVERESTIMATE_DISTINCT_VALUES and len(Xs) == 2: # simpler formula which slightly overestimates the count of distinct values (this is used by Timeloop)
-            return (x_consts[0]*(Xs[0] - 1) + x_consts[1]*(Xs[1] - 1))//g + 1
-        elif len(Xs) == 2 and (max_idx := (x_consts[0]*(Xs[0] - 1) + x_consts[1]*(Xs[1] - 1))//g) >= 2*(f := (x_consts[0]*x_consts[1] - x_consts[0] - x_consts[1])//g): # Frobenius coin problem approach - case z_max >= 2*f, no overlap between head and tail
-            return max_idx - (x_consts[0]//g - 1)*(x_consts[1]//g - 1) + 1 - (1 if max_idx == f else 0)
-        elif False and len(Xs) == 2: # Frobenius coin problem approach - case z_max < 2*f, overlap between head and tail
-            # INCORRECT
-            return min((x_consts[0]//g)*(Xs[0] - 1) + (x_consts[1]//g)*(Xs[1] - 1) + 1, Xs[0]*Xs[1])
+        # remove any common denominator
+        x_consts = list(map(lambda cst : cst//g, x_consts))
+        if len(Xs) == 2:
+            if Settings.OVERESTIMATE_DISTINCT_VALUES: # simpler formula which slightly overestimates the count of distinct values (this is used by Timeloop)
+                return (x_consts[0]*(Xs[0] - 1) + x_consts[1]*(Xs[1] - 1)) + 1
+            elif Xs[0] >= x_consts[1] and Xs[1] >= x_consts[0]: # Frobenius coin problem approach - case of negative-y lattice box fully contained in the valid box
+                return (Xs[0]-1)*x_consts[0]+(Xs[1]-1)*x_consts[1]+1 - (x_consts[0]-1)*(x_consts[1]-1) #+1 is because we count 0 too
+            else: # Frobenius coin problem approach - case of all valid lattice point being distinct values (x_costs vector can't fit in the valid box)
+                return Xs[0]*Xs[1]
         else: # general case, count all distinct values with dynamic programming
-            step_0 = x_consts[0]//g
+            step_0 = x_consts[0]
             current_values = set(range(0, step_0*Xs[0], step_0))
             for i in range(1, len(x_consts)):
-                step = x_consts[i]//g
+                step = x_consts[i]
                 X = Xs[i]
                 additions = {v + step*x for v in current_values for x in range(X)}
                 current_values.update(additions)
