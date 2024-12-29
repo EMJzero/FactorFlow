@@ -1,10 +1,12 @@
+import sys
+assert sys.version_info[0] >= 3 and sys.version_info[1] >= 9, "Must be run with Python >=3.9!"
+
 from prettytable import PrettyTable
 import importlib.util
 import signal
 import code
 import copy
 import time
-import sys
 import os
 
 from architectures.architectures import *
@@ -66,7 +68,7 @@ def parse_options():
         "help": args_match_and_remove("-h") or args_match_and_remove("--help"),
         "quiet": args_match_and_remove("-q") or args_match_and_remove("--quiet"),
         "bias": args_match_and_remove("-b") or args_match_and_remove("--bias"),
-        "processes": v if (v := args_match_and_remove("-p", True, int)) != False else args_match_and_remove("--processes", True, int),
+        "threads": v if (v := args_match_and_remove("-t", True, int)) != False else args_match_and_remove("--threads", True, int),
         "accelergy-data": args_match_and_remove("-ad") or args_match_and_remove("--accelergy-data"),
         "tryall": v if (v := args_match_and_remove("-ta", True)) != False else args_match_and_remove("--tryall", True),
         "gen-tests": args_match_and_remove("-gt") or args_match_and_remove("--gen-tests")
@@ -78,7 +80,7 @@ def help_options():
     print("-h, --help\t\tDisplay this help menu.")
     print("-q --quiet\t\tReduces CLI output to final results and errors.")
     print("-b --bias\t\tIf set, the bias is considered present in the GEMM, otherwise it is assumed absent.")
-    print("-p --processes\t\tSets the number of concurrent processes to use.")
+    print("-t --threads\t\tSets the number of concurrent threads to use (yes, threads, remember to use Python >=3.13t!).")
     print("-ad --accelergy-data\tQuery Accelergy instead of using hardcoded component level estimates, effective only if arg. 1 is an architecture name.")
     print("-ta --tryall <name>\tOverrides normal execution, runs FF for all known architectures and all kernels in the <name> group. The list of valid group names is printed when no name is provided.")
     print("-gt --gen-tests\t\tOverrides normal execution, runs FF and generates tests to enforce the obtained results.")
@@ -212,10 +214,10 @@ if __name__ == "__main__":
     printopt("------------------------------\n")
 
     if options["processes"]:
-        Settings.THREADS_COUNT = options["processes"]
-        if options["processes"] == 1:
+        Settings.THREADS_COUNT = options["threads"]
+        if options["threads"] == 1:
             Settings.MULTITHREADED = False
-    printopt("Processes:", Settings.THREADS_COUNT)
+    printopt("Threads:", Settings.THREADS_COUNT)
     
     if options["quiet"]:
         Settings.VERBOSE = False

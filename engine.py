@@ -3,6 +3,7 @@ from copy import deepcopy
 import heapq
 import math
 import time
+import sys
 
 from typing import Generator, Iterator, Union, Type, Generic
 from types import TracebackType
@@ -833,6 +834,7 @@ def forcedSettingsUpdate(arch : Arch, verbose : bool = True) -> None:
             if verbose: print(f"INFO: --> the cause of this is the presence of a Fanout level ({level.name}) with multiple mapped dimensions({level.dims}). Runtime might increase to a few seconds...")
             break
     if Settings.MULTITHREADED:
+        if sys.version_info[1] < 13 or sys._is_gil_enabled() and verbose: print(f"WARNING: running on a Python version without free-threading (GIL enabled), this program relies heavily on true multithreading, thus expect a severe performance hit with your current setup. Consider updating to Python 3.13t or newer.")
         Settings.THREADS_COUNT = Settings.THREADS_COUNT if Settings.THREADS_COUNT else os.cpu_count()
         if verbose: print(f"INFO: running multithreaded with THREADS_COUNT = {Settings.THREADS_COUNT}")
     if not Settings.VERBOSE:
