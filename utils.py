@@ -3,7 +3,7 @@ from collections import defaultdict, deque
 from functools import reduce
 import math
 
-from typing import Iterable, Iterator, TypeVar
+from typing import Iterable, Iterator, TypeVar, Union
 T = TypeVar('T')
 
 from settings import *
@@ -203,13 +203,13 @@ def largest_product_less_than(arr : list[T], target : T) -> tuple[list[T], T]:
 """
 Flattens a list by up to two levels of nesting.
 """
-def flatten_two_levels_list(lst):
+def flatten_two_levels_list(lst : list[Union[list[T], T]]) -> list[T]:
     return [subitem for item in lst for subitem in (item if isinstance(item, list) else [item])]
 
 """
 Checks if a list has at most two levels of nesting.
 """
-def is_two_levels_list(lst):
+def is_two_levels_list(lst : list[Union[list[T], T]]) -> bool:
     return all(not (isinstance(item, list) and any(isinstance(subitem, list) for subitem in item)) for item in lst)
 
 """
@@ -220,7 +220,7 @@ provides the number of distinct elements of V which can be accessed
 from at least one combination of valid x_i-s.
 Here 'Xs' and 'x_consts' are lists containing the above n values.
 """
-def distinct_values(Xs : list[int], x_consts : list[int]):
+def distinct_values(Xs : list[int], x_consts : list[int]) -> int:
     if len(Xs) == 1: # trivial case
         return Xs[0]
     elif (cnt := Xs.count(1)) == len(Xs): # all x_i ranges contain only 0

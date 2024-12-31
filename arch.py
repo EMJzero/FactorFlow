@@ -1,8 +1,6 @@
 from __future__ import annotations
 from copy import deepcopy
 
-from typing import Iterable
-
 from settings import *
 from factors import *
 from levels import *

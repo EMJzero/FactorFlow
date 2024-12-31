@@ -85,3 +85,33 @@
 #    was the innermost dimension, and its stationarity prevents halo reuse on P! According to timeloop's article, it seems that it indeed does only once check for stationarity OR halo reuse,
 #    and does not check subsequent cases...
 ```
+
+```python
+# ISSUE on multithreaded optimizeDataflows version with shared past_perms when the counter to delete a past_perm was set to len(permutations[i])*threads_per_range[i]:
+# |||
+# some threads ON THE SAME KEY see threads_per_range[i] at 1 some at 2, this happens if the threads are not a power of two (as on the server) because
+# some partitions gets more threads. Therefore as soon as a thread seeing a 1 triggers this conditions, it removes the key too early. However even if
+# that didn't happen, the key would never get removed, because the 2 would be too high of a count.
+# The only solution is to increase the counter IFF the level below was completed and remove the key on len(permutations[i])...
+# ISSUE:
+# while the normal case where lower level permutations are explored is well handled by this logic which "pushes upward" the solution, the equi-datflow
+# and pruning case are not well handled. Two threads which split among themselves level 'i', will share the same slice of level 'i-1', now when they
+# push upward only one of them gets the following if as True and increases the above counter, but if they both then start to get equi-dataflow matches,
+# both will at the same time trigger the counter increase on level 'i-1' since they don't bother to go down to level 'i'. This at the same time is a
+# a waste of time since both analyze and skip the same mappings!
+# NONONO: if all permutations on this level have been explored or the other threads ...
+# Final solution:
+# A FINITE STATE MACHINE, an Enum of 4 elements: (Pending, Exploring, Skipping, Done)
+# - commit this state of the repo, just as a memo
+# - ditch the set in ThreadSafeHeap
+# - each ThreadSafeHeap gets a list containing one of those Enum values for each of the permutations on its level.
+# - all permutations start at 'Pending'
+# - from 'Pending' you can go to 'Exploring' or 'Skipping'
+# - from 'Exploring' you can go to 'Skipping'
+# - from 'Exploring' and 'Skipping' you can go to 'Done'
+# - if a thread "goes down" for a permutation, it is marked from 'Pending' to 'Exploring', unless it was already 'Exploring', while if it was 'Skipping', no "going down", but skip too.
+# - if you either get an equi-dataflow match or a pruning you go from 'Pending' or 'Exploring' to 'Skipped'
+# - if you reach this point of the code, the check to "push up"
+# - delete the past_perm iff all list entries are 'Done' FUUUUCK I still need another counter to know how many threads explored and how many skipped...
+# NEVERMIND, we go back to the set, but make it a dictionary where each entry counts the number of skips!
+```

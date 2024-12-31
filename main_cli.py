@@ -213,7 +213,7 @@ if __name__ == "__main__":
     printopt("----- running FactorFlow -----")
     printopt("------------------------------\n")
 
-    if options["processes"]:
+    if options["threads"]:
         Settings.THREADS_COUNT = options["threads"]
         if options["threads"] == 1:
             Settings.MULTITHREADED = False

@@ -447,17 +447,23 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, already_initialized 
 
 T = TypeVar('T')
 U = TypeVar('U')
+S = TypeVar('S')
+W = TypeVar('W')
 
 """
 Thread-safe heap implementation where each entry is a pair (value, data),
 with the heap being ordered w.r.t. value.
+
+Additionally a counter and a set, both thread-safe, are made available
+alongside each heap, to track additional information.
 """
 # TODO: alternatively, list.append is atomic, we could avoid using locks as long as we only append to the list!
 #       But this requires not sorting the list, and thus slows down the eq-dataflow match!
-class ThreadSafeHeap(Generic[T, U]):
-    def __init__(self, is_min_heap : bool = False):
+class ThreadSafeHeap(Generic[T, U, S, W]):
+    def __init__(self, is_min_heap : bool = False, initial_counter : int = 0):
         self.heap : list[tuple[T, U]] = []
-        self.counter : int = 0
+        self.counter : int = initial_counter
+        self.dict : dict[S, W] = {}
         self.is_min_heap = is_min_heap
         self.lock = threading.RLock()
 
@@ -467,11 +473,10 @@ class ThreadSafeHeap(Generic[T, U]):
     def _unwrap_value(self, value : T) -> T:
         return value if self.is_min_heap else -value
 
-    def push(self, value : T, data : U, increase_counter : bool = True) -> None:
+    def push(self, value : T, data : U, increase_counter : int = 1) -> None:
         with self.lock:
             heapq.heappush(self.heap, (self._wrap_value(value), id(data), data))
-            if increase_counter:
-                self.counter += 1
+            self.counter += increase_counter
 
     def pop(self) -> tuple[T, U]:
         with self.lock:
@@ -495,9 +500,21 @@ class ThreadSafeHeap(Generic[T, U]):
         with self.lock:
             return self.counter
 
-    def increaseCounter(self) -> None:
+    def increaseCounter(self, amount : int = 1) -> None:
         with self.lock:
-            self.counter += 1
+            self.counter += amount
+
+    def addToDict(self, key : S, val : W) -> None:
+        with self.lock:
+            self.dict[key] = val
+
+    def isInDict(self, key : S) -> bool:
+        with self.lock:
+            return key in self.dict
+
+    def getFromDict(self, key : S, default : S) -> W:
+        with self.lock:
+            return self.dict[key] if key in self.dict else default
 
     def __iter__(self) -> Generator[tuple, None, None]:
         with self.lock:
@@ -550,7 +567,7 @@ The function is meant as the entry point for multiple processes or threads:
 - threads_count: total number of employed tasks.
 - return_list: shared list among tasks for the return values.
 """
-def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : int = -1, threads_count : int = 1, past_perms : dict[tuple[int], ThreadSafeHeap[float, list[LevelCore]]] = None, lock : threading.Lock = None, barrier : threading.Barrier = None, verbose : bool = False) -> None:
+def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : int = -1, threads_count : int = 1, past_perms : dict[tuple[int, ...], ThreadSafeHeap[float, list[LevelCore], int, int]] = None, lock : threading.Lock = None, barrier : threading.Barrier = None, verbose : bool = False) -> None:
     if verbose and thread_idx <= 0: print("-------- optimizeDataflows --------")
     # this approach requires spatial levels to be the first explored/permuted ones
     targets = list(filter(lambda l : Settings.ONLY_MAXIMIZE_ONE_FANOUT_DIM and isinstance(l, SpatialLevel) and len(l.dataflow) > 1, arch)) + list(filter(lambda l : isinstance(l, MemLevel), arch))
@@ -565,7 +582,6 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
     # list of lists of all valid permutations for each targeted level
     permutations = list(map(gen_permutations, targets))
     perms_ranges = [(0, len(perm)) for perm in permutations] # as in [low_idx, high_idx) to explore in the current thread
-    threads_per_range = [0 for _ in permutations]
     
     # divide permutations across threads (if multithreading is enabled)
     if thread_idx != -1:
@@ -599,7 +615,6 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
             else:
                 perms_ranges[i] = (partitioning_idx*partitioning_stride, (partitioning_idx + 1)*partitioning_stride)
             threads_on_current_permutation = (threads_on_current_permutation // partitions_per_level[i]) + (partitioning_idx < threads_on_current_permutation % partitions_per_level[i])
-            threads_per_range[i] = threads_on_current_permutation
             tmp_thread_idx //= partitions_per_level[i]
     
     total_perms = reduce(lambda tot, range : tot * (range[1] - range[0]), perms_ranges, 1)
@@ -618,11 +633,16 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
     last_iterated_perm = len(current_perms) - 1
     # The empty list (tuple([])) key contains the list for the permutations on the first level, each subsequent list is
     # assigned as key the hash of the sublist current_perms[0, level_idx] (after it is converted in a tuple for hashing)!
+    # In other words, keys are like the current_perms[:i] for level 'i' (the current permutation for 'i' must be excluded).
     # Remember, each list is ordered from best to worse mapping (managed as a max-heap)!
     # NOTE: since we check equi-dataflow matches on the last permuted level, which thus follows an inner-levels-first order, and skip entirely inner permutations of an outer permutation
     #       when there is a match, we never end up in a situation where equi-dataflow matches need to be checked on a level other than the last permuted one, as outer ones have always
     #       been already checked, while inner ones already skipped if needed!
     # NOTE: store permutations for FanoutLevels too, since this datastructure is also used to propagate solutions upwards and pick the best one.
+    # NOTE: each list also has a counter associated, which is used to determine when all permutations in the list have been added and it can be delete after the best among them is preserved.
+    # NOTE: each list also contains a dictionary of permutations (keyed by current_perms[:i+1]) to skip on its level since they have already been determined to be an equi-dataflow match or a
+    #       pruned permutation. This prevents two threads that share some of their permutation from exploring twice the same skipped permutation and breaking the above counters.
+    #       The dictionary's values are instead the number of times each permutation has been skipped.
     past_perms = past_perms if past_perms else {}
     # counts explored permutations
     tried_perms = 0
@@ -647,7 +667,9 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
     with lock:
         for i in range(len(first_key) + 1):
             if first_key[:i] not in past_perms:
-                past_perms[first_key[:i]] = ThreadSafeHeap()
+                past_perms[first_key[:i]] = ThreadSafeHeap(initial_counter = -1 if i != len(first_key) else 0)
+            elif i != len(first_key) and tuple(first_key[:i + 1]) not in past_perms:
+                past_perms[first_key[:i]].increaseCounter(-1)
     if barrier:
         barrier.wait()
     
@@ -711,8 +733,15 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
                         if current_key in past_perms:
                             wart, mapping = perm.peek()
                             outer_perm = past_perms[current_key[:-1]]
-                            outer_perm.push(wart, mapping)
-                            if perm.getCounter() == len(permutations[i])*threads_per_range[i]: # be wary: with some thread partitioning inner permutations, some results added on this level may get replicated, hence the *threads_per_range to correct the count by the number of threads working on inner levels
+                            outer_perm.push(wart, mapping, increase_counter = 0)
+                            # exploration complete or to be terminated early since other threads skipped the present permutation
+                            # NOTE: for this to work, the partitioning of permutations among threads MUST assign per level a number of threads which strictly divides the number of permutations
+                            # TODO: all be it unlikely, a thread might reach this point and NOT execute the push up, only for then another thread skipping this permutation, with the push up's delete and counter increase thus never occurring...this is not too bad, but should still be prevented!
+                            #print(f"Thread {thread_idx}: {current_key} - {current_perms[i]} -", perm.getCounter(), len(permutations[i]), outer_perm.getFromDict(current_perms[i - 1], 0)*(perms_ranges[i][1] - perms_ranges[i][0]))
+                            if perm.getCounter() == len(permutations[i]) - outer_perm.getFromDict(current_perms[i - 1], 0)*(perms_ranges[i][1] - perms_ranges[i][0]):
+                                #print(f"Thread {thread_idx}: {current_key[:-1]} - {current_perms[i - 1]} - increasing counter push up.")
+                                # counter behaviour: increase by 2 on "push up" (unless a +1 already happened due to pruning or equi-dataflow matches), decrease by 1 when starting an exploration of a lower level
+                                outer_perm.increaseCounter(2 if not outer_perm.isInDict(current_perms[i - 1]) else 1)
                                 del past_perms[current_key]
                             # update pruning condition (2) and (3) about repeated relative order and absolute position
                             if Settings.PERM_PRUNING:
@@ -730,24 +759,39 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
                 i -= 1
             else:
                 current_perms[i] += 1
-                # enforce pruning rules
-                if Settings.PERM_PRUNING:
-                    new_perm = permutations[i][current_perms[i]]
-                    prune = any(new_perm[idx] != dim for dim, idx in positional_locks[i].items())
-                    if not prune:
-                        j, k = 0, 0
-                        while j < len(new_perm) and k < len(relative_order_locks[i]):
-                            k = k + 1 if new_perm[j] == relative_order_locks[i][k] else k
-                            j += 1
-                        prune = k != len(relative_order_locks[i])
-                    if prune:
-                        pruned_perms = reduce(lambda tot, range : tot * (range[1] - range[0]), perms_ranges[i + 1:len(perms_ranges)], 1)
-                        pruned_perms_total += pruned_perms
-                        past_perms[tuple(current_perms[:i])].increaseCounter()
-                        updateTriedCount(pruned_perms)
+                key = tuple(current_perms[:i])
+                with past_perms[key]: # all checks with a lock to ensure the inclusion of equi-dataflow matches and pruned permutation in the past_perms's set before another thread picks them up
+                    # permutation already equi-dataflow matched or pruned by another thread, do not repeat
+                    if past_perms[key].isInDict(current_perms[i]):
+                        past_perms[key].addToDict(current_perms[i], past_perms[key].getFromDict(current_perms[i], 0) + 1)
                         continue
-                # if there is an equi-dataflow match, permute the same level again, otherwise re-start from the innermost one
-                eq_match = equiDataflowMatch(i) if Settings.PERM_SKIP else None
+                    # enforce pruning rules
+                    if Settings.PERM_PRUNING:
+                        # WARNING: the addition of a new pruning rule and the triggering of this case may leave a past_perm list of a lower level incomplete and unable to push upward its results if its permutation is pruned for some of the threads after it was first entered...
+                        new_perm = permutations[i][current_perms[i]]
+                        prune = any(new_perm[idx] != dim for dim, idx in positional_locks[i].items())
+                        if not prune:
+                            j, k = 0, 0
+                            while j < len(new_perm) and k < len(relative_order_locks[i]):
+                                k = k + 1 if new_perm[j] == relative_order_locks[i][k] else k
+                                j += 1
+                            prune = k != len(relative_order_locks[i])
+                        if prune:
+                            pruned_perms = reduce(lambda tot, range : tot * (range[1] - range[0]), perms_ranges[i + 1:len(perms_ranges)], 1)
+                            pruned_perms_total += pruned_perms
+                            past_perms[key].increaseCounter()
+                            #print(f"Thread {thread_idx}: {key} - {current_perms[i]} - increasing counter pruning.")
+                            past_perms[key].addToDict(current_perms[i], 1)
+                            updateTriedCount(pruned_perms)
+                            continue
+                    # if there is an equi-dataflow match, permute the same level again, otherwise re-start from the innermost one
+                    eq_match = equiDataflowMatch(i) if Settings.PERM_SKIP else None
+                    if eq_match:
+                        past_perms[key].addToDict(current_perms[i], 1)
+                    elif i != len(current_perms) - 1 and tuple(current_perms[:i + 1]) not in past_perms:
+                        # decrease the counter by 1 to prevent early deletion of the past_perm iff you are the first thread initiating the exploration of such lower level, that is, the past_perm for the level below you does note exist yet (do not do this on the innermost level where there is not "going down")
+                        #print(f"Thread {thread_idx}: {key} - {current_perms[i]} - decreasing counter {past_perms[key].getCounter()} -> {past_perms[key].getCounter() - 1}.")
+                        past_perms[key].increaseCounter(-1)
                 if eq_match:
                     last_iterated_perm = i
                 else:
@@ -756,7 +800,10 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
                         inner_key = tuple(current_perms[:j])
                         with past_perms[tuple(current_perms[:j - 1])].lock:
                             if inner_key not in past_perms:
-                                past_perms[inner_key] = ThreadSafeHeap()
+                                past_perms[inner_key] = ThreadSafeHeap(initial_counter = -1 if j != len(current_perms) - 1 else 0)
+                            elif j != len(current_perms) - 1 and tuple(current_perms[:j + 1]) not in past_perms:
+                                #print(f"Thread {thread_idx}: {key} - {current_perms[i]} - decreasing counter {past_perms[inner_key].getCounter()} -> {past_perms[inner_key].getCounter() - 1}.")
+                                past_perms[inner_key].increaseCounter(-1)
                 return eq_match
         last_iterated_perm = i
     
@@ -786,6 +833,7 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
         if not equidataflow_past_solution:
             # store past solutions (in order of Wart)
             past_perms[key].push(wart, arch.exportMapping(copy = True))
+            #print(f"Thread {thread_idx}: {key} - {current_perms[last_iterated_perm]} - increasing counter std.")
             # update pruning condition (1) for dimensions with always a single iteration
             for dim, at_one in factorsAtOne(arch, last_iterated_perm).items():
                 if at_one and Settings.PERM_PRUNING and dim not in positional_locks[last_iterated_perm]:
@@ -800,6 +848,7 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
                 past_perms[key].push(wart, arch.exportMapping(copy = True))
             else:
                 past_perms[key].increaseCounter()
+            #print(f"Thread {thread_idx}: {key} - {current_perms[last_iterated_perm]} - increasing counter eq-match.")
             skipped_perms = reduce(lambda tot, range : tot * (range[1] - range[0]), perms_ranges[last_iterated_perm + 1:len(perms_ranges)], 1)
             skipped_perms_total += skipped_perms
             updateTriedCount(skipped_perms)
@@ -807,6 +856,7 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
         equidataflow_past_solution = nextPermutations()
     
     if verbose and thread_idx != -1: print(f"Terminating thread {thread_idx}, eq-matched perms: {skipped_perms_total}, pruned perms: {pruned_perms_total}.")
+    #print(f"Thread {thread_idx}: ", [(k, len(p), p.counter) for k, p in past_perms.items()])
     
     if thread_idx == -1:
         known_wart, mapping = past_perms[()].peek()
