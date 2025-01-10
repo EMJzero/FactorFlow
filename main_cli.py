@@ -36,6 +36,7 @@ def signal_handler(signal: int, frame: Optional[FrameType]) -> None:
         sys.exit(0)
     else:
         print('\nHANDLING TERMINATION...\n')
+        stop_engine()
         time.sleep(0.2)
         print('\nTERMINATION RECEIVED - SWITCHING TO INTERACTIVE MODE\n[type "exit()" or press "ctrl+c" again to terminate the program]\n')
         in_interactive_mode = True

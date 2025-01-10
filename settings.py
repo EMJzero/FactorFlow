@@ -44,10 +44,14 @@ class Settings():
     # it entirely. Setting it to False can slightly improve the best found mapping.
     # NOTE: unless PERM_SKIP is True, this setting is useless.
     HARD_PERM_SKIP = False
+    # If True, the list of permutations to explore on each level is filtered to keep a single permutation
+    # for each distinct configuration of innermost loop(s) (2 loops if the MemLevel has multiple_reuses,
+    # 1 otherwise), reducing exploration time significantly at the price of exhaustiveness.
+    DISTINCT_INNERMOST_LOOPS = True
     # If True, rules are built based on the best selected permutations throughout the exploration,
     # and these rules are subsequently enforced to prune the remaining permutations, speeding up
     # the exploration under the assumption that there is some consistency between optimal choices.
-    PERM_PRUNING = True
+    PERM_PRUNING = False
     # When PERM_PRUNING is True, the following 3 settings determine the number of times a dimension
     # needs to (1) have a single iteration, (2) be in a certain relative order with another, and
     # (3) occupy a specific position in the ordering of the best mapping found for a subset of

@@ -548,6 +548,9 @@ class OptionalLock:
         if self.lock is not None:
             self.lock.release()
 
+# flag used to propagate a ctrl+c to all threads
+forced_termination_flag = False
+
 """
 Mapper Step 1: exhaustively iterate loop permutations/dataflows.
 
@@ -578,7 +581,13 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
             if '_' in level.dataflow_constraints:
                 return [perm for perm in slot_in(level.dataflow_constraints, level.dataflow, '_')]
             else:
-                return [perm for perm in interleave(level.dataflow_constraints, [dim for dim in level.dataflow if dim not in level.dataflow_constraints])]
+                perms = [perm for perm in interleave(level.dataflow_constraints, [dim for dim in level.dataflow if dim not in level.dataflow_constraints])]
+                if Settings.DISTINCT_INNERMOST_LOOPS and level.multiple_reuses:
+                    return filter_by_unique_innermost_elems(perms, 2)
+                elif Settings.DISTINCT_INNERMOST_LOOPS:
+                    return filter_by_unique_innermost_elems(perms, 1)
+                else:
+                    return perms
         elif isinstance(level, SpatialLevel):
             return [rot + [dim for dim in level.dims if dim in level.factors_constraints] for rot in rotations([dim for dim in level.dims if dim not in level.factors_constraints])]
     # list of lists of all valid permutations for each targeted level
@@ -818,7 +827,7 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
     
     equidataflow_past_solution = nextPermutations()
     
-    while last_iterated_perm >= 0:
+    while last_iterated_perm >= 0 and not forced_termination_flag:
         if not equidataflow_past_solution:
             # prepare present permutation and optimize its mapping
             arch.resetFactors(copy = True)
@@ -912,8 +921,10 @@ def run_engine(arch : Arch, comp : Shape, coupling : Coupling, bias_read : bool,
             t = threading.Thread(target=optimizeDataflows, args=(deepcopy(arch), deepcopy(comp), bias_read, i, Settings.THREADS_COUNT, past_perms, lock, barrier, Settings.VERBOSE))
             threads.append(t)
             t.start()
-        for t in threads:
-            t.join()
+            t.join
+        while any(t.is_alive() for t in threads):
+            for t in threads:
+                t.join(0.001)
         assert () in past_perms and len(past_perms[()]) > 0, f"All threads failed to return or found no valid mapping, see above logs..."
         _, mapping = past_perms[()].peek()
         arch.initFactors(comp)
@@ -946,3 +957,16 @@ def run_engine(arch : Arch, comp : Shape, coupling : Coupling, bias_read : bool,
             printPadding(arch, comp)
     
     return edp, mops, energy, latency, utilization, end_time, arch
+
+"""
+Forcefully stop a running engine's threads.
+"""
+def stop_engine() -> None:
+    global forced_termination_flag
+    forced_termination_flag = True
+    if Settings.MULTITHREADED:
+        threads = threading.enumerate()
+        threads.remove(threading.current_thread())
+        while any(t.is_alive() for t in threads):
+            for t in threads:
+                t.join(0.001)

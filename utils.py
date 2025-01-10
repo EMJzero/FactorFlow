@@ -88,6 +88,21 @@ def slot_in(template : list[T], elements : list[T], placeholder: T) -> list[list
     return results
 
 """
+Filters a list of permutations, keeping only the first permutation seen for
+each unique configuration of the N innermost (highest indices) elements.
+"""
+def filter_by_unique_innermost_elems(perms_list : list[list[T]], N : int) -> list[T]:
+    seen = set()
+    result = []
+    for perm in perms_list:
+        innermost = tuple(perm[-N:])
+        if innermost not in seen:
+            seen.add(innermost)
+            result.append(perm)
+
+    return result
+
+"""
 Returns a list of all versions of 'array' that differ by a rotation (or shift).
 """
 def rotations(array : list[T]) -> list[list[T]]:
