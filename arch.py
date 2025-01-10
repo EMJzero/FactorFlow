@@ -11,6 +11,12 @@ Class wrapping a list of levels into an architecture.
 In FF, the terms outermost and innermost refer to the first and last elements
 in the list, in accordance with the HW componenets represented by levels.
 
+This class becomes operational in 4 steps:
+1) construction of the 'Level' instances it wraps <- per-level arguments
+2) construction of this class <- coupling
+3) initialization and validation of all 'Level' instances with calls to 'initArch'
+4) initialization of this class with a call to 'initFactors' <- computation
+
 Constructor arguments:
 - levels: the list of levels for the architecture
 - coupling: dimensions and dimension-operand coupling
@@ -22,6 +28,7 @@ class Arch(list[Level]):
         # TODO: maybe store Wart, EDP, etc. here?
         self.coupling : Coupling = coupling
         self.stride_values : dict[str, int] = {}
+        self.initialized : bool = False
         
         super().__init__(levels)
 
@@ -129,14 +136,18 @@ class Arch(list[Level]):
     Initializes the architecture's mapping with all the computation's prime
     factors placed on the first level. This is the mapper's starting point.
     Stride values are also imported from the computation.
+
+    This method must always be called once before using the architecture.
     """
     def initFactors(self, comp : Shape) -> None:
         # initialize with all factors on first level, all tile sizes of 1!
         self[0].factors = Factors({dim: prime_factors(comp[dim]) for dim in self.coupling.dims})
         self.stride_values = {dim: (comp[dim] if dim in comp else 1) for dim in list(self.coupling.in_strides.values()) + list(self.coupling.w_strides.values()) + list(self.coupling.out_strides.values())}
+        self.initialized = True
 
     """
     Resets the architecture's mapping to a blank state.
+    Ensure to call 'initFactors' before using this instance again.
     [Dataflows are not affected, and remain arbitrary]
     
     Arguments:
@@ -144,11 +155,15 @@ class Arch(list[Level]):
             datastructures, but creates new blank instances of them.
     """
     def resetFactors(self, copy : bool = False) -> None:
-        for level in self:
-            if copy:
+        self.initialized = False
+        if copy:
+            self.stride_values = {}
+            for level in self:
                 level.factors = Factors(self.coupling.dims)
                 level.tile_sizes = Shape({dim: 1 for dim in self.coupling.dims})
-            else:
+        else:
+            self.stride_values.clear()
+            for level in self:
                 level.factors.clear()
                 level.tile_sizes.clear()
 
@@ -187,55 +202,10 @@ class Arch(list[Level]):
                             assert self.moveFactor(0, i, dim, fact, amount, True, True), f"Arch: {self.name} -> Level: {level.name}: Failed to enforce constraints even with padding..."
 
     """
-    NOTE: DEPRECATED!!
-    Checks factors allocation constraints. Returns True if no violation is found.
-    """
-    def checkFactorsConstraintsOLD(self, verbose : bool = True) -> bool:
-        for level in self:
-            for dim in self.coupling.dims:
-                if dim not in level.dataflow and len(level.factors[dim]) != 0:
-                    if verbose: print(f"Arch: {self.name} -> Level: {level.name}: dimension {dim} is not in the dataflow ({level.dataflow}), but still received some iterations ({dim}: {level.factors.dimProduct(dim)}) due to constraints.")
-                    return False
-                elif dim in level.factors_constraints and level.factors_constraints[dim] != level.factors.dimProduct(dim):
-                    if verbose: print(f"Arch: {self.name} -> Level: {level.name}: factor constraints violation, desired was ({dim}: {level.factors_constraints[dim]}), obtained was ({dim}: {level.factors.dimProduct(dim)}).")
-                    return False
-                elif (s := dim + '<=') in level.factors_constraints and level.factors_constraints[s] < level.factors.dimProduct(dim):
-                    if verbose: print(f"Arch: {self.name} -> Level: {level.name}: factor constraints violation, desired was ({s}: {level.factors_constraints[s]}), obtained was ({dim}: {level.factors.dimProduct(dim)}).")
-                    return False
-                elif (s := dim + '>=') in level.factors_constraints and level.factors_constraints[s] > level.factors.dimProduct(dim):
-                    if verbose: print(f"Arch: {self.name} -> Level: {level.name}: factor constraints violation, desired was ({s}: {level.factors_constraints[s]}), obtained was ({dim}: {level.factors.dimProduct(dim)}).")
-                    return False
-        return True
-
-    """
     Checks factors allocation constraints. Returns True if no violation is found.
     """
     def checkFactorsConstraints(self) -> bool:
         return all(level.checkFactorsConstraints() for level in self)
-
-    """
-    NOTE: DEPRECATED!!
-    Checks dataflow (loop ordering) constraints. Returns False if a violation is found.
-    """
-    def checkDataflowConstraintsOLD(self, verbose : bool = False) -> bool:
-        for level in filter(lambda l : isinstance(l, MemLevel), self):
-            # no "_" in dataflow constraints, enforce only the relative order of constrained dimensions
-            if '_' not in level.dataflow_constraints:
-                dim_idx = 0
-                for dim in level.dataflow_constraints:
-                    while dim_idx < len(level.dataflow):
-                        if dim == level.dataflow[dim_idx]:
-                            break
-                        dim_idx += 1
-                    if dim_idx == len(level.dataflow):
-                        if verbose: print(f"Arch: {self.name} -> Level: {level.name}: dataflow constraints violation, the dataflow ({level.dataflow}) violates the required relative order ({level.dataflow_constraints}).")
-                        return False
-            else: # "_" in dataflow constraints, enforce unspecified dimensions in the position of placeholders
-                for i in range(len(level.dataflow)):
-                    if level.dataflow_constraints[i] != '_' and level.dataflow[i] != level.dataflow_constraints[i]:
-                        if verbose: print(f"Arch: {self.name} -> Level: {level.name}: dataflow constraints violation, the dataflow ({level.dataflow}) violates the templated ({level.dataflow_constraints}).")
-                        return False
-        return True
 
     """
     Checks dataflow (loop ordering) constraints. Returns False if a violation is found.

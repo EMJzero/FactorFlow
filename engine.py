@@ -23,6 +23,8 @@ Entry point for the analytical model.
 Updates the MOPs and Latency data of each level w.r.t. the current mapping.
 """
 def updateStats(arch : Arch, bias_read : bool) -> tuple[float, int]:
+    assert arch.initialized, f"Arch {arch.name}: architecture not initialized, ensure to call 'initFactors' first."
+    
     # MOPs:
     WMOPs = 0
     temporal_iterations = 1
@@ -350,8 +352,9 @@ Adjacency: two mappings are adjacent if one can be constructed from the other
            by moving exactly one prime factor between two loops/levels on the
            same dimension.
 """
-def factorFlow(arch : Arch, comp : Shape, bias_read : bool, already_initialized : bool = False, verbose : bool = False) -> tuple[Arch, float]:
+def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = False) -> tuple[Arch, float]:
     if verbose: print("-------- factorFlow --------")
+    already_initialized = arch.initialized
     if not already_initialized:
         arch.initFactors(comp)
         arch.enforceFactorsConstraints(Settings.PADDED_MAPPINGS, Settings.VERBOSE_PADDED_MAPPINGS)
@@ -445,6 +448,7 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, already_initialized 
     if verbose: printFactors(arch)
     return arch, best_wart, moves_count
 
+
 T = TypeVar('T')
 U = TypeVar('U')
 S = TypeVar('S')
@@ -457,8 +461,6 @@ with the heap being ordered w.r.t. value.
 Additionally a counter and a set, both thread-safe, are made available
 alongside each heap, to track additional information.
 """
-# TODO: alternatively, list.append is atomic, we could avoid using locks as long as we only append to the list!
-#       But this requires not sorting the list, and thus slows down the eq-dataflow match!
 class ThreadSafeHeap(Generic[T, U, S, W]):
     def __init__(self, is_min_heap : bool = False, initial_counter : int = 0):
         self.heap : list[tuple[T, U]] = []
@@ -825,9 +827,11 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
             arch, wart, moves_count = factorFlow(arch, comp, bias_read)
         elif not Settings.HARD_PERM_SKIP:
             # copy over the mapping and quickly re-optimize it
+            if not arch.initialized:
+                arch.initFactors(comp)
             arch.importMapping(deepcopy(equidataflow_past_solution))
             targets[last_iterated_perm].dataflow = permutations[last_iterated_perm][current_perms[last_iterated_perm]]
-            arch, wart, moves_count = factorFlow(arch, comp, bias_read, True)
+            arch, wart, moves_count = factorFlow(arch, comp, bias_read)
         
         key = tuple(current_perms[:last_iterated_perm])
         if not equidataflow_past_solution:
@@ -912,6 +916,7 @@ def run_engine(arch : Arch, comp : Shape, coupling : Coupling, bias_read : bool,
             t.join()
         assert () in past_perms and len(past_perms[()]) > 0, f"All threads failed to return or found no valid mapping, see above logs..."
         _, mapping = past_perms[()].peek()
+        arch.initFactors(comp)
         arch.importMapping(mapping)
         wart = Wart(arch, comp, bias_read)
     else:

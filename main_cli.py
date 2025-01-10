@@ -2,6 +2,8 @@ import sys
 assert sys.version_info[0] >= 3 and sys.version_info[1] >= 9, "Must be run with Python >=3.9!"
 
 from prettytable import PrettyTable
+from typing import TypeVar, Union, Any
+from types import FrameType
 import importlib.util
 import signal
 import code
@@ -27,7 +29,7 @@ from utils import *
 
 in_interactive_mode = False
 
-def signal_handler(sig, frame):
+def signal_handler(signal: int, frame: Optional[FrameType]) -> None:
     global in_interactive_mode
     if in_interactive_mode:
         print('EXITING...')
@@ -40,6 +42,9 @@ def signal_handler(sig, frame):
         code.interact(local=globals())
         in_interactive_mode = False
 
+
+T = TypeVar('T')
+
 """
 Searchs and removes flags from sys.argv.
 If 'with_value' is False, the return values is either True or False depending on the presence or absence of the option.
@@ -47,7 +52,7 @@ If 'with_value' is True, the return value is the value assigned with the option,
 the option is not present and None if no valid argument was provided.
 Optionally, 'value_type' can be used to parse the desired value when 'with_value' is True.
 """
-def args_match_and_remove(flag, with_value = False, value_type = str):
+def args_match_and_remove(flag : str, with_value : bool = False, value_type : type[T] = str) -> Union[bool, T]:
     try:
         idx = sys.argv.index(flag)
         sys.argv.pop(idx)
@@ -63,7 +68,7 @@ def args_match_and_remove(flag, with_value = False, value_type = str):
     except:
         return False
     
-def parse_options():
+def parse_options() -> dict[str, Any]:
     options = {
         "help": args_match_and_remove("-h") or args_match_and_remove("--help"),
         "quiet": args_match_and_remove("-q") or args_match_and_remove("--quiet"),
@@ -75,7 +80,7 @@ def parse_options():
     }
     return options
 
-def help_options():
+def help_options() -> None:
     print("Supported options:")
     print("-h, --help\t\tDisplay this help menu.")
     print("-q --quiet\t\tReduces CLI output to final results and errors.")
@@ -86,14 +91,14 @@ def help_options():
     print("-gt --gen-tests\t\tOverrides normal execution, runs FF and generates tests to enforce the obtained results.")
     # TODO: add option to print MOPs per instance!
 
-def help_arch(supported_archs):
+def help_arch(supported_archs : dict[str, Arch]) -> None:
     print("The first argument should be a valid architecture name or a path to file specifying the architecture.\nValid architecture names are the following:")
     for arch_name in supported_archs.keys():
         print(f"- {arch_name}")
     print("Alternatively, provide a \"path/to/a/file.py\" where a variable \"arch\" is defined. An example of such a file is provided under \"architectures/example_arch.py\".")
     print("Be aware that each architecture is built for a certain coupling, and supports only computations relying on a valid subcoupling of that one.")
 
-def help_comp(supported_comp_groups):
+def help_comp(supported_comp_groups : dict[str, dict[str, Shape]]) -> None:
     print("The second argument should be a valid computation name, otherwise arguments two-to-four, two-to-seven, or two-to-eleven can be a triple, sextuple, or decuple of positive integers specifying the three, six, or ten dimensions of a GEMM (in order: M, K, N), convolution (in order: M, P, Q, C, R, S), or strided convolution (in order: M, P, Q, C, R, S, Pstride, Qstride, Rdilation, Sdilation) respectively.\nValid computation names are the following:")
     for group_name, group in supported_comp_groups.items():
         for comp_name, comp in group.items():
@@ -101,7 +106,7 @@ def help_comp(supported_comp_groups):
     print("Alternatively, provide a \"path/to/a/file.py\" where the variables \"coupling\" and \"comp\" are defined. An example of such a file is provided under \"architectures/example_comp.py\".")
     print("Be wary that the coupling must be compatible with the one used for the selected architecture.")
 
-def printopt(*argv, **kwargs):
+def printopt(*argv, **kwargs) -> None:
     if not options["quiet"]:
         print(*argv, **kwargs)
 

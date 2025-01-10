@@ -3,6 +3,8 @@
 from itertools import combinations, product, groupby
 from prettytable import PrettyTable
 from functools import reduce
+from typing import Iterator, Any
+from types import FrameType
 import signal
 import random
 import time
@@ -22,6 +24,7 @@ try:
     from ..levels import *
     from ..prints import *
     from ..utils import *
+    from ..arch import *
 except:
     sys.path.append("..")
     from architectures.architectures import *
@@ -34,10 +37,11 @@ except:
     from levels import *
     from prints import *
     from utils import *
+    from arch import *
 
 in_interactive_mode = False
 
-def signal_handler(sig, frame):
+def signal_handler(signal: int, frame: Optional[FrameType]) -> None:
     global in_interactive_mode
     if in_interactive_mode:
         print('EXITING...')
@@ -52,7 +56,7 @@ def signal_handler(sig, frame):
 
 signal.signal(signal.SIGINT, signal_handler)
 
-def args_match_and_remove(flag, with_value = False):
+def args_match_and_remove(flag : str, with_value : bool = False):
     try:
         idx = sys.argv.index(flag)
         sys.argv.pop(idx)
@@ -64,7 +68,7 @@ def args_match_and_remove(flag, with_value = False):
     except:
         return False
 
-def parse_options():
+def parse_options() -> dict[str, Any]:
     options = {
         "help": args_match_and_remove("-h") or args_match_and_remove("--help"),
         "max_tries": args_match_and_remove("-mt", True) or args_match_and_remove("--max_tries", True),
@@ -76,7 +80,7 @@ def parse_options():
     }
     return options
 
-def randomDataflows(arch):
+def randomDataflows(arch : Arch) -> None:
     for level in arch:
         if isinstance(level, MemLevel):
             level.dataflow = random.sample(interleave(level.dataflow_constraints, [dim for dim in level.dataflow if dim not in level.dataflow_constraints]), 1)[0]
@@ -84,7 +88,7 @@ def randomDataflows(arch):
         #    level.dataflow = random.shuffle(level.dataflow)
 
 # Random-ish but faster
-def randomFactorsInitializationsFast(arch, comp):
+def randomFactorsInitializationsFast(arch : Arch, comp : Shape) -> Iterator[Arch]:
     arch.initFactors(comp)
     arch.enforceFactorsConstraints()
     
@@ -118,7 +122,7 @@ def randomFactorsInitializationsFast(arch, comp):
                 return
 
 # Truly random, but slower
-def randomFactorsInitializationsSlow(arch, comp, random_moves = 10):
+def randomFactorsInitializationsSlow(arch : Arch, comp : Shape, random_moves : int = 10) -> Iterator[Arch]:
     arch.initFactors(comp)
     arch.enforceFactorsConstraints()
     
