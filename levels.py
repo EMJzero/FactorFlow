@@ -183,8 +183,8 @@ class MemLevel(Level):
     
     # POINTERS TO OTHER LEVELS:
     next_is_compute : bool # flag indicating if this is the last memory before the compute level (initialized in setupSpatialLevelPointers)
-    next_spatials : Optional[list[Level]] # list of spatial levels following this one (can be empty, initialized in setupSpatialLevelPointers)
-    next_levels_with_bypass : dict[str, Optional[list[Level]]] # pointers to the next level storing an operand hereby bypassed (initialized in setupBypasses)
+    next_spatials : Optional[list[SpatialLevel]] # list of spatial levels following this one (can be empty, initialized in setupSpatialLevelPointers)
+    next_levels_with_bypass : dict[str, Optional[list[Level]]] # per-operand list of all immediately following levels that back-to-back bypass an operand not hereby bypassed (initialized in setupBypasses)
 
     # STATISTICS:
     active_instances = 1
@@ -436,7 +436,7 @@ class MemLevel(Level):
                 # storing reusable data from the previous iteration differs from the instance which needs that data for the next iteration
                 # NOTE: halo reuse, when a sum of indices is involved, after reading the first tile, all subsequent ones are only read for the part not in common
                 # with the preceeding tile [here a tile is intended as deriving from the product of sum of tile sizes matching the product of sum in the coupling]
-                # TODO: think about how to consider memories with all iterations at 1. Should "next_spatials" cut through them and see fanouts beyond, or stop there as if the were used (this also has repercussions on bypass handling)?
+                # TODO: think about how to consider memories with all iterations at 1. Should "next_spatials" cut through them and see fanouts beyond, or stop there as if they were used (this also has repercussions on bypass handling)?
                 if innermost_dim_sum and (not all(all(sp_level.factors.dimProduct(dim) == 1 for dim in innermost_dim_sum) for sp_level in self.next_spatials) or (skipped and not self.multiple_reuses)):
                     innermost_dim_sum = None
                 # reuse the halo left by the innermost iterated dimension on the iterations on dimensions part of a sum of indices with it
@@ -649,6 +649,18 @@ class MemLevel(Level):
                     if operand == 'out':
                         out_reads_factors = out_reads_bp_factors
         #print("AFTER BYPASS:\n", f"{self.name}:{chr(9) * (2 - len(self.name)//8)}{in_reads} In_R, {w_reads} W_R, {out_reads} Our_R, {in_reads + w_reads + out_reads} Tot_R, {out_writes} Out_W, {out_reads_factors} Out_R_Fac\n")
+        for spatial_level in self.next_spatials:
+            for dim in spatial_level.dataflow:
+                if not spatial_level.spatial_multicast_support and dim not in self.arch.coupling.flat_in_coupling: # the next fanout doesn't have spatial multicast capabilities, increment the reads on the memory before such fanout
+                        in_reads *= spatial_level.factors.dimProduct(dim)
+                if not spatial_level.spatial_multicast_support and dim not in self.arch.coupling.flat_w_coupling: # the next fanout doesn't have spatial multicast capabilities, increment the reads on the memory before such fanout
+                        w_reads *= spatial_level.factors.dimProduct(dim)
+                if dim not in self.arch.coupling.flat_out_coupling:
+                    if not spatial_level.spatial_multicast_support: # we don't have spatial multicast capabilities, increment retroactively the reads on the above level
+                        out_reads = out_reads*spatial_level.factors.dimProduct(dim) # no need to account for bias_read here, as the first read is skipped by all instances of the fanout
+                    if not spatial_level.spatial_reduction_support: # we don't have spatial reduction capabilities, increment retroactively the writes on the above level
+                        out_writes = out_writes*spatial_level.factors.dimProduct(dim)
+        #print("AFTER SPATIAL REUSE:\n", f"{self.name}:{chr(9) * (2 - len(self.name)//8)}{in_reads} In_R, {w_reads} W_R, {out_reads} Our_R, {in_reads + w_reads + out_reads} Tot_R, {out_writes} Out_W, {out_reads_factors} Out_R_Fac\n")
         return in_reads, w_reads, out_reads, out_writes, out_reads_factors                                                   #S;G
 
     """

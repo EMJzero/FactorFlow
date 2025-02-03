@@ -31,6 +31,7 @@ def updateStats(arch : Arch, bias_read : bool) -> tuple[float, int]:
     spatial_iterations = 1
     last_in_reads, last_w_reads, last_out_reads, last_out_writes = 0, 0, 0, 0
     acc_out_reads_factors = 1
+    # NOTE: here we compute total MOPs, not per-instance
     for i in range(len(arch)):
         level = arch[i]
         if isinstance(level, MemLevel):
@@ -69,30 +70,17 @@ def updateStats(arch : Arch, bias_read : bool) -> tuple[float, int]:
             acc_out_reads_factors *= math.prod(level.factors.dimProduct(dim) for dim in level.dataflow if dim not in level.arch.coupling.flat_out_coupling)
         elif isinstance(level, FanoutLevel):
             spatial_iterations *= level.factors.fullProduct()
-            # spatial multicast of an operand occurs if the fanout is along a dimension not coupled to such operand,
+            # spatial reuse of an operand occurs if the fanout is along a dimension not coupled to such operand,
             # hence, the operand is read once, but written once per instance (modeled by last_XX_reads)
-            # TODO: the retroactive update can be moved in MemLevel.MOPs, leaving here only the *iterations
+            # TODO: add NoC modeling and accumulate data transfer energy here!
             for dim in level.dataflow:
                 iterations = level.factors.dimProduct(dim)
                 if dim not in arch.coupling.flat_in_coupling:
-                    if not level.spatial_multicast_support: # we don't have spatial multicast capabilities, increment retroactively the reads on the above level
-                        if i > 0:
-                            arch[i-1].in_reads *= iterations
                     last_in_reads *= iterations
                 if dim not in arch.coupling.flat_w_coupling:
-                    if not level.spatial_multicast_support: # we don't have spatial multicast capabilities, increment retroactively the reads on the above level
-                        if i > 0:
-                            arch[i-1].w_reads *= iterations
                     last_w_reads *= iterations
                 if dim not in arch.coupling.flat_out_coupling:
-                    if not level.spatial_multicast_support: # we don't have spatial multicast capabilities, increment retroactively the reads on the above level
-                        if i > 0: # no need to account for bias_read here, as the first read is skipped by all instances of the fanout
-                            arch[i-1].out_reads = (arch[i-1].out_reads - arch[i-1].last_out_writes)*iterations + arch[i-1].last_out_writes
                     last_out_reads *= iterations
-                    if not level.spatial_reduction_support: # we don't have spatial reduction capabilities, increment retroactively the writes on the above level
-                        if i > 0:
-                            arch[i-1].out_writes = (arch[i-1].out_writes - arch[i-1].last_out_reads)*iterations + arch[i-1].last_out_reads
-                        pass
                     last_out_writes *= iterations
         elif isinstance(level, ComputeLevel):
             # TODO: remove cost of first output accumulate if bias_read is False!
@@ -368,14 +356,12 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
     else:
         if verbose: print("\nSkipping fanout maximization...\n")
     
-    # never re-visit the same mapping
-    already_seen = [arch.hashFromFactors()]
-    
     if verbose: print("\nStarting FactorFlow tiling optimization:\n")
     
+    # never re-visit the same mapping
+    already_seen = [arch.hashFromFactors()]
     # one-factor-steps greedy optimization
     best_wart = Wart(arch, comp, bias_read)
-    
     # track the count of moves performed
     moves_count = 0
     
@@ -579,15 +565,15 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
     def gen_permutations(level):
         if isinstance(level, MemLevel):
             if '_' in level.dataflow_constraints:
-                return [perm for perm in slot_in(level.dataflow_constraints, level.dataflow, '_')]
+                perms = [perm for perm in slot_in(level.dataflow_constraints, level.dataflow, '_')]
             else:
                 perms = [perm for perm in interleave(level.dataflow_constraints, [dim for dim in level.dataflow if dim not in level.dataflow_constraints])]
-                if Settings.DISTINCT_INNERMOST_LOOPS and level.multiple_reuses:
-                    return filter_by_unique_innermost_elems(perms, 2)
-                elif Settings.DISTINCT_INNERMOST_LOOPS:
-                    return filter_by_unique_innermost_elems(perms, 1)
-                else:
-                    return perms
+            if Settings.DISTINCT_INNERMOST_LOOPS and level.multiple_reuses:
+                return roundrobin_lists_reordering(filter_by_unique_innermost_elems(perms, 2))
+            elif Settings.DISTINCT_INNERMOST_LOOPS:
+                return filter_by_unique_innermost_elems(perms, 1)
+            else:
+                return perms
         elif isinstance(level, SpatialLevel):
             return [rot + [dim for dim in level.dims if dim in level.factors_constraints] for rot in rotations([dim for dim in level.dims if dim not in level.factors_constraints])]
     # list of lists of all valid permutations for each targeted level

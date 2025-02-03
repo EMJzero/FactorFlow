@@ -153,6 +153,32 @@ def ordered_pairs(lst : list[T]) -> Iterator[tuple[T, T]]:
             yield (lst[i], lst[j])
 
 """
+Reorders the lists in 'lists' according to their N-elements tail.
+Each tail can never occur again until all other remaining ones
+are picked once (similarly to a round-robin schedule).
+"""
+def roundrobin_lists_reordering(lists : list[list[T]], N : int = 1) -> list[list[T]]:
+    groups = defaultdict(deque)
+    for lst in lists:
+        key = tuple(lst[-N:])
+        groups[key].append(lst)
+    queue, result = deque(groups.keys()), []
+    while queue:
+        seen, temp_queue = set(), deque()
+        while queue:
+            key = queue.popleft()
+            if key in seen and groups[key]:
+                temp_queue.append(key)
+                continue
+            if groups[key]:  
+                result.append(groups[key].popleft())
+                seen.add(key)
+            if groups[key]:
+                temp_queue.append(key)
+        queue = temp_queue
+    return result
+
+"""
 Generates a valid ordering of elements based on the given relative
 order pairs. Let 'pairs' be a list of tuples each representing the
 relative order between two elements. The result will be a list

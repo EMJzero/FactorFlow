@@ -13,7 +13,7 @@ class Settings():
     # and this is done after factor allocation in the fanouts is maximized.
     # NOTE: automatically set to False in case of 2 dimensions on the same fanout.
     FREEZE_SA = True
-    # Number of one-factor steps to try after of which the best choice is picked.
+    # Number of one-factor steps to try during local search after of which the best choice is picked.
     # NOTE: automatically raised to (at least) 2 in case of 2 dimensions on the same fanout.
     STEPS_TO_EXPLORE = 1
     # If True, any recursively explored step after the first one, will only attempt to move factors

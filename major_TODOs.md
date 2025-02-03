@@ -115,3 +115,41 @@
 # - delete the past_perm iff all list entries are 'Done' FUUUUCK I still need another counter to know how many threads explored and how many skipped...
 # NEVERMIND, we go back to the set, but make it a dictionary where each entry counts the number of skips!
 ```
+
+```python
+# FAILED IDEA -> TOO CLUNKY!
+# engine.py - line 428 as of commit a5c37d11159b707fa7d03f86e87d80011e4ae1d1
+    while True:
+        choices = exploreOneStep(remaining_steps = Settings.STEPS_TO_EXPLORE)
+        if len(choices) == 0:
+            if verbose: print(f"No valid follow-up configuration, stopping, current Wart: {best_wart:.3e}")
+            break
+        # >>> GREEDY MOVE <<<
+        best_choice = max(choices, key=choices.get)
+        if choices[best_choice] < best_wart:
+            if verbose: print(f"Stopping with current Wart: {best_wart:.3e}, while best choice is: {choices[best_choice]:.3e}")
+            break
+        multiple_moves = Settings.INITAL_MULTIPLE_MOVES[inital_multiple_moves_idx] if inital_multiple_moves_idx < len(Settings.INITAL_MULTIPLE_MOVES) else 1
+        # apply the top 'multiple_moves' moves, without re-evaluating mappings in between and speculating that other moves retained their improvements after the first one got applied
+        while multiple_moves > 0:
+            # each individual choice is defined by 5 parameters, chained to another 5 for each nested exploration step
+            multisteps = len(best_choice) // 5
+            moves_count += multisteps
+            for i in range(multisteps):
+                if not arch.moveFactor(best_choice[5*i + 0], best_choice[5*i + 1], best_choice[5*i + 2], best_choice[5*i + 3], best_choice[5*i + 4], skip_src_constraints = Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and i < multisteps - 1):
+                    break
+                    # TODO: ondo outer steps if breaking inside...
+            best_wart = choices[best_choice]
+            multiple_moves -= 1
+            best_choice = max(choices, key=choices.get)
+        inital_multiple_moves_idx += 1
+
+# settings.py
+    # Number of moves to apply all at once by selecting them from the best performing moves during
+    # local search. This is a list since subsequent local search steps pop from the list's head
+    # the number of moves to apply, that defaults to 1 on the empty list.
+    # NOTE: if a move is invalidated by a previously selected once, the best next one is picked,
+    # as a result of this and of the lack of re-evaluation of mappings between the application of
+    # moves, using this may lead to a severe worsening of results.
+    INITAL_MULTIPLE_MOVES = [3, 2, 2]
+```
