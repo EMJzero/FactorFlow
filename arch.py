@@ -266,16 +266,6 @@ class Arch(list[Level]):
                 level.next_is_compute = isinstance(self[j-1], ComputeLevel)
 
     """
-    Clears the accumulators for incrementally updated tile sizes and
-    prime factors products in the architecture.
-    """
-    def resetTilesAndFactors(self) -> None:
-        for level in self:
-            level.factors.clear()
-            for dim in self.coupling.dims:
-                level.tile_sizes[dim] = 1
-
-    """
     Returns the overall utilization of spatial instances of a mapping.
     """
     def spatialUtilization(self) -> float:

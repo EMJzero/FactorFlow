@@ -569,9 +569,13 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
             else:
                 perms = [perm for perm in interleave(level.dataflow_constraints, [dim for dim in level.dataflow if dim not in level.dataflow_constraints])]
             if Settings.DISTINCT_INNERMOST_LOOPS and level.multiple_reuses:
-                return roundrobin_lists_reordering(filter_by_unique_innermost_elems(perms, 2))
+                # considering skipped dimensions and halo reuse, relevant innermost loop permutations to consider involve up to 1 + the maximum number of orthogonal dimensions admitted by any operand (orthogonal -> skip, 1+ -> halo)
+                return roundrobin_lists_reordering(filter_by_unique_innermost_elems(perms, 1 + len(arch.coupling.dims) - min(len(arch.coupling.flat_in_coupling), len(arch.coupling.flat_w_coupling), len(arch.coupling.flat_out_coupling))))
             elif Settings.DISTINCT_INNERMOST_LOOPS:
-                return filter_by_unique_innermost_elems(perms, 1)
+                # same as above, but we don't have halo reuse
+                perms = filter_by_unique_innermost_elems(perms, len(arch.coupling.dims) - min(len(arch.coupling.flat_in_coupling), len(arch.coupling.flat_w_coupling), len(arch.coupling.flat_out_coupling)))
+                # remove permutations with a different order of loops inside those determining the dataflow
+                return [list(perm) for perm in {tuple(perm) for perm in filter_equivalent_perms(perms, [dim for dim in arch.coupling.dims if dim not in arch.coupling.flat_in_coupling]) + filter_equivalent_perms(perms, [dim for dim in arch.coupling.dims if dim not in arch.coupling.flat_w_coupling]) + filter_equivalent_perms(perms, [dim for dim in arch.coupling.dims if dim not in arch.coupling.flat_out_coupling])}]
             else:
                 return perms
         elif isinstance(level, SpatialLevel):

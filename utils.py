@@ -179,6 +179,37 @@ def roundrobin_lists_reordering(lists : list[list[T]], N : int = 1) -> list[list
     return result
 
 """
+Filters a list of permutations by identifying and removing equivalent
+ones based on the presence of interchangeable elements.
+
+The equivalence between permutations is determined as follows:
+- When reading a permutation from right to left, the first element
+  encountered that is not part of the set of interchangeable elements
+  marks the point from which the order of elements matters.
+- Elements appearing after this position that belong to the interchangeable
+  set can be in any order without affecting equivalence.
+- Two permutations are considered equivalent iff they differ only in the
+  order of interchangeable elements appearing beyond the first
+  non-interchangeable element encountered from the right.
+"""
+# UPGRADE: equivalence if permuting loops inside those determining the dataflow BUT ALSO THOSE OUTSIDE THEM!
+def filter_equivalent_perms(perms : list[list[T]], interchangeable : list[T]) -> list[list[T]]:
+    interchangeable = set(interchangeable)
+    
+    def key_func(perm):
+        for i in range(len(perm) - 1, -1, -1):
+            if perm[i] not in interchangeable:
+                return tuple(perm[:i+1]), frozenset(perm[i+1:])
+        return (), frozenset(perm)
+    
+    seen = {}
+    for perm in perms:
+        key = key_func(perm)
+        if key not in seen:
+            seen[key] = perm
+    return list(seen.values())
+
+"""
 Generates a valid ordering of elements based on the given relative
 order pairs. Let 'pairs' be a list of tuples each representing the
 relative order between two elements. The result will be a list

@@ -118,7 +118,7 @@
 
 ```python
 # FAILED IDEA -> TOO CLUNKY!
-# engine.py - line 428 as of commit a5c37d11159b707fa7d03f86e87d80011e4ae1d1
+# FROM: engine.py - line 428 as of commit a5c37d11159b707fa7d03f86e87d80011e4ae1d1
     while True:
         choices = exploreOneStep(remaining_steps = Settings.STEPS_TO_EXPLORE)
         if len(choices) == 0:
@@ -144,7 +144,7 @@
             best_choice = max(choices, key=choices.get)
         inital_multiple_moves_idx += 1
 
-# settings.py
+# FROM: settings.py
     # Number of moves to apply all at once by selecting them from the best performing moves during
     # local search. This is a list since subsequent local search steps pop from the list's head
     # the number of moves to apply, that defaults to 1 on the empty list.
