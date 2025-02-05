@@ -61,10 +61,9 @@ class Coupling:
         assert all(dims.count(dim) == 1 for dim in dims), f"Invalid coupling: dims ({dims}) must not contain duplicates."
         assert is_two_levels_list(in_coupling) and is_two_levels_list(w_coupling) and is_two_levels_list(out_coupling), f"Invalid coupling: in_coupling ({in_coupling}), w_coupling ({w_coupling}), and out_coupling ({out_coupling}) must be one or two level lists, no more."
         
+        # NOTE: due to less memory overhead, less cache misses, more effective prefetching, and lists-specific CPython optimizations, LISTs perform better than SETs and TUPLEs for all hereby data structures!
+        # [tested in Python3.13 and up to convolutions, may not hold for larger tensor comprehensions]
         self.dims : list[str] = dims
-        # TODO: implement a more elegant solution by redefining __iter__ for a two levels list, alternatively, make these sets!
-        # TODO: (verify this once more -> good old %flat_out_coupling in the search bar) looking at how these are used in levels.py, making them sets seems the best option! Keep the uniqueness assert before the conversion to sets tho, or directly (also) accept a set as argument!
-        # => Nevermind, as long as lists are short, this is fine...
         self.flat_in_coupling : list[str] = flatten_two_levels_list(in_coupling)
         self.flat_w_coupling : list[str] = flatten_two_levels_list(w_coupling)
         self.flat_out_coupling : list[str] = flatten_two_levels_list(out_coupling)
@@ -220,8 +219,8 @@ Constructor:
   and its value shall be a prime_factor->arity dictionary as above.
 """
 class Factors(dict[str, dict[int, int]]):
-    def __init__(self, iterable : Union[list[str], dict[str, dict[int, int]]] = None, *args, **kwargs):
-        if isinstance(iterable, list):
+    def __init__(self, iterable : Union[list[str], tuple[str], dict[str, dict[int, int]]] = None, *args, **kwargs):
+        if isinstance(iterable, list) or isinstance(iterable, tuple):
             super().__init__()
             for dim in iterable:
                 self[dim] = {}

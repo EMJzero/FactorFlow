@@ -87,6 +87,7 @@ def slot_in(template : list[T], elements : list[T], placeholder: T) -> list[list
         results.append(filled_template)
     return results
 
+# NOT IN USE ANYMORE
 """
 Filters a list of permutations, keeping only the first permutation seen for
 each unique configuration of the N innermost (highest indices) elements.
@@ -152,6 +153,7 @@ def ordered_pairs(lst : list[T]) -> Iterator[tuple[T, T]]:
         for j in range(i + 1, len(lst)):
             yield (lst[i], lst[j])
 
+# NOT IN USE ANYMORE
 """
 Reorders the lists in 'lists' according to their N-elements tail.
 Each tail can never occur again until all other remaining ones
@@ -179,32 +181,26 @@ def roundrobin_lists_reordering(lists : list[list[T]], N : int = 1) -> list[list
     return result
 
 """
-Filters a list of permutations by identifying and removing equivalent
-ones based on the presence of interchangeable elements.
+Filters a list of permutations by removing equivalent
+ones based on the position of certain relevant elements.
 
-The equivalence between permutations is determined as follows:
-- When reading a permutation from right to left, the first element
-  encountered that is not part of the set of interchangeable elements
-  marks the point from which the order of elements matters.
-- Elements appearing after this position that belong to the interchangeable
-  set can be in any order without affecting equivalence.
-- Two permutations are considered equivalent iff they differ only in the
-  order of interchangeable elements appearing beyond the first
-  non-interchangeable element encountered from the right.
+Two permutations are equivalent iff for each set of relevant elements:
+- They have the same k (the highest index of a relevant element).
+- Elements strictly after k are the same but may be in different order.
+- Elements from k-N+1 to k (if N > 0) are exactly the same and in the same order.
+- Elements strictly before k are the same but may be in different order.
 """
-# UPGRADE: equivalence if permuting loops inside those determining the dataflow BUT ALSO THOSE OUTSIDE THEM!
-def filter_equivalent_perms(perms : list[list[T]], interchangeable : list[T]) -> list[list[T]]:
-    interchangeable = set(interchangeable)
-    
-    def key_func(perm):
-        for i in range(len(perm) - 1, -1, -1):
-            if perm[i] not in interchangeable:
-                return tuple(perm[:i+1]), frozenset(perm[i+1:])
-        return (), frozenset(perm)
-    
+def filter_equivalent_perms(perms : list[list[T]], relevant_elements_sets : set[set[T]], N : int = 0) -> list[list[T]]:
+    def key_func(perm, rel_elems):
+        k = max((i for i, el in enumerate(perm) if el in rel_elems), default=-1)
+        fixed_prefix = tuple(perm[max(0, k - N + 1):k + 1]) if N > 0 else ()
+        unordered_before = frozenset(perm[:max(0, k - N + 1)])
+        unordered_after = frozenset(perm[k + 1:])
+        return k, fixed_prefix, unordered_before, unordered_after
+
     seen = {}
     for perm in perms:
-        key = key_func(perm)
+        key = tuple(chain(key_func(perm, rel_elems) for rel_elems in relevant_elements_sets))
         if key not in seen:
             seen[key] = perm
     return list(seen.values())

@@ -45,9 +45,9 @@ class Settings():
     # NOTE: unless PERM_SKIP is True, this setting is useless.
     HARD_PERM_SKIP = False
     # If True, the list of permutations to explore on each level is filtered to keep a single permutation
-    # for each distinct configuration of innermost loop(s) (2 loops if the MemLevel has multiple_reuses,
-    # 1 otherwise), reducing exploration time significantly at the price of exhaustiveness.
-    DISTINCT_INNERMOST_LOOPS = True
+    # for each set of permutations that could reach the same reuse patterns (hence, those having the same
+    # innermost iterated dimension coupled to each operand and the same dimensions above and below it)
+    DISTINCT_REUSE_OPPORTUNITIES = True
     # If True, rules are built based on the best selected permutations throughout the exploration,
     # and these rules are subsequently enforced to prune the remaining permutations, speeding up
     # the exploration under the assumption that there is some consistency between optimal choices.
