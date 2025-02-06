@@ -23,6 +23,7 @@ try:
     from ..engine import *
     from ..levels import *
     from ..prints import *
+    from ..model import *
     from ..utils import *
     from ..arch import *
 except:
@@ -36,6 +37,7 @@ except:
     from engine import *
     from levels import *
     from prints import *
+    from model import *
     from utils import *
     from arch import *
 

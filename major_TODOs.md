@@ -153,3 +153,12 @@
     # moves, using this may lead to a severe worsening of results.
     INITAL_MULTIPLE_MOVES = [3, 2, 2]
 ```
+
+```python
+# ISSUES solved for DIRTY MEMOIZATION FLAGS:
+# - where to reset all dirty flags when changing permutations
+#  => assume_dirty argument here (poor solution, but for now it works)
+#  => best option: add a method to Arch to manipulate permutations and set to True dirty flags there and in Arch.importMapping!
+# - how to handle the fact that "last_" variables coming from a dirty outer level may need to be applied on a non-dirty inner level
+#  => easy, subtract the old values setted by setMOPs before calling setMOPs again!
+```

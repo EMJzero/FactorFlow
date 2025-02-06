@@ -4,6 +4,7 @@ __all__ = [
     "engine",
     "factors",
     "levels",
+    "model",
     "prints",
     "settings",
     "utils"

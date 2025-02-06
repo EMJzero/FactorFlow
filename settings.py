@@ -51,6 +51,7 @@ class Settings():
     # If True, rules are built based on the best selected permutations throughout the exploration,
     # and these rules are subsequently enforced to prune the remaining permutations, speeding up
     # the exploration under the assumption that there is some consistency between optimal choices.
+    # NOTE: this is available only for the 'exponential' mapper.
     PERM_PRUNING = False
     # When PERM_PRUNING is True, the following 3 settings determine the number of times a dimension
     # needs to (1) have a single iteration, (2) be in a certain relative order with another, and
@@ -83,6 +84,9 @@ class Settings():
     # NOTE: setting this to True is needed to match Timeloop, as it uses the same approximation.
     OVERESTIMATE_DISTINCT_VALUES = False
 
+    # The mapper to import as part of the map-space exploration engine. Alternative mappers can
+    # be found in the folder "./mappers", use the name of the python file for this setting.
+    MAPPER = "quadratic"
     # If True, the exploration of permutations done in optimizeDataflows will run across multiple
     # threads (or better, processes, due to the GIL).
     MULTITHREADED = True
@@ -95,6 +99,9 @@ class Settings():
     # FactorFlow has been tested with commit 'd1d199e571e621ce11168efe1af2583dec0c2c49' of Accelergy.
     # NOTE: this is NOT required if you have installed Accelergy as a python package and can import it.
     ACCELERGY_PATH = "\\\\wsl.localhost/Ubuntu-22.04/home/zero/.local/lib/python3.10/site-packages"
+
+    # flag used to propagate a ctrl+c to all threads
+    forced_termination_flag = False
 
     @classmethod
     def toString(self) -> str:

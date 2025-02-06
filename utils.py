@@ -1,12 +1,18 @@
 from itertools import chain, combinations, permutations
 from collections import defaultdict, deque
-from functools import reduce
+import threading
+import heapq
 import math
 
-from typing import Iterable, Iterator, TypeVar, Union
+from types import TracebackType
+from typing import Generator, Generic, Iterable, Iterator, Optional, Type, TypeVar, Union
 T = TypeVar('T')
+U = TypeVar('U')
+S = TypeVar('S')
+W = TypeVar('W')
 
 from settings import *
+
 
 # >>> Miscellaneus functions working with primes and iterables/arrays (snake_cased)
 
@@ -43,6 +49,7 @@ def prime_factors_list(n : int) -> list[int]:
         factors.append(n)
     return factors
 
+# NOT IN USE ANYMORE
 """
 Returns the powerset of an iterable, that being all its possible subsets,
 including the complete and empty ones.
@@ -109,6 +116,7 @@ Returns a list of all versions of 'array' that differ by a rotation (or shift).
 def rotations(array : list[T]) -> list[list[T]]:
     return [array[i:] + array[:i] for i in range(len(array))] or [[]]
 
+# NOT IN USE ANYMORE
 """
 Returns, if any, the sets of elements which can undergo a cyclic shift and
 in so reach the configuration of 'arr2' starting from 'arr1'.
@@ -126,6 +134,7 @@ def single_cyclic_shift(arr1 : list[T], arr2 : list[T]) -> list[list[T]]:
             return [[arr2[i]], arr1[1:]]
     return []
 
+# NOT IN USE ANYMORE
 """
 Returns all elements which need to be involved in swaps between neighbours
 to reach 'arr2' from 'arr1' (no cyclic behaviour allowed).
@@ -317,3 +326,100 @@ def distinct_values(Xs : list[int], x_consts : list[int]) -> int:
                 additions = {v + step*x for v in current_values for x in range(X)}
                 current_values.update(additions)
             return len(current_values)
+
+
+# >>> Miscellaneus classes to aid with concurrency
+
+"""
+Thread-safe heap implementation where each entry is a pair (value, data),
+with the heap being ordered w.r.t. value.
+
+Additionally a counter and a set, both thread-safe, are made available
+alongside each heap, to track additional information.
+"""
+class ThreadSafeHeap(Generic[T, U, S, W]):
+    def __init__(self, is_min_heap : bool = False, initial_counter : int = 0):
+        self.heap : list[tuple[T, U]] = []
+        self.counter : int = initial_counter
+        self.dict : dict[S, W] = {}
+        self.is_min_heap = is_min_heap
+        self.lock = threading.RLock()
+
+    def _wrap_value(self, value : T) -> T:
+        return value if self.is_min_heap else -value
+
+    def _unwrap_value(self, value : T) -> T:
+        return value if self.is_min_heap else -value
+
+    def push(self, value : T, data : U, increase_counter : int = 1) -> None:
+        with self.lock:
+            heapq.heappush(self.heap, (self._wrap_value(value), id(data), data))
+            self.counter += increase_counter
+
+    def pop(self) -> tuple[T, U]:
+        with self.lock:
+            if not self.heap:
+                raise IndexError("pop from an empty heap")
+            wrapped_value, _, data = heapq.heappop(self.heap)
+            return self._unwrap_value(wrapped_value), data
+
+    def peek(self) -> tuple[T, U]:
+        with self.lock:
+            if not self.heap:
+                raise IndexError("peek from an empty heap")
+            wrapped_value, _, data = self.heap[0]
+            return self._unwrap_value(wrapped_value), data
+
+    def isEmpty(self) -> bool:
+        with self.lock:
+            return len(self.heap) == 0
+
+    def getCounter(self) -> int:
+        with self.lock:
+            return self.counter
+
+    def increaseCounter(self, amount : int = 1) -> None:
+        with self.lock:
+            self.counter += amount
+
+    def addToDict(self, key : S, val : W) -> None:
+        with self.lock:
+            self.dict[key] = val
+
+    def isInDict(self, key : S) -> bool:
+        with self.lock:
+            return key in self.dict
+
+    def getFromDict(self, key : S, default : S) -> W:
+        with self.lock:
+            return self.dict[key] if key in self.dict else default
+
+    def __iter__(self) -> Generator[tuple, None, None]:
+        with self.lock:
+            return iter((self._unwrap_value(wrapped_value), data) for wrapped_value, _, data in self.heap)
+
+    def __len__(self):
+        with self.lock:
+            return len(self.heap)
+
+    def __enter__(self) -> bool:
+        self.lock.acquire()
+
+    def __exit__(self, exc_type : Optional[Type[BaseException]], exc_val : Optional[BaseException], exc_tb : Optional[TracebackType]) -> bool:
+        self.lock.release()
+
+"""
+Helper class for a lock which might not exist.
+Used in "optimizeDataflows".
+"""
+class OptionalLock:
+    def __init__(self, lock : threading.Lock):
+        self.lock = lock
+
+    def __enter__(self) -> bool:
+        if self.lock is not None:
+            self.lock.acquire()
+
+    def __exit__(self, exc_type : Optional[Type[BaseException]], exc_val : Optional[BaseException], exc_tb : Optional[TracebackType]) -> bool:
+        if self.lock is not None:
+            self.lock.release()

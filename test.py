@@ -3,7 +3,7 @@ from typing import Union, Any
 from architectures.solutions_db import *
 from settings import *
 from factors import *
-from engine import *
+from model import *
 from utils import *
 from arch import *
 
