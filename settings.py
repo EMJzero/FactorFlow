@@ -9,10 +9,10 @@ class Settings():
     # if True, FF searches for solutions at a distance of multiple factors, all be it only arity is
     # varied, with the tried factor being just one. (tries different multiplicities)
     ITERATE_AMOUNTS = False
-    # If True, factors allocated on fanout levels will not be optimized (as if they were constraints),
-    # and this is done after factor allocation in the fanouts is maximized.
+    # If True, factors allocated on spatial levels will not be optimized (as if they were constraints),
+    # and this is done after factor allocation on spatial fanouts is maximized.
     # NOTE: automatically set to False in case of 2 dimensions on the same fanout.
-    FREEZE_SA = True
+    FREEZE_SPATIALS = True
     # Number of one-factor steps to try during local search after of which the best choice is picked.
     # NOTE: automatically raised to (at least) 2 in case of 2 dimensions on the same fanout.
     STEPS_TO_EXPLORE = 1

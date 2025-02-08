@@ -106,11 +106,16 @@ def factorsIterator(arch : Arch, iterate_amounts : bool = False, skip_spatial : 
             continue
         for dim in arch[level_idx].dataflow:
             for factor in list(arch[level_idx].factors[dim].keys()):
-                if iterate_amounts:
-                    for amount in range(1, arch[level_idx].factors[dim][factor] + 1):
-                        yield level_idx, dim, factor, amount
-                else:
-                    yield level_idx, dim, factor, 1
+                # check constraints on factors to avoid proposing invalid mappings
+                if dim not in arch[level_idx].factors_constraints:
+                    if iterate_amounts:
+                        for amount in range(1, arch[level_idx].factors[dim][factor] + 1 if (key := dim + '>=') not in arch[level_idx].factors_constraints else arch[level_idx].factors_constraints[key]):
+                            yield level_idx, dim, factor, amount
+                    else:
+                        if (key := dim + '>=') in arch[level_idx].factors_constraints and arch[level_idx].factors.dimProduct(dim)//factor < arch[level_idx].factors_constraints[key]:
+                            continue
+                        else:
+                            yield level_idx, dim, factor, 1
 
 """
 Mapper Step 3: greedy descent factors allocation, navigating the map-space
@@ -145,29 +150,14 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
     # track the count of moves performed
     moves_count = 0
     
-    def exploreOneStep(remaining_steps = 1, target_src_level_idx = None, target_dim = None, target_factor = None, target_dst_level_idx = None):
+    # recursive function that explores and returns all mappings up to 'remaining_steps' away from the present one
+    def exploreOneStep(remaining_steps : int = 1, target_dst_level_idx : Optional[int] = None) -> dict[tuple[Union[int, str]], float]:
         choices = {}
-        for src_level_idx, dim, factor, amount in factorsIterator(arch, iterate_amounts = Settings.ITERATE_AMOUNTS, skip_spatial= Settings.FREEZE_SA):
-            if target_src_level_idx and target_dim and target_factor and (target_src_level_idx != src_level_idx or target_dim != dim or target_factor != factor):
-                continue
-            #print("Initial proposal: ", src_level_idx, dim, factor)
-            
-            # go back to the first valid source
-            while src_level_idx >= 0 and dim in arch[src_level_idx].factors_constraints:
-                src_level_idx -= 1
-            if src_level_idx < 0 or factor not in arch[src_level_idx].factors[dim]:
-                continue
-            
-            # pick the factor from the highest level that you can
-            #new_src = src_level_idx - 1
-            #while new_src >= 0 and factor in arch[new_src].factors[dim]:
-            #    if dim not in arch[new_src].factors_constraints:
-            #        src_level_idx = new_src
-            #    new_src -= 1
-            
+        for src_level_idx, dim, factor, amount in factorsIterator(arch, iterate_amounts = Settings.ITERATE_AMOUNTS, skip_spatial = Settings.FREEZE_SPATIALS):
             for dst_level_idx in range(len(arch)):
-                if dst_level_idx != src_level_idx and dim not in arch[dst_level_idx].factors_constraints and dim in arch[dst_level_idx].dataflow and (not Settings.FREEZE_SA or not isinstance(arch[dst_level_idx], SpatialLevel)):
-                    #print(src_level_idx, dst_level_idx, dim, factor)
+                if (dst_level_idx != src_level_idx and dim in arch[dst_level_idx].dataflow and dim not in arch[dst_level_idx].factors_constraints and
+                    ((key := dim + '<=') not in arch[dst_level_idx].factors_constraints or arch[dst_level_idx].factors.dimProduct(dim)*factor <= arch[dst_level_idx].factors_constraints[key]) and
+                    (not Settings.FREEZE_SPATIALS or not isinstance(arch[dst_level_idx], SpatialLevel))):
                     if target_dst_level_idx and dst_level_idx != target_dst_level_idx:
                         continue
                     if arch.moveFactor(src_level_idx, dst_level_idx, dim, factor, amount, skip_src_constraints = Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and remaining_steps > 1):
@@ -263,22 +253,34 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
     
     # divide permutations across threads (if multithreading is enabled)
     if thread_idx != -1:
-        partitions_per_level = [1 for _ in permutations]
-        factors_per_level = [prime_factors_list(len(perm)) for perm in permutations]
+        first_mem_level_idx = next(i for i, t in enumerate(targets) if isinstance(t, MemLevel))
+        partitions_per_sp_level, partitions_per_mem_level = [1] * first_mem_level_idx, [1] * (len(permutations) - first_mem_level_idx + 1)
+        factors_per_sp_level, factors_per_mem_level = [prime_factors_list(len(perm)) for perm in permutations[:first_mem_level_idx]], [prime_factors_list(len(perm)) for perm in permutations[first_mem_level_idx:]]
         cumulative_product, circular_idx = 1, -1
         # circularly partition each level's permutations by the smaller of their amount's prime factors, until there are more partitions than threads
+        # -> handle spatial levels first
         while cumulative_product < threads_count:
-            circular_idx = next(((i + circular_idx + 1) % len(factors_per_level) for i, factors in enumerate(factors_per_level[circular_idx + 1:] + factors_per_level[:circular_idx + 1]) if len(factors) > 0), None)
+            circular_idx = next(((i + circular_idx + 1) % len(factors_per_sp_level) for i, factors in enumerate(factors_per_sp_level[circular_idx + 1:] + factors_per_sp_level[:circular_idx + 1]) if len(factors) > 0), None)
             if circular_idx == None:
                 break
-            factor = factors_per_level[circular_idx].pop(0)
-            partitions_per_level[circular_idx] *= factor
+            factor = factors_per_sp_level[circular_idx].pop(0)
+            partitions_per_sp_level[circular_idx] *= factor
+            cumulative_product *= factor
+        # -> then memory levels
+        circular_idx = -1
+        while cumulative_product < threads_count:
+            circular_idx = next(((i + circular_idx + 1) % len(factors_per_mem_level) for i, factors in enumerate(factors_per_mem_level[circular_idx + 1:] + factors_per_mem_level[:circular_idx + 1]) if len(factors) > 0), None)
+            if circular_idx == None:
+                break
+            factor = factors_per_mem_level[circular_idx].pop(0)
+            partitions_per_mem_level[circular_idx] *= factor
             cumulative_product *= factor
         if circular_idx == None and thread_idx >= cumulative_product:
             # more threads than permutations, terminate extra threads
             if barrier:
                 barrier.wait()
             return
+        partitions_per_level = partitions_per_sp_level + partitions_per_mem_level
         tmp_thread_idx = thread_idx
         threads_on_current_permutation = threads_count
         # partition permutations by removing those not assigned to the present thread

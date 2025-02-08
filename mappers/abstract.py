@@ -22,6 +22,13 @@ Mapper Step 3: greedy descent factors allocation, navigating the map-space
 NOTE: this is a placeholder.
 """
 def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = False) -> tuple[Arch, float]:
+    already_initialized = arch.initialized
+    if not already_initialized:
+        arch.initFactors(comp)
+        arch.enforceFactorsConstraints(Settings.PADDED_MAPPINGS, Settings.VERBOSE_PADDED_MAPPINGS)
+    assert arch.checkFactorsConstraints() and arch.checkDataflowConstraints(), ("Ill-posed constraints:" if not already_initialized else "Improperly initialized arch:") + f"\n{arch.logConstraintsViolations()}"
+    if not already_initialized:
+        fanoutMaximization(arch, comp, bias_read, verbose)
     pass
 
 """
