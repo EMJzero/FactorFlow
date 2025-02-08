@@ -12,6 +12,7 @@ class Settings():
     # If True, factors allocated on spatial levels will not be optimized (as if they were constraints),
     # and this is done after factor allocation on spatial fanouts is maximized.
     # NOTE: automatically set to False in case of 2 dimensions on the same fanout.
+    # NOTE: this is available only for the 'exponential' mapper.
     FREEZE_SPATIALS = True
     # Number of one-factor steps to try during local search after of which the best choice is picked.
     # NOTE: automatically raised to (at least) 2 in case of 2 dimensions on the same fanout.
@@ -33,7 +34,12 @@ class Settings():
     # >>> Play with this in case of 2 dimensions on the same fanout!!!
     # >>> Setting this to True costs Nx time, where N is the number of rotations of fanout dimensions.
     # >>> Henceforth, usage is suggested when MULTITHREADED is True.
+    # NOTE: this is available only for the 'exponential' mapper.
     ONLY_MAXIMIZE_ONE_FANOUT_DIM = True
+    # If True, fanout maximization is replaced with an exploration of spatial fanout levels in three
+    # steps, together with memory levels, within factorFlow's local search.
+    # NOTE: this is available only for the 'quadratic' mapper.
+    LOCAL_SEARCH_SPATIAL_LEVELS = False
     # If True, saves time by assuming that any permutation differing from an optimal one by the order
     # of dimensions involving one with a single iteration can be optimized starting from where it
     # already is, and thus avoids a complete re-initialization.
@@ -72,11 +78,8 @@ class Settings():
     # If True, GEMM dimensions might get padded to reach the least larger-than-current size which can
     # be allocated to the entirety of a fanout's instances.
     # This is performed as part of the fanout maximization.
-    # NOTE: this is useless unless ONLY_MAXIMIZE_ONE_FANOUT_DIM is True.
-    PADDED_MAPPINGS = ONLY_MAXIMIZE_ONE_FANOUT_DIM and False
-    # If True, any padding applied due to PADDED_MAPPINGS will be logged.
-    # NOTE: this is useless unless PADDED_MAPPINGS is True.
-    VERBOSE_PADDED_MAPPINGS = PADDED_MAPPINGS and False
+    # NOTE: in the 'exponential' mapper, this is useless unless ONLY_MAXIMIZE_ONE_FANOUT_DIM is True.
+    PADDED_MAPPINGS = False
     # If True, the 'distinct_values' method in 'utils.py' uses an approximated formula to compute the
     # distinct values which can be produced by a linear combination like 'x_const*x+y_const*y'.
     # The resulting count, and the following reads/writes counts might thus be overestimated.

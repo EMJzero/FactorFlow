@@ -22,23 +22,12 @@ if TYPE_CHECKING:
 
 
 """
-Update settings:
+Update Settings:
 - initialize some depeding on runtime information;
 - set some to best target the provided architecture.
 """
 def forcedSettingsUpdate(arch : Arch, verbose : bool = True) -> None:
-    for level in arch:
-        if isinstance(level, SpatialLevel) and len(level.dims) >= 2:
-            Settings.FREEZE_SPATIALS = False
-            if verbose: print(f"INFO: forcefully updating setting FREEZE_SPATIALS to {Settings.FREEZE_SPATIALS}")
-            Settings.STEPS_TO_EXPLORE = max(4, Settings.STEPS_TO_EXPLORE)
-            if verbose: print(f"INFO: forcefully updating setting STEPS_TO_EXPLORE to {Settings.STEPS_TO_EXPLORE}")
-            Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC = True
-            if verbose: print(f"INFO: forcefully updating setting LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC to {Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC}")
-            Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP = True
-            if verbose: print(f"INFO: forcefully updating setting NO_CONSTRAINTS_CHECK_DURING_MULTISTEP to {Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP}")
-            if verbose: print(f"INFO: --> the cause of this is the presence of a Fanout level ({level.name}) with multiple mapped dimensions ({level.dims}). Runtime might increase exponentially with STEPS_TO_EXPLORE...")
-            break
+    mapperForcedSettingsUpdate(arch, verbose)
     if Settings.MULTITHREADED:
         if sys.version_info[1] < 13 or sys._is_gil_enabled() and verbose: print(f"WARNING: running on a Python version without free-threading (GIL enabled), this program relies heavily on true multithreading, thus expect a severe performance hit with your current setup. Consider updating to Python 3.13t or newer.")
         Settings.THREADS_COUNT = Settings.THREADS_COUNT if Settings.THREADS_COUNT else os.cpu_count()

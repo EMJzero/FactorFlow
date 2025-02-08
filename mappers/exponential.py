@@ -15,6 +15,23 @@ from arch import *
 
 
 """
+Update Settings to best target the provided architecture with the present mapper.
+"""
+def mapperForcedSettingsUpdate(arch : Arch, verbose : bool = True) -> None:
+    for level in arch:
+        if isinstance(level, SpatialLevel) and len(level.dims) >= 2:
+            Settings.FREEZE_SPATIALS = False
+            if verbose: print(f"INFO: forcefully updating setting FREEZE_SPATIALS to {Settings.FREEZE_SPATIALS}")
+            Settings.STEPS_TO_EXPLORE = max(2, Settings.STEPS_TO_EXPLORE)
+            if verbose: print(f"INFO: forcefully updating setting STEPS_TO_EXPLORE to {Settings.STEPS_TO_EXPLORE}")
+            Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC = True
+            if verbose: print(f"INFO: forcefully updating setting LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC to {Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC}")
+            Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP = True
+            if verbose: print(f"INFO: forcefully updating setting NO_CONSTRAINTS_CHECK_DURING_MULTISTEP to {Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP}")
+            if verbose: print(f"INFO: --> the cause of this is the presence of a Fanout level ({level.name}) with multiple mapped dimensions ({level.dims}). Runtime might increase exponentially with STEPS_TO_EXPLORE...")
+            break
+
+"""
 Mapper Step 2: allocate to fanout levels the maximum number of iterations
                which can fit on their instances.
 """
@@ -29,20 +46,20 @@ def fanoutMaximization(arch : Arch, comp : Shape, bias_read : bool, verbose : bo
     if Settings.ONLY_MAXIMIZE_ONE_FANOUT_DIM:
         if Settings.PADDED_MAPPINGS:
             for dim in arch.coupling.dims:
-                total_mesh = math.prod([level.mesh for level in arch if isinstance(level, SpatialLevel) and level.dataflow[0] == dim])
-                mesh_factors = [f for level in arch if isinstance(level, SpatialLevel) and level.dataflow[0] == dim for f in prime_factors_list(level.mesh)]
+                total_mesh = math.prod([level.mesh for level in arch if isinstance(level, SpatialLevel) and len(level.dataflow) > 0 and level.dataflow[0] == dim])
+                mesh_factors = [f for level in arch if isinstance(level, SpatialLevel) and len(level.dataflow) > 0 and level.dataflow[0] == dim for f in prime_factors_list(level.mesh)]
                 dim_size = arch[0].factors.dimProduct(dim)
                 dim_factors = arch[0].factors.toList(dim)
                 if total_mesh > dim_size:
                     used_factors, padding = smallest_product_greater_than(mesh_factors, dim_size)
                     if padding != math.inf and not all([f in dim_factors for f in used_factors]): # only pad if some different factor achieved higher utilization
-                        if Settings.VERBOSE_PADDED_MAPPINGS: print(f"PADDING: Arch: {arch.name}: enlarged {dim} from {dim_size} to {dim_size + padding}")
+                        if verbose: print(f"PADDING: Arch: {arch.name}: enlarged {dim} from {dim_size} to {dim_size + padding}")
                         arch[0].factors[dim] = prime_factors(dim_size + padding)
                         arch[0].factors.resetDimProducts([dim])
                 else:
                     if not all([f in dim_factors for f in mesh_factors]): # only pad if you are not already a multiple
                         padded_dim_size = dim_size + total_mesh - dim_size%total_mesh
-                        if Settings.VERBOSE_PADDED_MAPPINGS: print(f"PADDING: Arch: {arch.name}: enlarged {dim} from {dim_size} to {padded_dim_size}")
+                        if verbose: print(f"PADDING: Arch: {arch.name}: enlarged {dim} from {dim_size} to {padded_dim_size}")
                         arch[0].factors[dim] = prime_factors(padded_dim_size)
                         arch[0].factors.resetDimProducts([dim])
         
@@ -130,7 +147,7 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
     already_initialized = arch.initialized
     if not already_initialized:
         arch.initFactors(comp)
-        arch.enforceFactorsConstraints(Settings.PADDED_MAPPINGS, Settings.VERBOSE_PADDED_MAPPINGS)
+        arch.enforceFactorsConstraints(Settings.PADDED_MAPPINGS, verbose)
     assert arch.checkFactorsConstraints() and arch.checkDataflowConstraints(), ("Ill-posed constraints:" if not already_initialized else "Improperly initialized arch:") + f"\n{arch.logConstraintsViolations()}"
     if verbose: print(f"Initial condition (Wart: {Wart(arch, comp, bias_read):.3e}):")
     if verbose: printFactors(arch)

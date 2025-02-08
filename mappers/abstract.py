@@ -7,6 +7,12 @@ from arch import *
 
 
 """
+Update Settings to best target the provided architecture with the present mapper.
+"""
+def mapperForcedSettingsUpdate(arch : Arch, verbose : bool = True) -> None:
+    pass
+
+"""
 Mapper Step 2: allocate to fanout levels the maximum number of iterations
                which can fit on their instances.
 
@@ -25,7 +31,7 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
     already_initialized = arch.initialized
     if not already_initialized:
         arch.initFactors(comp)
-        arch.enforceFactorsConstraints(Settings.PADDED_MAPPINGS, Settings.VERBOSE_PADDED_MAPPINGS)
+        arch.enforceFactorsConstraints(Settings.PADDED_MAPPINGS, verbose)
     assert arch.checkFactorsConstraints() and arch.checkDataflowConstraints(), ("Ill-posed constraints:" if not already_initialized else "Improperly initialized arch:") + f"\n{arch.logConstraintsViolations()}"
     if not already_initialized:
         fanoutMaximization(arch, comp, bias_read, verbose)

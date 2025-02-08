@@ -15,78 +15,81 @@ from arch import *
 
 
 """
+Update Settings to best target the provided architecture with the present mapper.
+"""
+def mapperForcedSettingsUpdate(arch : Arch, verbose : bool = True) -> None:
+    for level in arch:
+        if isinstance(level, SpatialLevel) and len(level.dims) >= 2:
+            Settings.LOCAL_SEARCH_SPATIAL_LEVELS = True
+            if verbose: print(f"INFO: forcefully updating setting FREEZE_SPATIALS to {Settings.FREEZE_SPATIALS}")
+            Settings.STEPS_TO_EXPLORE = max(8, Settings.STEPS_TO_EXPLORE)
+            if verbose: print(f"INFO: forcefully updating setting STEPS_TO_EXPLORE to {Settings.STEPS_TO_EXPLORE}")
+            Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC = True
+            if verbose: print(f"INFO: forcefully updating setting LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC to {Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC}")
+            Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP = True
+            if verbose: print(f"INFO: forcefully updating setting NO_CONSTRAINTS_CHECK_DURING_MULTISTEP to {Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP}")
+            if verbose: print(f"INFO: --> the cause of this is the presence of a Fanout level ({level.name}) with multiple mapped dimensions ({level.dims}). Runtime might increase exponentially with STEPS_TO_EXPLORE...")
+            break
+
+"""
+Pad comp's size to fully exploit the available spatial instances.
+"""
+def padCompToFanoutLevels(arch : Arch, comp : Shape, verbose : bool = False) -> Shape:
+    for dim in arch.coupling.dims:
+        total_mesh = math.prod([level.mesh for level in arch if isinstance(level, SpatialLevel) and len(level.dataflow) > 0 and level.dataflow[0] == dim])
+        mesh_factors = [f for level in arch if isinstance(level, SpatialLevel) and len(level.dataflow) > 0 and level.dataflow[0] == dim for f in prime_factors_list(level.mesh)]
+        dim_size = comp[dim]
+        dim_factors = prime_factors_list(dim_size)
+        if total_mesh > dim_size:
+            used_factors, padding = smallest_product_greater_than(mesh_factors, dim_size)
+            if padding != math.inf and not all([f in dim_factors for f in used_factors]): # only pad if some different factor achieved higher utilization
+                if verbose: print(f"PADDING: Arch: {arch.name}: enlarged {dim} from {dim_size} to {dim_size + padding}")
+                comp[dim] = dim_size + padding
+        else:
+            if not all([f in dim_factors for f in mesh_factors]): # only pad if you are not already a multiple
+                padded_dim_size = dim_size + total_mesh - dim_size%total_mesh
+                if verbose: print(f"PADDING: Arch: {arch.name}: enlarged {dim} from {dim_size} to {padded_dim_size}")
+                comp[dim] = padded_dim_size
+    return comp
+
+"""
 Mapper Step 2: allocate to fanout levels the maximum number of iterations
                which can fit on their instances.
+
+NOTE: when LOCAL_SEARCH_SPATIAL_LEVELS is True, this is ditched and
+      replaced by an exploration of spatial levels in 'factorFlow'.
 """
 def fanoutMaximization(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = False) -> None:
     # TECHNIQUE: Find the prime factors of the mesh, and pick the largest common ones with the dimension
     # mapped along that mesh, continue picking from the largest ones in common until you run out!
-    # NOTE: When making this handle Fanouts with multiple unrolled dimensions, the issue is dividing the fanout size across dimensions
-    # IDEA: Use a binary (ternary) tree expansion, start with 50-50 (30-30-30), explore each child and prune worse branches?
     # IMPORTANT: from optimizeDataflow, if there are unconstrained dimensions, those are always the first ones!
     # NOTE: This step applies to ComputeLevels too!
     if verbose: print("\nStarting fanout maximization:\n")
-    if Settings.ONLY_MAXIMIZE_ONE_FANOUT_DIM:
-        if Settings.PADDED_MAPPINGS:
-            for dim in arch.coupling.dims:
-                total_mesh = math.prod([level.mesh for level in arch if isinstance(level, SpatialLevel) and level.dataflow[0] == dim])
-                mesh_factors = [f for level in arch if isinstance(level, SpatialLevel) and level.dataflow[0] == dim for f in prime_factors_list(level.mesh)]
-                dim_size = arch[0].factors.dimProduct(dim)
-                dim_factors = arch[0].factors.toList(dim)
-                if total_mesh > dim_size:
-                    used_factors, padding = smallest_product_greater_than(mesh_factors, dim_size)
-                    if padding != math.inf and not all([f in dim_factors for f in used_factors]): # only pad if some different factor achieved higher utilization
-                        if Settings.VERBOSE_PADDED_MAPPINGS: print(f"PADDING: Arch: {arch.name}: enlarged {dim} from {dim_size} to {dim_size + padding}")
-                        arch[0].factors[dim] = prime_factors(dim_size + padding)
-                        arch[0].factors.resetDimProducts([dim])
-                else:
-                    if not all([f in dim_factors for f in mesh_factors]): # only pad if you are not already a multiple
-                        padded_dim_size = dim_size + total_mesh - dim_size%total_mesh
-                        if Settings.VERBOSE_PADDED_MAPPINGS: print(f"PADDING: Arch: {arch.name}: enlarged {dim} from {dim_size} to {padded_dim_size}")
-                        arch[0].factors[dim] = prime_factors(padded_dim_size)
-                        arch[0].factors.resetDimProducts([dim])
-        
-        for i in range(1, len(arch) - 1): # first round: start from common factors
-            level = arch[i]
-            if isinstance(level, SpatialLevel):
-                dim = level.dataflow[0]
-                common_mesh_factors = [f for f in prime_factors(level.mesh).keys() if f in arch[0].factors[dim]]
-                for f in sorted(common_mesh_factors, reverse=True): # try largest factors first
-                    amount = arch[0].factors[dim][f]
-                    while amount > 0:
-                        if arch.moveFactor(0, i, dim, f, amount):
-                            break
-                        amount -= 1 # lower the amount until you succeed
-        
-        for i in range(1, len(arch) - 1): # second round: fill any remaining space as best as you can
-            level = arch[i]
-            if isinstance(level, SpatialLevel):
-                for dim in level.dataflow: # as a last resort, try dimensions beyond the first one
-                    if dim in level.factors_constraints:
-                        continue
-                    if level.factors.fullProduct() < level.mesh:
-                        space = level.mesh // level.factors.fullProduct()
-                        factors, _ = largest_product_less_than(arch[0].factors.toList(dim), space)
-                        for f in factors:
-                            if not arch.moveFactor(0, i, dim, f, 1) and verbose:
-                                print(f"Arch: {arch.name}: fanout maximization failed to fill up the leftover space on level {level.name}, dim {dim} with factor {f} (mesh: {level.mesh}, space: {space})...")
+    for i in range(1, len(arch) - 1): # first round: start from common factors
+        level = arch[i]
+        if isinstance(level, SpatialLevel):
+            dim = level.dataflow[0]
+            common_mesh_factors = [f for f in prime_factors(level.mesh).keys() if f in arch[0].factors[dim]]
+            for f in sorted(common_mesh_factors, reverse=True): # try largest factors first
+                amount = arch[0].factors[dim][f]
+                while amount > 0:
+                    if arch.moveFactor(0, i, dim, f, amount):
+                        break
+                    amount -= 1 # lower the amount until you succeed
     
-    else:
-        for i in range(1, len(arch) - 1):
-            level = arch[i]
-            if isinstance(level, SpatialLevel):
-                assert len(level.dims) <= 2, f"Arch: {arch.name} -> Level: {level.name}: CURRENT LIMITATION - at most 2 dimensions on the same fanout, limit dims ({level.dims}) to at most 2 entries when Settings.ONLY_MAXIMIZE_ONE_FANOUT_DIM is False."
-                # TODO: as of now this accepts only at most 2 dimensions on same fanout - pick mesh_split_factor >= 3 to allow more?
-                mesh_prime_factors = prime_factors(level.mesh)
-                common_mesh_factors = [f for f in mesh_prime_factors.keys() if f in [ft for dim in level.dims for ft in arch[0].factors[dim]]]
-                ping_pong = 0
-                for f in sorted(common_mesh_factors, reverse=True): # try largest factors first
-                    for _ in range(max(map(lambda dim : arch[0].factors[dim][f] if f in arch[0].factors[dim] else 0, level.dims))):
-                        if f not in arch[0].factors[level.dims[ping_pong]]:
-                            ping_pong = len(level.dims) - 1 - ping_pong
-                        if arch.moveFactor(0, i, level.dims[ping_pong], f):
-                            ping_pong = len(level.dims) - 1 - ping_pong
-        
+    for i in range(1, len(arch) - 1): # second round: fill any remaining space as best as you can
+        level = arch[i]
+        if isinstance(level, SpatialLevel):
+            for dim in level.dataflow: # as a last resort, try dimensions beyond the first one
+                if dim in level.factors_constraints:
+                    continue
+                if level.factors.fullProduct() < level.mesh:
+                    space = level.mesh // level.factors.fullProduct()
+                    factors, _ = largest_product_less_than(arch[0].factors.toList(dim), space)
+                    for f in factors:
+                        if not arch.moveFactor(0, i, dim, f, 1) and verbose:
+                            print(f"Arch: {arch.name}: fanout maximization failed to fill up the leftover space on level {level.name}, dim {dim} with factor {f} (mesh: {level.mesh}, space: {space})...")
+    
     if verbose: print(f"After fanout maximization (Wart: {Wart(arch, comp, bias_read):.3e}):")
     if verbose: printFactors(arch)
 
@@ -100,9 +103,9 @@ Arguments:
                    any arity of a factor between loops on the same dimension.
 - skip_spatial: if True, spatial levels are not considered for adjacency.
 """
-def factorsIterator(arch : Arch, iterate_amounts : bool = False, skip_spatial : bool = False) -> Iterator[tuple[int, str, int, int]]:
+def factorsIterator(arch : Arch, iterate_amounts : bool = False, skip_spatial : bool = False, skip_memories : bool = False) -> Iterator[tuple[int, str, int, int]]:
     for level_idx in range(len(arch)):
-        if skip_spatial and (isinstance(arch[level_idx], SpatialLevel)):
+        if skip_spatial and isinstance(arch[level_idx], SpatialLevel) or skip_memories and isinstance(arch[level_idx], MemLevel):
             continue
         for dim in arch[level_idx].dataflow:
             for factor in list(arch[level_idx].factors[dim].keys()):
@@ -130,16 +133,14 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
     already_initialized = arch.initialized
     if not already_initialized:
         arch.initFactors(comp)
-        arch.enforceFactorsConstraints(Settings.PADDED_MAPPINGS, Settings.VERBOSE_PADDED_MAPPINGS)
+        arch.enforceFactorsConstraints(Settings.PADDED_MAPPINGS, verbose)
     assert arch.checkFactorsConstraints() and arch.checkDataflowConstraints(), ("Ill-posed constraints:" if not already_initialized else "Improperly initialized arch:") + f"\n{arch.logConstraintsViolations()}"
     if verbose: print(f"Initial condition (Wart: {Wart(arch, comp, bias_read):.3e}):")
     if verbose: printFactors(arch)
     
     # maximize fanout dimensions
-    if not already_initialized:
+    if not already_initialized and not Settings.LOCAL_SEARCH_SPATIAL_LEVELS:
         fanoutMaximization(arch, comp, bias_read, verbose)
-    else:
-        if verbose: print("\nSkipping fanout maximization...\n")
     
     if verbose: print("\nStarting FactorFlow tiling optimization:\n")
     
@@ -151,7 +152,9 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
     moves_count = 0
     
     # recursive function that explores and returns all mappings up to 'remaining_steps' away from the present one
-    def exploreOneStep(remaining_steps : int = 1, target_dst_level_idx : Optional[int] = None, freeze_spatials : bool = False, only_flow_inward : bool = True) -> dict[tuple[Union[int, str]], float]:
+    # NOTE: 'freeze_memories' only prevents memories from being destinations (receiving factors)
+    # NOTE: 'freeze_spatials' prevents spatial levels from being both sources and destinations (neither giving nor receiving factors)
+    def exploreOneStep(remaining_steps : int = 1, target_dst_level_idx : Optional[int] = None, freeze_memories : bool = False, freeze_spatials : bool = False, only_flow_inward : bool = True) -> dict[tuple[Union[int, str]], float]:
         choices = {}
         for src_level_idx, dim, factor, amount in factorsIterator(arch, iterate_amounts = Settings.ITERATE_AMOUNTS, skip_spatial = freeze_spatials):
             
@@ -165,16 +168,16 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
             # - only among inner levels under normal circumstances
             # - anywhere after hitting a dead end
             for dst_level_idx in (range(src_level_idx + 1, len(arch)) if only_flow_inward else range(len(arch))):
-                if (dst_level_idx == src_level_idx or dim not in arch[dst_level_idx].dataflow or dim in arch[dst_level_idx].factors_constraints or
+                if (dst_level_idx == src_level_idx or dim not in arch[dst_level_idx].dataflow or dim in arch[dst_level_idx].factors_constraints or # check constraints on factors to avoid exploring invalid mappings
                     ((key := dim + '<=') in arch[dst_level_idx].factors_constraints and arch[dst_level_idx].factors.dimProduct(dim)*factor > arch[dst_level_idx].factors_constraints[key]) or
-                    (freeze_spatials and isinstance(arch[dst_level_idx], SpatialLevel)) or (target_dst_level_idx and dst_level_idx != target_dst_level_idx)): # check constraints on factors to avoid exploring invalid mappings (plus, abide to the provided arguments)
+                    (freeze_spatials and isinstance(arch[dst_level_idx], SpatialLevel)) or (freeze_memories and isinstance(arch[dst_level_idx], MemLevel)) or (target_dst_level_idx and dst_level_idx != target_dst_level_idx)): # abide to the provided arguments
                     continue
                 if arch.moveFactor(src_level_idx, dst_level_idx, dim, factor, amount, skip_src_constraints = Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and remaining_steps > 1):
                     hsh = arch.hashFromFactors()
                     if hsh not in already_seen:
                         already_seen.append(hsh)
                         if remaining_steps > 1:
-                            nested_choices = exploreOneStep(remaining_steps - 1, target_dst_level_idx = src_level_idx if Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC else None, freeze_spatials = freeze_spatials, only_flow_inward = only_flow_inward)
+                            nested_choices = exploreOneStep(remaining_steps - 1, target_dst_level_idx = src_level_idx if Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC else None, freeze_memories = freeze_memories, freeze_spatials = freeze_spatials, only_flow_inward = only_flow_inward)
                             if len(nested_choices) == 0:
                                 choices[(src_level_idx, dst_level_idx, dim, factor, amount)] = Wart(arch, comp, bias_read)
                             else:
@@ -190,34 +193,42 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
                     assert arch.moveFactor(dst_level_idx, src_level_idx, dim, factor, amount, skip_dst_constraints = Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and remaining_steps > 1) # something went wrong, unreversible move of a factor    
         return choices
     
-    # when failing to find a better mapping, increase the explored hops ('steps_to_explore') until they reach Settings.STEPS_TO_EXPLORE, then terminate if no better mapping is found, otherswise reset the hops to one
-    steps_to_explore = 1
-    only_flow_inward = True
-    while True:
-        choices = exploreOneStep(remaining_steps = steps_to_explore, freeze_spatials = steps_to_explore == 1 or Settings.FREEZE_SPATIALS, only_flow_inward = only_flow_inward)
-        if len(choices) == 0:
-            if verbose: print(f"No valid follow-up configuration, stopping, current Wart: {best_wart:.3e}")
-            break
-        # >>> GREEDY MOVE <<<
-        best_choice = max(choices, key=choices.get)
-        if choices[best_choice] < best_wart:
-            if steps_to_explore < Settings.STEPS_TO_EXPLORE:
-                steps_to_explore += 1
-                if steps_to_explore == Settings.STEPS_TO_EXPLORE:
-                    only_flow_inward = False
-                continue
-            else:
-                if verbose: print(f"Stopping with current Wart: {best_wart:.3e}, while best choice is: {choices[best_choice]:.3e}")
+    def localSearch(initial_steps_to_explore : int = 1, final_steps_to_explore : int = 1, steps_to_explore_increment : int = 1, freeze_memories : bool = False, freeze_spatials : bool = False) -> None:
+        nonlocal best_wart, moves_count
+        # when failing to find a better mapping, increase the explored hops ('steps_to_explore') until they reach Settings.STEPS_TO_EXPLORE, then terminate if no better mapping is found, otherswise reset the hops to one
+        steps_to_explore = initial_steps_to_explore
+        only_flow_inward = True
+        while True:
+            choices = exploreOneStep(remaining_steps = steps_to_explore, freeze_spatials = freeze_spatials, freeze_memories = freeze_memories, only_flow_inward = only_flow_inward)
+            if len(choices) == 0:
+                if verbose: print(f"No valid follow-up configuration, stopping, current Wart: {best_wart:.3e}")
                 break
-        else:
-            # each individual choice is defined by 5 parameters, chained to another 5 for each nested exploration step
-            multisteps = len(best_choice) // 5
-            moves_count += multisteps
-            for i in range(multisteps):
-                assert arch.moveFactor(best_choice[5*i + 0], best_choice[5*i + 1], best_choice[5*i + 2], best_choice[5*i + 3], best_choice[5*i + 4], skip_src_constraints = Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and i < multisteps - 1) # best choice is an invalid mapping
-            best_wart = choices[best_choice]
-            steps_to_explore = 1
-            only_flow_inward = True
+            # >>> GREEDY MOVE <<<
+            best_choice = max(choices, key=choices.get)
+            if choices[best_choice] < best_wart:
+                if steps_to_explore < final_steps_to_explore:
+                    steps_to_explore += steps_to_explore_increment
+                    if steps_to_explore == final_steps_to_explore:
+                        only_flow_inward = False
+                    continue
+                else:
+                    if verbose: print(f"Stopping with current Wart: {best_wart:.3e}, while best choice is: {choices[best_choice]:.3e}")
+                    break
+            else:
+                # each individual choice is defined by 5 parameters, chained to another 5 for each nested exploration step
+                multisteps = len(best_choice) // 5
+                moves_count += multisteps
+                for i in range(multisteps):
+                    assert arch.moveFactor(best_choice[5*i + 0], best_choice[5*i + 1], best_choice[5*i + 2], best_choice[5*i + 3], best_choice[5*i + 4], skip_src_constraints = Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and i < multisteps - 1) # best choice is an invalid mapping
+                best_wart = choices[best_choice]
+                steps_to_explore = initial_steps_to_explore
+                only_flow_inward = True
+    
+    if not already_initialized:
+        localSearch(final_steps_to_explore = Settings.STEPS_TO_EXPLORE, freeze_memories = False, freeze_spatials = True) # keep a single iteration on spatial levels, optimize memory levels
+        if Settings.LOCAL_SEARCH_SPATIAL_LEVELS:
+            localSearch(final_steps_to_explore = Settings.STEPS_TO_EXPLORE, freeze_memories = True, freeze_spatials = False) # optimize spatial levels, may only remove factors from memory levels
+    localSearch(final_steps_to_explore = Settings.STEPS_TO_EXPLORE, freeze_memories = False, freeze_spatials = False) # co-optimize memory and spatial levels
     
     updateStats(arch, bias_read)
     if verbose: print(f"Final condition:\nWart: {best_wart}\nEDP: {EDP(arch, bias_read, True):.3e} (J*cycle)")
@@ -247,8 +258,13 @@ The function is meant as the entry point for multiple processes or threads:
 """
 def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : int = -1, threads_count : int = 1, past_perms : dict[tuple[int, ...], ThreadSafeHeap[float, list[LevelCore], int, int]] = None, lock : threading.Lock = None, barrier : threading.Barrier = None, verbose : bool = False) -> Optional[tuple[Arch, float]]:
     if verbose and thread_idx <= 0: print("-------- optimizeDataflows --------")
+    
+    # if enabled, pad the computation to exploit all spatial instances
+    if Settings.PADDED_MAPPINGS:
+        comp = padCompToFanoutLevels(arch, comp, verbose)
+    
     # this approach requires spatial levels to be the first explored/permuted ones
-    targets = list(filter(lambda l : Settings.ONLY_MAXIMIZE_ONE_FANOUT_DIM and isinstance(l, SpatialLevel) and len(l.dataflow) > 1, arch)) + list(filter(lambda l : isinstance(l, MemLevel), arch))
+    targets = list(filter(lambda l : not Settings.LOCAL_SEARCH_SPATIAL_LEVELS and isinstance(l, SpatialLevel) and len(l.dataflow) > 1, arch)) + list(filter(lambda l : isinstance(l, MemLevel), arch))
     def gen_permutations(level):
         if isinstance(level, MemLevel):
             if '_' in level.dataflow_constraints:
