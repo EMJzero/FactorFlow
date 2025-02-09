@@ -76,6 +76,7 @@ def run_engine(arch : Arch, comp : Shape, coupling : Coupling, bias_read : bool,
         print(f"\nFinished in: {end_time:.3f}s")
         
         print(f"\nBest mapping found with:\n\tWart: {wart:.3e}\n\tEDP: {edp:.3e} (J*cycle)\n\tEnergy: {energy:.3e} (uJ)\n\tLatency: {latency:.3e} (cc)")
+        print("\nMapping:")
         printFactors(arch)
         
         print("\nFinal MOPs per memory level:")

@@ -18,17 +18,21 @@ from arch import *
 Update Settings to best target the provided architecture with the present mapper.
 """
 def mapperForcedSettingsUpdate(arch : Arch, verbose : bool = True) -> None:
+    if len(list(filter(lambda l : isinstance(l, MemLevel), arch))) < 6:
+        steps_to_explore = max(4, Settings.STEPS_TO_EXPLORE)
+    else:
+        steps_to_explore = max(2, Settings.STEPS_TO_EXPLORE)
+    if Settings.STEPS_TO_EXPLORE != steps_to_explore and verbose: print(f"INFO: forcefully updating setting STEPS_TO_EXPLORE to {steps_to_explore}")
+    Settings.STEPS_TO_EXPLORE = steps_to_explore
     for level in arch:
         if isinstance(level, SpatialLevel) and len(level.dims) >= 2:
             Settings.LOCAL_SEARCH_SPATIAL_LEVELS = True
-            if verbose: print(f"INFO: forcefully updating setting FREEZE_SPATIALS to {Settings.FREEZE_SPATIALS}")
-            Settings.STEPS_TO_EXPLORE = max(8, Settings.STEPS_TO_EXPLORE)
-            if verbose: print(f"INFO: forcefully updating setting STEPS_TO_EXPLORE to {Settings.STEPS_TO_EXPLORE}")
+            if verbose: print(f"INFO: forcefully updating setting LOCAL_SEARCH_SPATIAL_LEVELS to {Settings.LOCAL_SEARCH_SPATIAL_LEVELS}")
             Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC = True
             if verbose: print(f"INFO: forcefully updating setting LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC to {Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC}")
             Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP = True
             if verbose: print(f"INFO: forcefully updating setting NO_CONSTRAINTS_CHECK_DURING_MULTISTEP to {Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP}")
-            if verbose: print(f"INFO: --> the cause of this is the presence of a Fanout level ({level.name}) with multiple mapped dimensions ({level.dims}). Runtime might increase exponentially with STEPS_TO_EXPLORE...")
+            if verbose: print(f"INFO: --> the cause of this is the presence of a Fanout level ({level.name}) with multiple mapped dimensions ({level.dims}). Runtime might increase slightly...")
             break
 
 """
@@ -138,14 +142,10 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
     if verbose: print(f"Initial condition (Wart: {Wart(arch, comp, bias_read):.3e}):")
     if verbose: printFactors(arch)
     
-    # maximize fanout dimensions
-    if not already_initialized and not Settings.LOCAL_SEARCH_SPATIAL_LEVELS:
-        fanoutMaximization(arch, comp, bias_read, verbose)
-    
     if verbose: print("\nStarting FactorFlow tiling optimization:\n")
     
     # never re-visit the same mapping
-    already_seen = [arch.hashFromFactors()]
+    already_seen = {arch.hashFromFactors()}
     # one-factor-steps greedy optimization
     best_wart = Wart(arch, comp, bias_read)
     # track the count of moves performed
@@ -175,7 +175,7 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
                 if arch.moveFactor(src_level_idx, dst_level_idx, dim, factor, amount, skip_src_constraints = Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and remaining_steps > 1):
                     hsh = arch.hashFromFactors()
                     if hsh not in already_seen:
-                        already_seen.append(hsh)
+                        already_seen.add(hsh)
                         if remaining_steps > 1:
                             nested_choices = exploreOneStep(remaining_steps - 1, target_dst_level_idx = src_level_idx if Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC else None, freeze_memories = freeze_memories, freeze_spatials = freeze_spatials, only_flow_inward = only_flow_inward)
                             if len(nested_choices) == 0:
@@ -200,25 +200,23 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
         only_flow_inward = True
         while True:
             choices = exploreOneStep(remaining_steps = steps_to_explore, freeze_spatials = freeze_spatials, freeze_memories = freeze_memories, only_flow_inward = only_flow_inward)
-            if len(choices) == 0:
-                if verbose: print(f"No valid follow-up configuration, stopping, current Wart: {best_wart:.3e}")
-                break
             # >>> GREEDY MOVE <<<
-            best_choice = max(choices, key=choices.get)
-            if choices[best_choice] < best_wart:
+            best_choice = max(choices, key = choices.get, default = None)
+            if not best_choice or choices[best_choice] < best_wart:
                 if steps_to_explore < final_steps_to_explore:
                     steps_to_explore += steps_to_explore_increment
                     if steps_to_explore == final_steps_to_explore:
                         only_flow_inward = False
                     continue
                 else:
-                    if verbose: print(f"Stopping with current Wart: {best_wart:.3e}, while best choice is: {choices[best_choice]:.3e}")
+                    if verbose: print(f"No valid follow-up configuration, stopping, current Wart: {best_wart:.3e}" if len(choices) == 0 else f"Stopping with current Wart: {best_wart:.3e}, while best choice is: {choices[best_choice]:.3e}")
                     break
             else:
                 # each individual choice is defined by 5 parameters, chained to another 5 for each nested exploration step
                 multisteps = len(best_choice) // 5
                 moves_count += multisteps
                 for i in range(multisteps):
+                    if verbose: print(f"Moving {arch[best_choice[5*i + 0]].name} --{best_choice[5*i + 2]}:{best_choice[5*i + 3]*best_choice[5*i + 4]}--> {arch[ best_choice[5*i + 1]].name}")
                     assert arch.moveFactor(best_choice[5*i + 0], best_choice[5*i + 1], best_choice[5*i + 2], best_choice[5*i + 3], best_choice[5*i + 4], skip_src_constraints = Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and i < multisteps - 1) # best choice is an invalid mapping
                 best_wart = choices[best_choice]
                 steps_to_explore = initial_steps_to_explore
@@ -228,6 +226,10 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
         localSearch(final_steps_to_explore = Settings.STEPS_TO_EXPLORE, freeze_memories = False, freeze_spatials = True) # keep a single iteration on spatial levels, optimize memory levels
         if Settings.LOCAL_SEARCH_SPATIAL_LEVELS:
             localSearch(final_steps_to_explore = Settings.STEPS_TO_EXPLORE, freeze_memories = True, freeze_spatials = False) # optimize spatial levels, may only remove factors from memory levels
+        else:
+            fanoutMaximization(arch, comp, bias_read, verbose) # saturate fanout dimensions
+        already_seen.clear()
+        already_seen.add(arch.hashFromFactors())
     localSearch(final_steps_to_explore = Settings.STEPS_TO_EXPLORE, freeze_memories = False, freeze_spatials = False) # co-optimize memory and spatial levels
     
     updateStats(arch, bias_read)
@@ -286,6 +288,11 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
     # list of lists of all valid permutations for each targeted level
     permutations = list(map(gen_permutations, targets))
     perms_ranges = [(0, len(perm)) for perm in permutations] # as in [low_idx, high_idx) to explore in the current thread
+    
+    # do not explore levels with a single valid permutation
+    for i in range(len(permutations) - 1, -1, -1):
+        if len(permutations[i]) <= 1:
+            del targets[i], permutations[i], perms_ranges[i]
     
     # divide permutations across threads (if multithreading is enabled)
     if thread_idx != -1:

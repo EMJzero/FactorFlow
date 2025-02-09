@@ -268,6 +268,11 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
     permutations = list(map(gen_permutations, targets))
     perms_ranges = [(0, len(perm)) for perm in permutations] # as in [low_idx, high_idx) to explore in the current thread
     
+    # do not explore levels with a single valid permutation
+    for i in range(len(permutations) - 1, -1, -1):
+        if len(permutations[i]) <= 1:
+            del targets[i], permutations[i], perms_ranges[i]
+    
     # divide permutations across threads (if multithreading is enabled)
     if thread_idx != -1:
         first_mem_level_idx = next(i for i, t in enumerate(targets) if isinstance(t, MemLevel))

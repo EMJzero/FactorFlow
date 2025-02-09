@@ -87,7 +87,9 @@ If 'omitOnes' is True, dimension with a single iterations are omitted.
 """
 def printFactors(arch : Arch, omitOnes : bool = True) -> None:
     for level in arch:
-        fac_str = f"{level.name} -> "
+        fac_str = f"{level.name} "
+        #fac_str += (2 - len(fac_str)//8)*'\t' + "->\t"
+        fac_str += (16 - len(fac_str) - 1)*'-' + "> "
         for dim in level.dataflow:
             if not (level.factors.dimProduct(dim) == 1 and omitOnes):
                 fac_str += f"{dim}: {level.factors.dimProduct(dim)}, "

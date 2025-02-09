@@ -77,6 +77,7 @@ def parse_options() -> dict[str, Any]:
         "threads": v if (v := args_match_and_remove("-t", True, int)) != False else args_match_and_remove("--threads", True, int),
         "accelergy-data": args_match_and_remove("-ad") or args_match_and_remove("--accelergy-data"),
         "tryall": v if (v := args_match_and_remove("-ta", True)) != False else args_match_and_remove("--tryall", True),
+        "interactive": args_match_and_remove("-i") or args_match_and_remove("--interactive"),
         "gen-tests": args_match_and_remove("-gt") or args_match_and_remove("--gen-tests")
     }
     return options
@@ -89,6 +90,7 @@ def help_options() -> None:
     print("-t --threads\t\tSets the number of concurrent threads to use (yes, threads, remember to use Python >=3.13t!).")
     print("-ad --accelergy-data\tQuery Accelergy instead of using hardcoded component level estimates, effective only if arg. 1 is an architecture name.")
     print("-ta --tryall <name>\tOverrides normal execution, runs FF for all known architectures and all kernels in the <name> group. The list of valid group names is printed when no name is provided.")
+    print("-i --interactive\tOnce exploration has finished, instead of terminating the program, enter Python's interactive mode.")
     print("-gt --gen-tests\t\tOverrides normal execution, runs FF and generates tests to enforce the obtained results.")
     # TODO: add option to print MOPs per instance!
 
@@ -261,3 +263,9 @@ if __name__ == "__main__":
         arch.checkCouplingCompatibility(coupling, comp, verbose = not options["quiet"])
         arch.fitConstraintsToComp(comp, enforce = True)
         run_engine(arch, comp, coupling, bias_read, verbose = True)
+
+    if options["interactive"]:
+        printopt("\n------ interactive mode ------")
+        in_interactive_mode = True
+        code.interact(local=globals())
+        in_interactive_mode = False
