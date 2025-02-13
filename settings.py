@@ -38,7 +38,7 @@ class Settings():
     ONLY_MAXIMIZE_ONE_FANOUT_DIM = True
     # If True, fanout maximization is replaced with an exploration of spatial fanout levels in three
     # steps, together with memory levels, within factorFlow's local search.
-    # NOTE: this is available only for the 'quadratic' mapper.
+    # NOTE: this is available only for the 'quadratic' and 'hybrid' mapper.
     LOCAL_SEARCH_SPATIAL_LEVELS = False
     # If True, saves time by assuming that any permutation differing from an optimal one by the order
     # of dimensions involving one with a single iteration can be optimized starting from where it
@@ -57,7 +57,7 @@ class Settings():
     # If True, rules are built based on the best selected permutations throughout the exploration,
     # and these rules are subsequently enforced to prune the remaining permutations, speeding up
     # the exploration under the assumption that there is some consistency between optimal choices.
-    # NOTE: this is available only for the 'exponential' mapper.
+    # NOTE: this is available only for the 'exponential' and 'hybrid' mapper.
     PERM_PRUNING = False
     # When PERM_PRUNING is True, the following 3 settings determine the number of times a dimension
     # needs to (1) have a single iteration, (2) be in a certain relative order with another, and

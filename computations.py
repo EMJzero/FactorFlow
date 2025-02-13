@@ -15,11 +15,20 @@ gemm_coupling = Coupling(['M', 'K', 'N'], ['K', 'N'], ['M', 'K'], ['M', 'N'])
 # S: Filter width
 # => P+R-1: Input height
 # => Q+S-1: Input width
+# ==> MAC: Out[m][p][q] += W[m][c][r][s] * In[c][p+r][q+s]
 conv_coupling = Coupling(['M', 'P', 'Q', 'C', 'R', 'S'], ['C', ['P', 'R'], ['Q', 'S']], ['M', 'C', 'R', 'S'], ['M', 'P', 'Q'])
 # WITH STRIDE the indexing becomes:
-# => Pstride*P+Rstride*R-1: Input height
-# => Qstride*Q+Sstride*S-1: Input width
+# => Pstride*P+Rdilation*R-1: Input height
+# => Qstride*Q+Sdilation*S-1: Input width
+# ==> MAC: Out[m][p][q] += W[m][c][r][s] * In[c][p*Pstride+r*Rdilation][q*Qstride+s*Sdilation]
 conv_coupling_with_stride = Coupling(['M', 'P', 'Q', 'C', 'R', 'S'], ['C', ['P', 'R'], ['Q', 'S']], ['M', 'C', 'R', 'S'], ['M', 'P', 'Q'], in_strides = {'P': 'Pstride', 'R': 'Rdilation', 'Q': 'Qstride', 'S': 'Sdilation'})
+# In a TRANSPOSED CONVOLUTION DIMENSIONS become:
+# P: Input height
+# Q: Input width
+# => P+R-1: Out height
+# => Q+S-1: Out width
+# ==> MAC: Out[m][p+r][q+s] += W[m][c][r][s] * In[c][p][q] (stride and dilation omitted for clarity)
+transposed_conv_coupling = Coupling(['M', 'P', 'Q', 'C', 'R', 'S'], ['C', 'P', 'Q'], ['M', 'C', 'R', 'S'], ['M', ['P', 'R'], ['Q', 'S']], out_strides = {'P': 'Pstride', 'R': 'Rdilation', 'Q': 'Qstride', 'S': 'Sdilation'})
 
 """
 Generates computation instances for each GEMM of a BERT Transformer
@@ -170,4 +179,34 @@ comp_resnet_18 = {
     'L20': Shape(C = 512, M = 1000, P = 1, Q = 1, R = 1, S = 1, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1), # fully connected
     'L1+': Shape(C = 256, M = 256, P = 56, Q = 56, R = 3, S = 3, Pstride = 2, Qstride = 2, Rdilation = 3, Sdilation = 3), # 2D dilation experiment
     'L3+': Shape(C = 128, M = 128, P = 112, Q = 112, R = 9, S = 9, Pstride = 1, Qstride = 4, Rdilation = 1, Sdilation = 3) # 1D dilation experiment
+}
+
+"""
+Convolutions chosen as benchmark for the tool.
+"""
+benchmark_convs = {
+    # VGG16
+    'I': Shape(C = 128, M = 256, P = 56, Q = 56, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
+    'II': Shape(C = 512, M = 512, P = 28, Q = 28, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
+    # ResNet18 and 50
+    'III': Shape(C = 3, M = 64, P = 112, Q = 112, R = 7, S = 7, Pstride = 2, Qstride = 2, Rdilation = 1, Sdilation = 1),
+    'IV': Shape(C = 64, M = 64, P = 56, Q = 56, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
+    'V': Shape(C = 128, M = 128, P = 28, Q = 28, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
+    'VI': Shape(C = 256, M = 256, P = 14, Q = 14, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
+    'VII': Shape(C = 256, M = 512, P = 7, Q = 7, R = 3, S = 3, Pstride = 2, Qstride = 2, Rdilation = 1, Sdilation = 1),
+    'VIII': Shape(C = 64, M = 256, P = 56, Q = 56, R = 1, S = 1, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1), # depth-wise
+    # MobileNetV3
+    'IX': Shape(C = 3, M = 64, P = 112, Q = 112, R = 3, S = 3, Pstride = 2, Qstride = 2, Rdilation = 1, Sdilation = 1),
+    'X': Shape(C = 72, M = 72, P = 28, Q = 28, R = 3, S = 3, Pstride = 2, Qstride = 2, Rdilation = 1, Sdilation = 1),
+    'XI': Shape(C = 576, M = 576, P = 7, Q = 7, R = 5, S = 5, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
+    'XII': Shape(C = 24, M = 88, P = 28, Q = 28, R = 1, S = 1, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1), # depth-wise
+    # Strides and Dilation
+    'XIII': Shape(C = 16, M = 16, P = 224, Q = 224, R = 3, S = 3, Pstride = 3, Qstride = 3, Rdilation = 4, Sdilation = 4),
+    'XIV': Shape(C = 128, M = 128, P = 112, Q = 112, R = 9, S = 9, Pstride = 4, Qstride = 4, Rdilation = 3, Sdilation = 3),
+    'XV': Shape(C = 256, M = 256, P = 56, Q = 56, R = 3, S = 3, Pstride = 2, Qstride = 2, Rdilation = 3, Sdilation = 3)
+}
+benchmark_convs_transposed = {
+    # Transposed convs
+    'XVI': Shape(C = 128, M = 256, P = 32, Q = 32, R = 4, S = 4, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
+    'XVII': Shape(C = 576, M = 576, P = 7, Q = 7, R = 5, S = 5, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1)
 }

@@ -134,8 +134,8 @@ if __name__ == "__main__":
     if options["accelergy-data"]:
         from architectures.architectures_hw_data import *
         supported_archs_accelergy = {"gemmini": get_arch_gemmini_hw_data, "eyeriss": get_arch_eyeriss_hw_data, "simba": get_arch_simba_hw_data, "tpu": get_arch_tpu_hw_data}
-    supported_comp_groups = {'BERT': comp_BERT_large, 'MB': comp_maestro_blas, 'VGG16': comp_vgg_16, 'ResNet18': comp_resnet_18}
-    supported_couplings = {'BERT': gemm_coupling, 'MB': gemm_coupling, 'VGG16': conv_coupling, 'ResNet18': conv_coupling_with_stride}
+    supported_comp_groups = {'BERT': comp_BERT_large, 'MB': comp_maestro_blas, 'VGG16': comp_vgg_16, 'ResNet18': comp_resnet_18, 'BMC' : benchmark_convs, 'BMCT': benchmark_convs_transposed}
+    supported_couplings = {'BERT': gemm_coupling, 'MB': gemm_coupling, 'VGG16': conv_coupling, 'ResNet18': conv_coupling_with_stride, 'BMC': conv_coupling_with_stride, 'BMCT': transposed_conv_coupling}
     
     if options["help"]:
         print("------------ HELP ------------")
@@ -253,7 +253,7 @@ if __name__ == "__main__":
     elif options["gen-tests"]:
         arch.checkCouplingCompatibility(coupling, comp, verbose = not options["quiet"])
         arch.fitConstraintsToComp(comp, enforce = True)
-        edp, mops, energy, latency, utilization, _, arch = run_engine(arch, comp, coupling, bias_read, verbose = not options["quiet"])
+        edp, mops, energy, latency, utilization, end_time, arch = run_engine(arch, comp, coupling, bias_read, verbose = not options["quiet"])
         from test import generateTestMOPs, generateTestLatency
         print("\nGenerated tests:")
         generateTestMOPs(arch)
@@ -262,7 +262,7 @@ if __name__ == "__main__":
     else:
         arch.checkCouplingCompatibility(coupling, comp, verbose = not options["quiet"])
         arch.fitConstraintsToComp(comp, enforce = True)
-        run_engine(arch, comp, coupling, bias_read, verbose = True)
+        edp, mops, energy, latency, utilization, end_time, arch = run_engine(arch, comp, coupling, bias_read, verbose = True)
 
     if options["interactive"]:
         printopt("\n------ interactive mode ------")

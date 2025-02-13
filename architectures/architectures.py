@@ -135,7 +135,7 @@ arch_gemmini_conv = Arch([
         mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
-    )], coupling=conv_coupling_with_stride, name="Gemmini")
+    )], coupling=conv_coupling_with_stride, name="Gemmini (conv)")
 
 
 # >>> EYERISS <<<
@@ -443,7 +443,7 @@ arch_simba_conv = Arch([
         mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
-    )], coupling=conv_coupling_with_stride, name="Simba")
+    )], coupling=conv_coupling_with_stride, name="Simba (conv)")
 
 
 # >>>  TPU  <<<
@@ -540,7 +540,7 @@ arch_tpu = Arch([
 arch_tpu_conv = Arch([
     MemLevel(
         name = "DRAM",
-        dataflow_constraints = [],
+        dataflow_constraints = ['M', 'Q', 'C', 'R', 'S', 'P'],
         size = 8*2**30, # number of entries
         value_access_energy = 560.00, # per operand/scalar access (pJ)
         bandwidth = 8, # operands per cycle (shared)
@@ -619,7 +619,7 @@ arch_tpu_conv = Arch([
         mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
-    )], coupling=conv_coupling_with_stride, name="TPUv1")
+    )], coupling=conv_coupling_with_stride, name="TPUv1 (conv)")
 
 
 # >>>  NVDLA  <<<

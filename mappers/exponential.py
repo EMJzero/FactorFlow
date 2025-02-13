@@ -509,10 +509,16 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
                 return eq_match
         last_iterated_perm = i
     
-    def updateTriedCount(amount : int = 1) -> None:
+    """
+    Prints the current exploration progress every time that:
+    - print_on_doubling = False: a new 10% of permutations has been explored
+    - print_on_doubling = True: the number of explored permutations has increased tenfold
+    """
+    def updateTriedCount(amount : int = 1, print_on_doubling : bool = True) -> None:
         nonlocal tried_perms
         tried_perms += amount
-        if verbose and math.floor((tried_perms/total_perms)*10) > math.floor(((tried_perms - amount)/total_perms)*10):
+        if (verbose and (not print_on_doubling and math.floor((tried_perms/total_perms)*10) > math.floor(((tried_perms - amount)/total_perms)*10)) or
+            (print_on_doubling and math.floor(math.log10(max(1, tried_perms))) > math.floor(math.log10(max(1, tried_perms - amount))))):
             if thread_idx == -1: print(f"Progress: {tried_perms}/{total_perms} tried...")
             else: print(f"Progress in thread {thread_idx}: {tried_perms}/{total_perms} tried...")
     
