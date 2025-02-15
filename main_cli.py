@@ -145,7 +145,7 @@ if __name__ == "__main__":
         print("-------- computation  --------")
         help_comp(supported_comp_groups)
         print("------------------------------")
-        sys.exit(1)
+        sys.exit(0)
     
     if options["tryall"] == False:
         printopt("-------- architecture --------")

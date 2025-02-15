@@ -224,7 +224,7 @@ if __name__ == "__main__":
         print("-sic, --store_init_conds\tIf given, the initial random starting points are also stored and displayed at the end.")
         print("-ac, --all_comps\t\tTries all computations for the specified arch, and summarizes results in a table.")
         print("-pi. --print_interval <secs>\tSets to <secs> the seconds between progress updates are printed. Default is 5 s.")
-        sys.exit(1)
+        sys.exit(0)
 
     MAX_TRIES = int(options["max_tries"]) if options["max_tries"] else MAX_TRIES
     DUPLICATES_TO_STOP = MAX_TRIES*10

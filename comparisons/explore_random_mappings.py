@@ -1,4 +1,4 @@
-# GOAL: Empirically prove the soundness of starting from all factors on the first level by randomly trying many starting points.
+# GOAL: Empirically show the complexity of the mapping problem by showing the EDP distribution for randomly sampled mappings.
 
 from itertools import combinations, product, groupby
 from prettytable import PrettyTable
@@ -181,7 +181,7 @@ if __name__ == "__main__":
         print("-ac, --all_comps\t\tTries all computations for the specified arch, and summarizes results in a table.")
         print("-pa, --print_arrays\t\tPrints all the stored EDP and Wart values. Only works without '-ac'.")
         print("-pi. --print_interval <secs>\tSets to <secs> the seconds between progress updates are printed. Default is 5 s.")
-        sys.exit(1)
+        sys.exit(0)
 
     MAX_TRIES = int(options["max_tries"]) if options["max_tries"] else MAX_TRIES
     DUPLICATES_TO_STOP = MAX_TRIES*10

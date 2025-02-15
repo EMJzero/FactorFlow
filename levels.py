@@ -55,6 +55,13 @@ class Level(LevelCore):
     area : Optional[float]
 
     """
+    Sets up a pointer back to the whole architecture.
+    Ultimates the initialization of the level and validates its attributes.
+    """
+    def initArch(self, arch : Arch):
+        self.arch = arch
+
+    """
     Add "amount" instances of the provided factor to those of
     "dimension" in the current level.
     """
