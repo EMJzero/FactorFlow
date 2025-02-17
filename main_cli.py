@@ -152,8 +152,9 @@ if __name__ == "__main__":
         if not (len(sys.argv) >= 2 and (sys.argv[1] in supported_archs or os.path.exists(sys.argv[1]) and sys.argv[1][-3:] == '.py')):
             if not options["quiet"]:
                 help_arch(supported_archs)
-            #sys.exit(1)
-            print("WARNING: no valid architecture provided, defaulting to \"eyeriss\"...")
+            print("------------------------------")
+            print("ERROR: no valid architecture provided" + (f" ({sys.argv[1]})" if len(sys.argv) >= 2 else "") + "...")
+            sys.exit(1)
         if len(sys.argv) >= 2:
             if sys.argv[1] in supported_archs:
                 if options["accelergy-data"]:
@@ -175,8 +176,9 @@ if __name__ == "__main__":
         if not ((len(sys.argv) >= 2 and ((len(split_comp_name := sys.argv[1].split('-')) == 2 and split_comp_name[0] in supported_comp_groups and split_comp_name[1] in supported_comp_groups[split_comp_name[0]]) or os.path.exists(sys.argv[1]) and sys.argv[1][-3:] == '.py')) or (len(sys.argv) == 4 and all([d.isdigit() and d[0] != '-' for d in sys.argv[1:4]])) or (len(sys.argv) >= 7 and all([d.isdigit() and d[0] != '-' for d in sys.argv[1:7]]))):
             if not options["quiet"]:
                 help_comp(supported_comp_groups)
-            #sys.exit(1)
-            print("WARNING: no valid computation provided, defaulting to GEMM: \"BERT-KQV\"...")
+            print("------------------------------")
+            print("ERROR: no valid computation provided" + (f" ({sys.argv[1]})" if len(sys.argv) >= 2 else "") + "...")
+            sys.exit(1)
         if len(sys.argv) == 2:
             if len(split_comp_name := sys.argv[1].split('-')) == 2 and split_comp_name[0] in supported_comp_groups and split_comp_name[1] in supported_comp_groups[split_comp_name[0]]:
                 comp = supported_comp_groups[split_comp_name[0]][split_comp_name[1]]
@@ -204,6 +206,8 @@ if __name__ == "__main__":
                 coupling = conv_coupling_with_stride
             printopt("Computation:", comp)
             printopt("Coupling:", coupling.compactStr())
+        if coupling == transposed_conv_coupling: # TODO: this is a quick workaround...fix me!
+            arch.coupling = transposed_conv_coupling
     else:
         printopt("-------- try all mode --------")
         if options["tryall"] not in supported_comp_groups:

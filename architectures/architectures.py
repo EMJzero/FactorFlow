@@ -311,7 +311,7 @@ arch_simba = Arch([
     MemLevel(
         name = "PEInputBuffer",
         dataflow_constraints = [],
-        size = 65536, # number of entries
+        size = 8192, # number of entries # was 65536
         value_access_energy = 30.26, # per operand (pJ)
         bandwidth = 2**10, # operands per cycle (shared)
         factors_constraints = {},
@@ -335,7 +335,7 @@ arch_simba = Arch([
     MemLevel(
         name = "PEAccuBuffer",
         dataflow_constraints = [],
-        size = 128, # number of entries
+        size = 1024, # number of entries # was 128
         value_access_energy = 3.93, # per operand (pJ)
         bandwidth = 2**10, # operands per cycle (shared)
         factors_constraints = {},
@@ -393,7 +393,7 @@ arch_simba_conv = Arch([
     MemLevel(
         name = "PEInputBuffer",
         dataflow_constraints = [],
-        size = 65536, # number of entries
+        size = 8192, # number of entries # was 65536
         value_access_energy = 30.26, # per operand (pJ)
         bandwidth = 2**10, # operands per cycle (shared)
         factors_constraints = {},
@@ -417,7 +417,7 @@ arch_simba_conv = Arch([
     MemLevel(
         name = "PEAccuBuffer",
         dataflow_constraints = [],
-        size = 128, # number of entries
+        size = 1024, # number of entries # was 128
         value_access_energy = 3.93, # per operand (pJ)
         bandwidth = 2**10, # operands per cycle (shared)
         factors_constraints = {},

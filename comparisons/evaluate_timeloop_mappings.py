@@ -114,7 +114,7 @@ if __name__ == "__main__":
             with open(mapping, 'r') as file:
                 level_idx = -1
                 dataflow = []
-                total_per_dim = {dim : 1 for dim in comp.keys() if not dim.endswith("stride") or dim.endswith("dilation")}
+                total_per_dim = {dim : 1 for dim in comp.keys() if not dim.endswith("stride") and not dim.endswith("dilation")}
                 for line in file.readlines():
                     if (match := re.match(r'(\w+)\s*\[', line)): # new level line
                         #print(match.group(1), level_idx)

@@ -328,7 +328,7 @@ def distinct_values(Xs : list[int], x_consts : list[int]) -> int:
             return len(current_values)
 
 
-# >>> Miscellaneus classes to aid with concurrency
+# >>> Miscellaneus support data structures and classes
 
 """
 Thread-safe heap implementation where each entry is a pair (value, data),
@@ -336,6 +336,10 @@ with the heap being ordered w.r.t. value.
 
 Additionally a counter and a set, both thread-safe, are made available
 alongside each heap, to track additional information.
+
+Constructor arguments:
+- is_min_heap: set to True for a min-heap, False for a max-heap.
+- initial_counter: initial value for the integrated counter.
 """
 class ThreadSafeHeap(Generic[T, U, S, W]):
     def __init__(self, is_min_heap : bool = False, initial_counter : int = 0):
@@ -409,11 +413,11 @@ class ThreadSafeHeap(Generic[T, U, S, W]):
         self.lock.release()
 
 """
-Helper class for a lock which might not exist.
+Helper class mean to wrap a lock that may not exist.
 Used in "optimizeDataflows".
 """
 class OptionalLock:
-    def __init__(self, lock : threading.Lock):
+    def __init__(self, lock : Optional[threading.Lock]):
         self.lock = lock
 
     def __enter__(self) -> bool:

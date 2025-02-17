@@ -2,10 +2,12 @@
 
 from prettytable import PrettyTable
 from copy import deepcopy
+from typing import Any
 import math
 import sys
 import os
 import re
+
 
 try:
     from ..architectures.architectures import *
@@ -35,7 +37,7 @@ except:
     from utils import *
     from arch import *
 
-def read_n_to_last_line(filename, n = 1):
+def read_n_to_last_line(filename : str, n : int = 1) -> str:
     """Returns the nth before last line of a file (n=1 gives last line)"""
     num_newlines = 0
     with open(filename, 'rb') as f:
@@ -49,6 +51,25 @@ def read_n_to_last_line(filename, n = 1):
             f.seek(0)
         last_line = f.readline().decode()
     return last_line
+
+def shorten_path(path: str) -> str:
+    parts = path.split(os.sep)
+    if len(parts) > 2:
+        return f"(...){os.sep}{parts[-2]}{os.sep}{parts[-1]}"
+    return path
+
+def largest_product_less_than_with_tags(arr : list[tuple[Any, ...]], target : int, tuple_idx_to_compare : int = 0) -> tuple[list[tuple[Any, ...]], int]:
+    min_defect = math.inf
+    best_subarray = []
+
+    for r in range(1, len(arr) + 1):
+        for comb in combinations(arr, r):
+            product = math.prod(map(lambda a : a[tuple_idx_to_compare], comb))
+            if product <= target and (target - product) < min_defect:
+                min_defect = target - product
+                best_subarray = comb
+
+    return list(best_subarray), min_defect
 
 
 if __name__ == "__main__":
@@ -190,15 +211,15 @@ if __name__ == "__main__":
                             new_loopsline_in, new_loopsline_w, new_loopsline_out = False, False, False
                             if dim in coupling.flat_in_coupling and not loopslines[-1].in_level.name.startswith(mem_in):
                                 new_in_level_idx = next((i + new_in_level_idx + 1 for i, l in enumerate(arch[new_in_level_idx + 1:]) if l.name.lower() == mem_in and 'in' not in l.bypasses), -1)
-                                assert new_in_level_idx != -1, f"Issue in {subdir}: can't find a level storing inputs with name {mem_in}..."
+                                assert new_in_level_idx != -1, f"Issue in {shorten_path(filepath)}: can't find a level storing inputs with name {mem_in}..."
                                 new_loopsline_in = True
                             if dim in coupling.flat_w_coupling and not loopslines[-1].w_level.name.startswith(mem_w):
                                 new_w_level_idx = next((i + new_w_level_idx + 1 for i, l in enumerate(arch[new_w_level_idx + 1:]) if l.name.lower() == mem_w and 'w' not in l.bypasses), -1)
-                                assert new_w_level_idx != -1, f"Issue in {subdir}: can't find a level storing inputs with name {mem_w}..."
+                                assert new_w_level_idx != -1, f"Issue in {shorten_path(filepath)}: can't find a level storing inputs with name {mem_w}..."
                                 new_loopsline_w = True
                             if dim in coupling.flat_out_coupling and not loopslines[-1].out_level.name.startswith(mem_out):
                                 new_out_level_idx = next((i + new_out_level_idx + 1 for i, l in enumerate(arch[new_out_level_idx + 1:]) if l.name.lower() == mem_out and 'out' not in l.bypasses), -1)
-                                assert new_out_level_idx != -1, f"Issue in {subdir}: can't find a level storing inputs with name {mem_out}..."
+                                assert new_out_level_idx != -1, f"Issue in {shorten_path(filepath)}: can't find a level storing inputs with name {mem_out}..."
                                 new_loopsline_out = True
                             
                             #print("--------------------------") # REMOVE ME
@@ -234,9 +255,10 @@ if __name__ == "__main__":
                         levels.sort(key = lambda l : l.idx)
                         for l in levels:
                             if not any(nal.name == l.name for nal in new_arch):
-                                assert isinstance(arch[l.idx], MemLevel), f"Issue in {subdir}: name of a non-MemLevel used in the mapping..."
+                                assert isinstance(arch[l.idx], MemLevel), f"Issue in {shorten_path(filepath)}: name of a non-MemLevel used in the mapping..."
                                 new_arch.append(deepcopy(arch[l.idx]))
                                 new_arch[-1].name = l.name
+                                new_arch[-1].size *= 3 # to give some room for padding
                                 new_arch[-1].bypasses = ['in', 'w', 'out']
                                 new_arch[-1].in_bp = 0
                                 new_arch[-1].w_bp = 0
@@ -250,6 +272,7 @@ if __name__ == "__main__":
                                 new_arch[-1]._read_value_access_energy = new_arch[-1].read_access_energy
                                 new_arch[-1]._write_value_access_energy = new_arch[-1].write_access_energy
                                 new_arch[-1]._bandwidth = None
+                                new_arch[-1].factors_constraints = {}
                                 while l.idx > next_spatial:
                                     spatial_indices.append(len(new_arch) - 1)
                                     next_spatial = next((i + next_spatial + 1 for i, l in enumerate(arch[next_spatial + 1:]) if isinstance(l, FanoutLevel)), len(arch))
@@ -265,7 +288,7 @@ if __name__ == "__main__":
                                 if 'out' in new_arch[-1].bypasses:
                                     new_arch[-1].bypasses.remove('out')
                                 new_arch[-1].out_bp = 1
-                        new_arch[-1].dataflow = [dim for dim in new_arch[-1].dataflow if dim not in ll.dataflow] + ll.dataflow
+                        new_arch[-1].dataflow = [dim for dim in coupling.dims if dim not in ll.dataflow] + ll.dataflow
                         new_arch[-1].size = math.inf
                         new_arch[-1].read_bandwidth *= (3 - len(new_arch[-1].bypasses))/(3 - len(arch[l.idx].bypasses))
                         new_arch[-1].write_bandwidth *= (3 - len(new_arch[-1].bypasses))/(3 - len(arch[l.idx].bypasses))
@@ -279,35 +302,98 @@ if __name__ == "__main__":
                         si = min(si, len(new_arch))
                         new_arch.insert(si, deepcopy(sl))
                         new_arch[si]._dim = None
+                        new_arch[si].dims = coupling.dims
                         new_arch[si].dataflow = coupling.dims
+                        new_arch[si].factors_constraints = {}
 
                     new_arch.append(deepcopy(arch[-1]))
                     new_arch[-1]._dim = None
                     
+                    padded_comp = {dim : 1 for dim in comp.keys() if not dim.endswith("stride") and not dim.endswith("dilation")}
+                    for _, fms in factor_moves:
+                        for dim, factor in fms:
+                            padded_comp[dim] *= factor
+                    for dim, factor in fanouts:
+                        padded_comp[dim] *= factor
+                    comp_ = deepcopy(comp)
+                    for dim in padded_comp.keys():
+                        if padded_comp[dim] > comp_[dim]:
+                            print(f"Warning in {shorten_path(filepath)}: padding detected on dim {dim}, {comp[dim]}->{padded_comp[dim]}")
+                            comp_[dim] = padded_comp[dim]
+                    if any(padded_comp[dim] < comp_[dim] for dim in padded_comp.keys()):
+                        #print(f"Issue in {shorten_path(filepath)}: not all comp factors are present (comp: {comp}, allocated: {padded_comp})...")
+                        #continue
+                        for dim in padded_comp.keys():
+                            if padded_comp[dim] < comp_[dim]:
+                                factor = next((i for i in range(10000) if i*padded_comp[dim] >= comp_[dim]), -1)
+                                comp_[dim] = padded_comp[dim]*factor
+                                assert factor > 0, "What?! ZigZag left more than 10000 iterations unallocated? This is a bug..."
+                                factor_moves.append((new_arch[0], [(dim, factor)]))
+                        print(f"Warning in {shorten_path(filepath)}: not all comp factors are present (comp: {comp}, allocated: {padded_comp}, new_comp: {comp_}), assuming that missing ones are on DRAM...")
+                    
                     new_arch = Arch(new_arch, coupling)
-                    new_arch.initFactors(comp)
-                    total_per_dim = {dim : 1 for dim in comp.keys() if not dim.endswith("stride") or dim.endswith("dilation")}
+                    new_arch.initFactors(comp_)
+                    total_per_dim = {dim : 1 for dim in comp_.keys() if not dim.endswith("stride") and not dim.endswith("dilation")}
                     for dst, fms in factor_moves:
                         dst = new_arch.index(dst)
-                        for dim, f in fms:
-                            new_arch.moveFactor(0, dst, dim, f)
-                            total_per_dim[dim] *= f
+                        for dim, factor in fms:
+                            for f in prime_factors_list(factor):
+                                if not new_arch.moveFactor(0, dst, dim, f):
+                                    print(f"Issue in {shorten_path(filepath)}: failed to move factor {f} on dim {dim} from mem. level 0 to mem. level {dst}...")
+                                total_per_dim[dim] *= f
                     
-                    sp_idx = next((i for i, l in enumerate(new_arch) if isinstance(l, FanoutLevel)), -1)
-                    for dim, factor in fanouts:
-                        for f in prime_factors_list(factor):
-                            while sp_idx != -1:
-                                if new_arch.moveFactor(0, sp_idx, dim, f):
-                                    total_per_dim[dim] *= f
-                                    break
-                                sp_idx = next((i + sp_idx + 1 for i, l in enumerate(new_arch[sp_idx + 1:]) if isinstance(l, FanoutLevel)), -1)
+                    # AKA: while not all factors were allocated, increase by 1 the remaining ones and RETRY!
+                    increased_fanouts = {}
+                    while math.prod(factor for _, factor in fanouts) <= math.prod(l.mesh//l.factors.fullProduct() for l in new_arch if isinstance(l, FanoutLevel)) and len(fanouts) > 0:
+                        sp_idx = next((i for i, l in enumerate(new_arch) if isinstance(l, FanoutLevel)), -1)
+                        #for i in range(len(fanouts) - 1, -1, -1):
+                        #    dim, factor = fanouts[i]
+                        #    for f in prime_factors_list(factor):
+                        #        while sp_idx != -1:
+                        #            if new_arch.moveFactor(0, sp_idx, dim, f):
+                        #                fanouts[i] = (dim, factor//f)
+                        #                total_per_dim[dim] *= f
+                        #                break
+                        #            sp_idx = next((i + sp_idx + 1 for i, l in enumerate(new_arch[sp_idx + 1:]) if isinstance(l, FanoutLevel)), -1)
+                        #    if sp_idx != -1:
+                        #        fanouts.pop(i)
+                        #for i in range(len(fanouts)):
+                        #    fanouts[i] = (fanouts[i][0], fanouts[i][1] + 1)
+                        #    if fanouts[i] in increased_fanouts:
+                        #        increased_fanouts[fanouts[i]][0] += 1
+                        #    else:
+                        #        increased_fanouts[fanouts[i]] = [fanouts[i][1], fanouts[i][1] - 1, fanouts[i][0]]
+                        while sp_idx != -1:
+                            for dim, f in largest_product_less_than_with_tags([(dim, p) for dim, f in fanouts for p in prime_factors_list(f)], new_arch[sp_idx].mesh//new_arch[sp_idx].factors.fullProduct(), 1)[0]:
+                                if not new_arch.moveFactor(0, sp_idx, dim, f):
+                                    print(f"Issue in {shorten_path(filepath)}: failed to move factor {f} on dim {dim} from sp. fanout level 0 to sp. fanout level {dst}...")
+                                total_per_dim[dim] *= f
+                                for i in range(len(fanouts)):
+                                    if fanouts[i][0] == dim and fanouts[i][1] % f == 0:
+                                        fanouts[i] = (fanouts[i][0], fanouts[i][1]//f)
+                                        break
+                                    if i == len(fanouts) - 1:
+                                        print(f"Issue in {shorten_path(filepath)}: something exploded while allocating factor {f} of dim {dim} on level {sp_idx}...")
+                            sp_idx = next((i + sp_idx + 1 for i, l in enumerate(new_arch[sp_idx + 1:]) if isinstance(l, FanoutLevel)), -1)
+                        for i in range(len(fanouts) - 1, -1, -1):
+                            if fanouts[i][1] == 1:
+                                fanouts.pop(i)
+                                continue
+                            fanouts[i] = (fanouts[i][0], fanouts[i][1] + 1)
+                            if fanouts[i] in increased_fanouts:
+                                increased_fanouts[fanouts[i]][0] += 1
+                            else:
+                                increased_fanouts[fanouts[i]] = [fanouts[i][1], fanouts[i][1] - 1, fanouts[i][0]]
+                    if increased_fanouts:
+                        paddings = ", ".join(f"{dim}:{base}->{padded}" for padded, base, dim in increased_fanouts.values())
+                        print(f"Warning in {shorten_path(filepath)}: fanouts padded {paddings}")
                     
                     #print("-------")
                     #for l in new_arch: # REMOVE ME
                     #    print(l.name)
                     
-                    if not all(comp[dim] == total_per_dim[dim] for dim in total_per_dim.keys()):
-                        print(f"Issue in {subdir}: not all comp factors were allocated correctly (comp: {comp}, allocated: {total_per_dim})...")
+                    if not all(comp_[dim] == total_per_dim[dim] for dim in total_per_dim.keys()):
+                        print(f"Issue in {shorten_path(filepath)}: not all comp factors were allocated correctly (comp: {comp_}, allocated: {total_per_dim})...")
                         continue
                     
                     edp = EDP(new_arch, False, True)
