@@ -18,10 +18,14 @@ from arch import *
 Update Settings to best target the provided architecture with the present mapper.
 """
 def mapperForcedSettingsUpdate(arch : Arch, verbose : bool = True) -> None:
-    if len(list(filter(lambda l : isinstance(l, MemLevel), arch))) < 6:
-        steps_to_explore = max(4, Settings.STEPS_TO_EXPLORE)
-    else:
-        steps_to_explore = max(2, Settings.STEPS_TO_EXPLORE)
+    # Gemmini: STEPS_TO_EXPLORE = 1
+    # Eyeriss: STEPS_TO_EXPLORE = 4
+    # Simba & TPUv1: STEPS_TO_EXPLORE = 2
+    #if len(list(filter(lambda l : isinstance(l, MemLevel), arch))) < 6:
+    #    steps_to_explore = max(2, Settings.STEPS_TO_EXPLORE)
+    #else:
+    #    steps_to_explore = max(2, Settings.STEPS_TO_EXPLORE)
+    steps_to_explore = max(2, Settings.STEPS_TO_EXPLORE)
     if Settings.STEPS_TO_EXPLORE != steps_to_explore and verbose: print(f"INFO: forcefully updating setting STEPS_TO_EXPLORE to {steps_to_explore}")
     Settings.STEPS_TO_EXPLORE = steps_to_explore
     for level in arch:

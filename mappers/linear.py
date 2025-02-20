@@ -264,7 +264,7 @@ The function is meant as the entry point for multiple processes or threads:
 def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : int = -1, threads_count : int = 1, past_perms : dict[tuple[int, ...], ThreadSafeHeap[float, list[LevelCore], int, int]] = None, lock : threading.Lock = None, barrier : threading.Barrier = None, verbose : bool = False) -> Optional[tuple[Arch, float]]:
     if verbose and thread_idx <= 0: print("-------- optimizeDataflows --------")
 
-    ripples = 1
+    ripples = Settings.RIPPLES
     
     # if enabled, pad the computation to exploit all spatial instances
     if Settings.PADDED_MAPPINGS:
@@ -384,12 +384,13 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
     if isinstance(targets[current_level], MemLevel):
         with lock:
             key = getKey()
+            count_per_thread = -(perms_ranges[current_level][1] - perms_ranges[current_level][0])
             if key not in past_perms:
                 # new heap
-                past_perms[key] = ThreadSafeHeap()
+                past_perms[key] = ThreadSafeHeap(initial_counter = count_per_thread)
             else:
                 # the heap is already used by somebody else, reduce the counter by the number of times you will be adding entries
-                past_perms[key].increaseCounter(-(perms_ranges[current_level][1] - perms_ranges[current_level][0]))
+                past_perms[key].increaseCounter(count_per_thread)
     if barrier:
         barrier.wait()
     
@@ -435,33 +436,44 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
     Step forward the exploration by:
     - permuting the present level if it still has some permutations to explore
     - moving to the next inner level when the present one has been fully explored
-    - backtrack to the outermost level when a never-before-explored inner level has been fully explored
+    - restarting from the outermost level when at the end if there are still ripples to perform
     Returns True if the exploration is to be continued, False when is to be ended.
     """
     def nextPermutations() -> bool:
-        #TODO: do not re-evaluate the present mapping! When moving down a level store the present mapping as the first one with the new key!
         nonlocal current_level, current_perms, current_best_perm, ripples
         if current_perms[current_level] + 1 < perms_ranges[current_level][1]:
             current_perms[current_level] += 1
         else:
+            old_key = getKey()
             current_perms[current_level] = current_best_perm[1]
             if current_level == len(targets) - 1:
                 ripples -= 1
                 if ripples > 0:
                     current_level = 0
                 else:
+                    with past_perms[old_key].lock:
+                        if old_key in past_perms and past_perms[old_key].counter == 0:
+                            del past_perms[old_key]
                     return False
             else:
                 current_level += 1
             current_perms[current_level] = perms_ranges[current_level][0]
             current_best_perm = (0, current_perms[current_level])
             if isinstance(targets[current_level], MemLevel):
+                key = getKey()
+                count_per_thread = -(perms_ranges[current_level][1] - perms_ranges[current_level][0])
+                old_best = past_perms[old_key].peek()
                 with lock:
-                    key = getKey()
                     if key not in past_perms:
-                        past_perms[key] = ThreadSafeHeap()
+                        past_perms[key] = ThreadSafeHeap(initial_counter = count_per_thread)
                     else:
-                        past_perms[key].increaseCounter(-(perms_ranges[current_level][1] - perms_ranges[current_level][0]))
+                        past_perms[key].increaseCounter(count_per_thread)
+                    # if all permutation have been explored, delete the past solutions entry for the current state
+                    with past_perms[old_key].lock:
+                        if old_key in past_perms and past_perms[old_key].counter == 0:
+                            del past_perms[old_key]
+                # TODO potential issue: this may propagate downward the best solution found by another thread, pick the best one w.r.t. your "current_best_perm"!
+                past_perms[key].push(old_best[0], old_best[1], 0)
         return True
     
     """
@@ -498,31 +510,20 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
         
         if wart > current_best_perm[0]:
             current_best_perm = (wart, current_perms[current_level])
-            if current_level == len(targets) - 1:
+            if current_level == len(targets) - 1 and ripples == 1:
                 final_mapping = (wart, arch.exportMapping(copy = True))
         
         key = getKey()
-        # if all permutation have been explored ('counter_threshold' reached), delete the past solutions entry for the current state (save time by doing so before adding the present entry)
-        # IDEA: instead of each thread storing the 'current_best_perm', they could fetch it from the top of the heap in the current past_perms entry!
-        counter_threshold = perms_ranges[current_level][1] - perms_ranges[current_level][0] - 1
         if isinstance(targets[current_level], MemLevel):
             if not equidataflow_past_solution:
                 # store past solutions (in order of Wart)
-                with past_perms[key].lock:
-                    if past_perms[key].counter == counter_threshold:
-                        del past_perms[key]
-                    else:
-                        past_perms[key].push(wart, arch.exportMapping(copy = True))
+                past_perms[key].push(wart, arch.exportMapping(copy = True))
             else:
                 # store past solutions iff there was at least one move (in order of Wart)
-                with past_perms[key].lock:
-                    if past_perms[key].counter == counter_threshold:
-                        del past_perms[key]
-                    else:
-                        if moves_count > 0:
-                            past_perms[key].push(wart, arch.exportMapping(copy = True))
-                        else:
-                            past_perms[key].increaseCounter()
+                if moves_count > 0:
+                    past_perms[key].push(wart, arch.exportMapping(copy = True))
+                else:
+                    past_perms[key].increaseCounter()
                 eqmatched_perms += 1
         updateTriedCount()
         

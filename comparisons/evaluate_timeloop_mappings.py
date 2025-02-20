@@ -1,6 +1,7 @@
 # GOAL: Parse and re-evaluate timeloop-produced mapping with FF's analytical model.
 
 from prettytable import PrettyTable
+from typing import Union
 import sys
 import os
 import re
@@ -33,20 +34,27 @@ except:
     from utils import *
     from arch import *
 
-def read_n_to_last_line(filename, n = 1):
-    """Returns the nth before last line of a file (n=1 gives last line)"""
+"""
+Returns the nth before last line of a file (n=1 gives last line).
+If to_the_end is True, returns all lines from the nth before last to the end.
+"""
+def read_n_to_last_line(filename : str, n : int = 1, to_the_end : bool = False) -> Union[str, list[str]]:
     num_newlines = 0
+    lines = []
     with open(filename, 'rb') as f:
         try:
-            f.seek(-2, os.SEEK_END)    
+            f.seek(-2, os.SEEK_END)
             while num_newlines < n:
                 f.seek(-2, os.SEEK_CUR)
                 if f.read(1) == b'\n':
                     num_newlines += 1
         except OSError:
             f.seek(0)
-        last_line = f.readline().decode()
-    return last_line
+        
+        if to_the_end:
+            return f.read().decode().splitlines()
+        else:
+            return f.readline().decode()
 
 
 if __name__ == "__main__":
@@ -61,7 +69,7 @@ if __name__ == "__main__":
     gemm_comps = comp_BERT_large | comp_maestro_blas
     conv_comps = {"VGG16-" + k: v for k, v in comp_vgg_16.items()} | {"ResNet18-" + k: v for k, v in comp_resnet_18.items()} | benchmark_convs
     conv_transp = benchmark_convs_transposed
-    table = PrettyTable(["Arch", "Comp", "EDP[J*cycle]", "MOPs", "Latency[cc]", "Energy[uJ]", "Utilization[/]", "Runtime"])
+    table = PrettyTable(["Arch", "Comp", "EDP[J*cycle]", "MOPs", "Latency[cc]", "Energy[uJ]", "Utilization[/]", "Runtime", "Model Error w.r.t. FF"])
     for subdir in os.listdir(root):
         subdir = os.path.join(root, subdir)
         if os.path.isdir(subdir):
@@ -94,6 +102,10 @@ if __name__ == "__main__":
                 print(f"Invalid architecture ({arch_name}) in:", subdir)
                 continue
             arch = archs[arch_name + arch_tail]
+            for level in arch:
+                level.factors_constraints.clear()
+                if isinstance(level, MemLevel):
+                    level.dataflow_constraints.clear()
             arch.resetFactors()
             arch.initFactors(comp)
             
@@ -102,14 +114,16 @@ if __name__ == "__main__":
             
             if not os.path.exists(stats) or not os.path.exists(mapping):
                 print("Unrecognized results files in:", subdir)
+                table.add_row([arch_name, comp_name, "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A"])
                 continue
             
             last_line = read_n_to_last_line(stats)
             runtime = re.search(r'time:\s*([\d.eE+-]+)', last_line)
             if not runtime:
                 print("Could not find the mapper's runtime in:", stats)
-                continue
-            runtime = float(runtime.group(1))
+                runtime = "N/A"
+            else:
+                runtime = f"{float(runtime.group(1)):.3f}"
             
             with open(mapping, 'r') as file:
                 level_idx = -1
@@ -129,7 +143,7 @@ if __name__ == "__main__":
                         if level_idx > 0:
                             for factor in prime_factors_list(int(match.group(2))):
                                 if not arch.moveFactor(0, level_idx, dim, factor):
-                                    print(f"Issue in {subdir}: violated factors constraints while allocating factor {factor} on level {arch[level_idx].name}...")
+                                    print(f"Issue in {subdir}: violated memory factors constraints while allocating factor {factor} on level {arch[level_idx].name} for dim {dim}...")
                         for factor in prime_factors_list(int(match.group(2))):
                             total_per_dim[dim] *= factor
                         assert dim in arch[level_idx].dataflow, f"Unsupported dimension ({dim}) on level {arch[level_idx].name}."
@@ -141,23 +155,33 @@ if __name__ == "__main__":
                             dim = dims_renaming[dim]
                         for factor in prime_factors_list(int(match.group(2))):
                             if not arch.moveFactor(0, level_idx, dim, factor):
-                                print(f"Issue in {subdir}: violated factors constraints while allocating factor {factor} on level {arch[level_idx].name}...")
+                                print(f"Issue in {subdir}: violated spatial factors constraints while allocating factor {factor} on level {arch[level_idx].name} for dim {dim}...")
                             total_per_dim[dim] *= factor
                         assert dim in arch[level_idx].dataflow, f"Unsupported dimension ({dim}) on level {arch[level_idx].name}."
-                
-                if not all(comp[dim] == total_per_dim[dim] for dim in total_per_dim.keys()):
-                    print(f"Issue in {subdir}: not all comp factors were allocated correctly (comp: {comp}, allocated: {total_per_dim})...")
-                
-                edp = EDP(arch, False, True)
-                mops = MOPs(arch)
-                energy = Energy(arch, True)
-                latency = Latency(arch)
-                utilization = arch.spatialUtilization()
-                
-                #printFactors(arch)
-                #printMOPs(arch)
-                #printLatency(arch)
-                
-                table.add_row([arch_name, comp_name, f"{edp:.3e}", f"{mops[0]+mops[1]:.0f}", f"{latency:.3e}", f"{energy:.3e}", f"{utilization:.3e}", f"{runtime:.3f}"])
+            
+            if not all(comp[dim] == total_per_dim[dim] for dim in total_per_dim.keys()):
+                print(f"Issue in {subdir}: not all comp factors were allocated correctly (comp: {comp}, allocated: {total_per_dim})...")
+            
+            edp = EDP(arch, False, True)
+            mops = MOPs(arch)
+            energy = Energy(arch, True)
+            latency = Latency(arch)
+            utilization = arch.spatialUtilization()
+            
+            #printFactors(arch)
+            #printMOPs(arch)
+            #printLatency(arch)
+            
+            last_lines = read_n_to_last_line(stats, 24, True)
+            tl_edp = next((match for line in last_lines if (match := re.search(r'EDP\(J\*cycle\):\s*([\d.eE+-]+)', line))), None)
+            if not tl_edp:
+                print("Could not find the Timeloop's predicted EDP in:", stats)
+                tl_edp = "N/A"
+            else:
+                tl_edp = f"{(float(tl_edp.group(1)) - edp)*100/edp:.1f}%"
+            
+            table.add_row([arch_name, comp_name, f"{edp:.3e}", f"{mops[0]+mops[1]:.0f}", f"{latency:.3e}", f"{energy:.3e}", f"{utilization:.3e}", runtime, tl_edp])
 
+    if not Settings.FREE_DRAINS:
+        print("Warning: 'Settings.FREE_DRAINS' is False, this makes FactorFlow's model more accurate, but also makes it diverge from Timeloop's model, thus, expect a worse modeling error.")
     print(table)

@@ -272,7 +272,8 @@ if __name__ == "__main__":
                                 new_arch[-1]._read_value_access_energy = new_arch[-1].read_access_energy
                                 new_arch[-1]._write_value_access_energy = new_arch[-1].write_access_energy
                                 new_arch[-1]._bandwidth = None
-                                new_arch[-1].factors_constraints = {}
+                                new_arch[-1].factors_constraints.clear()
+                                new_arch[-1].dataflow_constraints.clear()
                                 while l.idx > next_spatial:
                                     spatial_indices.append(len(new_arch) - 1)
                                     next_spatial = next((i + next_spatial + 1 for i, l in enumerate(arch[next_spatial + 1:]) if isinstance(l, FanoutLevel)), len(arch))
@@ -304,7 +305,7 @@ if __name__ == "__main__":
                         new_arch[si]._dim = None
                         new_arch[si].dims = coupling.dims
                         new_arch[si].dataflow = coupling.dims
-                        new_arch[si].factors_constraints = {}
+                        new_arch[si].factors_constraints.clear()
 
                     new_arch.append(deepcopy(arch[-1]))
                     new_arch[-1]._dim = None

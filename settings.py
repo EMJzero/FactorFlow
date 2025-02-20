@@ -1,10 +1,10 @@
-import os
-
 class Settings():
     # If True, enables logging of the MSE process. Note that such prints occur during the timed
     # section of the program, set to False for accurate timing results.
     VERBOSE = True
-
+    
+    # MAPPER SETTINGS:
+    
     # If False, FF only searches for better solutions at a one-factor distance from the current one,
     # if True, FF searches for solutions at a distance of multiple factors, all be it only arity is
     # varied, with the tried factor being just one. (tries different multiplicities)
@@ -12,7 +12,6 @@ class Settings():
     # If True, factors allocated on spatial levels will not be optimized (as if they were constraints),
     # and this is done after factor allocation on spatial fanouts is maximized.
     # NOTE: automatically set to False in case of 2 dimensions on the same fanout.
-    # NOTE: this is available only for the 'exponential' mapper.
     FREEZE_SPATIALS = True
     # Number of one-factor steps to try during local search after of which the best choice is picked.
     # NOTE: automatically raised to (at least) 2 in case of 2 dimensions on the same fanout.
@@ -34,11 +33,9 @@ class Settings():
     # >>> Play with this in case of 2 dimensions on the same fanout!!!
     # >>> Setting this to True costs Nx time, where N is the number of rotations of fanout dimensions.
     # >>> Henceforth, usage is suggested when MULTITHREADED is True.
-    # NOTE: this is available only for the 'exponential' mapper.
     ONLY_MAXIMIZE_ONE_FANOUT_DIM = True
     # If True, fanout maximization is replaced with an exploration of spatial fanout levels in three
     # steps, together with memory levels, within factorFlow's local search.
-    # NOTE: this is available only for the 'quadratic' and 'hybrid' mapper.
     LOCAL_SEARCH_SPATIAL_LEVELS = False
     # If True, saves time by assuming that any permutation differing from an optimal one by the order
     # of dimensions involving one with a single iteration can be optimized starting from where it
@@ -57,7 +54,6 @@ class Settings():
     # If True, rules are built based on the best selected permutations throughout the exploration,
     # and these rules are subsequently enforced to prune the remaining permutations, speeding up
     # the exploration under the assumption that there is some consistency between optimal choices.
-    # NOTE: this is available only for the 'exponential' and 'hybrid' mapper.
     PERM_PRUNING = False
     # When PERM_PRUNING is True, the following 3 settings determine the number of times a dimension
     # needs to (1) have a single iteration, (2) be in a certain relative order with another, and
@@ -66,6 +62,12 @@ class Settings():
     DIM_AT_1_COUNT_BEFORE_LOCK = 2
     RELATIVE_ORDER_COUNT_BEFORE_LOCK = 2
     POSITIONAL_COUNT_BEFORE_LOCK = 2
+    # Determines the number of times the exploration of permutations repeats, restarting from the
+    # outermost level after reaching the innermost one. A value >1 is mean to "refine" previous choices.
+    RIPPLES = 1
+    
+    # MODEL SETTINGS:
+    
     # If True, the Wart will be multiplied by the utilization of the fanouts in the spatial architecture,
     # punishing mappings which underutilize fanouts.
     UTILIZATION_IN_WART = True
@@ -86,22 +88,38 @@ class Settings():
     # When this is False, the computation of 'distinct_values' MAY (depends on strides) become slower.
     # NOTE: setting this to True is needed to match Timeloop, as it uses the same approximation.
     OVERESTIMATE_DISTINCT_VALUES = False
-
+    # Path to the folder above Accelergy, for a normal installation in Ubuntu that is usually like:
+    # "/home/<username>/.local/lib/python3.X/site-packages/"
+    # FactorFlow has been tested with commit 'd1d199e571e621ce11168efe1af2583dec0c2c49' of Accelergy.
+    # NOTE: this is NOT required if you have installed Accelergy as a python package and can import it.
+    ACCELERGY_PATH = "\\\\wsl.localhost/Ubuntu-22.04/home/zero/.local/lib/python3.10/site-packages"
+    
+    # ENGINE SETTINGS:
+    
     # The mapper to import as part of the map-space exploration engine. Alternative mappers can
     # be found in the folder "./mappers", use the name of the python file for this setting.
-    MAPPER = "quadratic"
+    MAPPER = "linear"
+    # Which settings apply to which mapper:
+    # Setting                               |  exponential  |   quadratic   |    linear     |    hybrid     |
+    # ITERATE_AMOUNTS                       |       o       |       o       |       o       |       o       |
+    # FREEZE_SPATIALS                       |       o       |       x       |       x       |       x       |
+    # STEPS_TO_EXPLORE                      |       o       |       o       |       o       |       o       |
+    # LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC    |       o       |       o       |       o       |       o       |
+    # NO_CONSTRAINTS_CHECK_DURING_MULTISTEP |       o       |       o       |       o       |       o       |
+    # ONLY_MAXIMIZE_ONE_FANOUT_DIM          |       o       |       x       |       x       |       x       |
+    # LOCAL_SEARCH_SPATIAL_LEVELS           |       x       |       o       |       o       |       o       |
+    # PERM_SKIP                             |       o       |       o       |       o       |       o       |
+    # HARD_PERM_SKIP                        |       o       |       o       |       o       |       o       |
+    # DISTINCT_REUSE_OPPORTUNITIES          |       o       |       o       |       o       |       o       |
+    # PERM_PRUNING                          |       o       |       x       |       x       |       o       |
+    # RIPPLES                               |       x       |       x       |       o       |       x       |
+    
     # If True, the exploration of permutations done in optimizeDataflows will run across multiple
     # threads (or better, processes, due to the GIL).
     MULTITHREADED = True
     # Number of threads to use if MULTITHREADED is True. If None, it is set to the number of
     # logical CPUs available on the system.
     THREADS_COUNT = 8
-    
-    # Path to the folder above Accelergy, for a normal installation in Ubuntu that is usually like:
-    # "/home/<username>/.local/lib/python3.X/site-packages/"
-    # FactorFlow has been tested with commit 'd1d199e571e621ce11168efe1af2583dec0c2c49' of Accelergy.
-    # NOTE: this is NOT required if you have installed Accelergy as a python package and can import it.
-    ACCELERGY_PATH = "\\\\wsl.localhost/Ubuntu-22.04/home/zero/.local/lib/python3.10/site-packages"
 
     # flag used to propagate a ctrl+c to all threads
     forced_termination_flag = False
