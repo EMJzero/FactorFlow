@@ -41,7 +41,7 @@ def forcedSettingsUpdate(arch : Arch, verbose : bool = True) -> None:
 Mapper entry point.
 """
 def run_engine(arch : Arch, comp : Shape, coupling : Coupling, bias_read : bool, verbose : bool = False) -> tuple[float, int, float, int, float, float, Arch]:
-    forcedSettingsUpdate(arch, verbose = Settings.VERBOSE)
+    forcedSettingsUpdate(arch, verbose = verbose)
     start_time = time.time()
     
     if Settings.MULTITHREADED:

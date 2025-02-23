@@ -250,6 +250,7 @@ if __name__ == "__main__":
                     factor_moves = []
                     next_spatial = next((i for i, l in enumerate(arch) if isinstance(l, FanoutLevel)), len(arch))
                     spatial_indices = []
+                    unsatisfied_not_bypasses = {l: {'in', 'w', 'out'} - set(l.bypasses) for l in arch if isinstance(l, MemLevel)}
                     for ll in loopslines:
                         levels = [ll.in_level, ll.w_level, ll.out_level]
                         levels.sort(key = lambda l : l.idx)
@@ -277,22 +278,28 @@ if __name__ == "__main__":
                                 while l.idx > next_spatial:
                                     spatial_indices.append(len(new_arch) - 1)
                                     next_spatial = next((i + next_spatial + 1 for i, l in enumerate(arch[next_spatial + 1:]) if isinstance(l, FanoutLevel)), len(arch))
+                            idx = next(i for i, nal in enumerate(new_arch) if nal.name == l.name)
                             if l == ll.in_level:
-                                if 'in' in new_arch[-1].bypasses:
-                                    new_arch[-1].bypasses.remove('in')
-                                new_arch[-1].in_bp = 1
+                                if 'in' in new_arch[idx].bypasses:
+                                    new_arch[idx].bypasses.remove('in')
+                                new_arch[idx].in_bp = 1
+                                if 'in' in unsatisfied_not_bypasses[arch[l.idx]]:
+                                    unsatisfied_not_bypasses[arch[l.idx]].remove('in')
                             if l == ll.w_level:
-                                if 'w' in new_arch[-1].bypasses:
-                                    new_arch[-1].bypasses.remove('w')
-                                new_arch[-1].w_bp = 1
+                                if 'w' in new_arch[idx].bypasses:
+                                    new_arch[idx].bypasses.remove('w')
+                                new_arch[idx].w_bp = 1
+                                if 'w' in unsatisfied_not_bypasses[arch[l.idx]]:
+                                    unsatisfied_not_bypasses[arch[l.idx]].remove('w')
                             if l == ll.out_level:
-                                if 'out' in new_arch[-1].bypasses:
-                                    new_arch[-1].bypasses.remove('out')
-                                new_arch[-1].out_bp = 1
+                                if 'out' in new_arch[idx].bypasses:
+                                    new_arch[idx].bypasses.remove('out')
+                                new_arch[idx].out_bp = 1
+                                if 'out' in unsatisfied_not_bypasses[arch[l.idx]]:
+                                    unsatisfied_not_bypasses[arch[l.idx]].remove('out')
+                            new_arch[idx].read_bandwidth = arch[l.idx].read_bandwidth*((3 - len(new_arch[idx].bypasses))/(3 - len(arch[l.idx].bypasses)))
+                            new_arch[idx].write_bandwidth = arch[l.idx].write_bandwidth*((3 - len(new_arch[idx].bypasses))/(3 - len(arch[l.idx].bypasses)))
                         new_arch[-1].dataflow = [dim for dim in coupling.dims if dim not in ll.dataflow] + ll.dataflow
-                        new_arch[-1].size = math.inf
-                        new_arch[-1].read_bandwidth *= (3 - len(new_arch[-1].bypasses))/(3 - len(arch[l.idx].bypasses))
-                        new_arch[-1].write_bandwidth *= (3 - len(new_arch[-1].bypasses))/(3 - len(arch[l.idx].bypasses))
                         factor_moves.append((new_arch[-1], ll.loops))
                     
                     #print("-------")
@@ -306,9 +313,43 @@ if __name__ == "__main__":
                         new_arch[si].dims = coupling.dims
                         new_arch[si].dataflow = coupling.dims
                         new_arch[si].factors_constraints.clear()
-
+                    
                     new_arch.append(deepcopy(arch[-1]))
                     new_arch[-1]._dim = None
+                    
+                    # TODO: since we don't explore bypass options, this gives to the outer instance of a level the role to store all operands for which it does not exist an inner copy of the level storing them. This shall be removed when introducing exploration of bypasses!
+                    # Moreover, if any level was NOT inserted in the architecture, we place it back where it belongs, since again we don't explore the possibility of skipping levels...
+                    for l, bypasses in unsatisfied_not_bypasses.items():
+                        for b in bypasses:
+                            found = False
+                            for ln in new_arch:
+                                if ln.name.lower().startswith(l.name.lower()):
+                                    found = True
+                                    ln.bypasses.remove(b)
+                                    if b == 'in':
+                                        ln.in_bp = 1
+                                    elif b == 'w':
+                                        ln.w_bp = 1
+                                    elif b == 'out':
+                                        ln.out_bp = 1
+                                    break
+                            if not found:
+                                new_l = deepcopy(l)
+                                new_l.size *= 3 # to give some room for padding
+                                new_l._value_access_energy = None
+                                new_l._word_bits = 256
+                                new_l._value_bits = 8
+                                new_l._wordline_access_energy = None
+                                new_l._read_wordline_access_energy = None
+                                new_l._write_wordline_access_energy = None
+                                new_l._read_value_access_energy = new_l.read_access_energy
+                                new_l._write_value_access_energy = new_l.write_access_energy
+                                new_l._bandwidth = None
+                                new_l.factors_constraints.clear()
+                                new_l.dataflow_constraints.clear()
+                                level_name_before_l = next((lv.name.lower() for i, lv in enumerate(arch) if i < len(arch) - 1 and l == arch[i + 1]), "-notalevel-")
+                                new_arch.insert(next((len(new_arch) - i - 1 + 1 for i, ln in enumerate(new_arch[::-1]) if ln.name.lower().startswith(level_name_before_l)), 0), new_l)
+                                break
                     
                     padded_comp = {dim : 1 for dim in comp.keys() if not dim.endswith("stride") and not dim.endswith("dilation")}
                     for _, fms in factor_moves:
@@ -408,6 +449,7 @@ if __name__ == "__main__":
                     #printLatency(new_arch)
                     #for level in new_arch:
                     #    print(level.name, level.dataflow, level.bypasses if isinstance(level, MemLevel) else level.mesh)
+                    #print("---------------------------")
                     
                     table.add_row([filename, arch_name, comp_name, f"{edp:.3e}", f"{mops[0]+mops[1]:.0f}", f"{latency:.3e}", f"{energy:.3e}", f"{utilization:.3e}", f"{runtime:.3f}"])
 

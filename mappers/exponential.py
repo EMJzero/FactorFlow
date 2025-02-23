@@ -559,13 +559,13 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
             else:
                 past_perms[key].increaseCounter()
             #print(f"Thread {thread_idx}: {key} - {current_perms[last_iterated_perm]} - increasing counter eq-match.")
-            skipped_perms = reduce(lambda tot, range : tot * (range[1] - range[0]), perms_ranges[last_iterated_perm + 1:len(perms_ranges)], 1)
+            skipped_perms = reduce(lambda tot, range : tot * (range[1] - range[0]), perms_ranges[last_iterated_perm + 1:], 1)
             skipped_perms_total += skipped_perms
             updateTriedCount(skipped_perms)
         
         equidataflow_past_solution = nextPermutations()
     
-    if verbose and thread_idx != -1: print(f"Terminating thread {thread_idx}, eq-matched perms: {skipped_perms_total}, pruned perms: {pruned_perms_total}.")
+    if verbose and thread_idx != -1: print(f"Terminating thread {thread_idx}, eq-matched perms: {skipped_perms_total}/{total_perms}" + (f", pruned perms: {pruned_perms_total}/{total_perms}" if Settings.PERM_PRUNING else "")+ ".")
     #print(f"Thread {thread_idx}: ", [(k, len(p), p.counter) for k, p in past_perms.items()])
     
     if thread_idx == -1:

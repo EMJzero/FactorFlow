@@ -9,6 +9,8 @@ class Settings():
     # if True, FF searches for solutions at a distance of multiple factors, all be it only arity is
     # varied, with the tried factor being just one. (tries different multiplicities)
     ITERATE_AMOUNTS = False
+    # Same as ITERATE_AMOUNTS, but enables the feature only when optimizing exclusively spatial levels.
+    SPATIAL_ITERATE_AMOUNTS = ITERATE_AMOUNTS or False
     # If True, factors allocated on spatial levels will not be optimized (as if they were constraints),
     # and this is done after factor allocation on spatial fanouts is maximized.
     # NOTE: automatically set to False in case of 2 dimensions on the same fanout.
@@ -16,6 +18,9 @@ class Settings():
     # Number of one-factor steps to try during local search after of which the best choice is picked.
     # NOTE: automatically raised to (at least) 2 in case of 2 dimensions on the same fanout.
     STEPS_TO_EXPLORE = 1
+    # Number of one-factor steps to try during local search after of which the best choice is picked.
+    # NOTE: automatically raised to (at least) the maximum number of distinct prime factors on a fanout.
+    SPATIAL_STEPS_TO_EXPLORE = 1
     # If True, any recursively explored step after the first one, will only attempt to move factors
     # into the destination level which was the source for the previous move.
     # NOTE: automatically set to True in case of 2 dimensions on the same fanout.
@@ -98,12 +103,14 @@ class Settings():
     
     # The mapper to import as part of the map-space exploration engine. Alternative mappers can
     # be found in the folder "./mappers", use the name of the python file for this setting.
-    MAPPER = "linear"
+    MAPPER = "hybrid"
     # Which settings apply to which mapper:
     # Setting                               |  exponential  |   quadratic   |    linear     |    hybrid     |
     # ITERATE_AMOUNTS                       |       o       |       o       |       o       |       o       |
+    # SPATIAL_ITERATE_AMOUNTS               |       x       |       x       |       x       |       o       |
     # FREEZE_SPATIALS                       |       o       |       x       |       x       |       x       |
     # STEPS_TO_EXPLORE                      |       o       |       o       |       o       |       o       |
+    # SPATIAL_STEPS_TO_EXPLORE              |       x       |       x       |       x       |       o       |
     # LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC    |       o       |       o       |       o       |       o       |
     # NO_CONSTRAINTS_CHECK_DURING_MULTISTEP |       o       |       o       |       o       |       o       |
     # ONLY_MAXIMIZE_ONE_FANOUT_DIM          |       o       |       x       |       x       |       x       |

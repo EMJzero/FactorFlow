@@ -32,10 +32,11 @@ def mapperForcedSettingsUpdate(arch : Arch, verbose : bool = True) -> None:
         if isinstance(level, SpatialLevel) and len(level.dims) >= 2:
             Settings.LOCAL_SEARCH_SPATIAL_LEVELS = True
             if verbose: print(f"INFO: forcefully updating setting LOCAL_SEARCH_SPATIAL_LEVELS to {Settings.LOCAL_SEARCH_SPATIAL_LEVELS}")
-            Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC = True
-            if verbose: print(f"INFO: forcefully updating setting LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC to {Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC}")
-            Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP = True
-            if verbose: print(f"INFO: forcefully updating setting NO_CONSTRAINTS_CHECK_DURING_MULTISTEP to {Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP}")
+            if Settings.STEPS_TO_EXPLORE > 1:
+                Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC = True
+                if verbose: print(f"INFO: forcefully updating setting LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC to {Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC}")
+                Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP = True
+                if verbose: print(f"INFO: forcefully updating setting NO_CONSTRAINTS_CHECK_DURING_MULTISTEP to {Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP}")
             if verbose: print(f"INFO: --> the cause of this is the presence of a Fanout level ({level.name}) with multiple mapped dimensions ({level.dims}). Runtime might increase slightly...")
             break
 
@@ -227,11 +228,15 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
                 only_flow_inward = True
     
     if not already_initialized:
-        localSearch(final_steps_to_explore = Settings.STEPS_TO_EXPLORE, freeze_memories = False, freeze_spatials = True) # keep a single iteration on spatial levels, optimize memory levels
+        # NOTE: the idea of first setting up memories and then fanouts is beneficial on Eyeriss since STEPS_TO_EXPLORE == 2, but an issue on Simba where STEPS_TO_EXPLORE == 1 usually and fanouts cannot be exploited due to memory constraints.
+        # => either deactivate the memory pre-allocation when STEPS_TO_EXPLORE < 2 or posticipate it after the allocation on fanouts (looses a bit of perf. on eyeriss...)
+        #if Settings.STEPS_TO_EXPLORE > 1:
+        #    localSearch(final_steps_to_explore = Settings.STEPS_TO_EXPLORE, freeze_memories = False, freeze_spatials = True) # keep a single iteration on spatial levels, optimize memory levels
         if Settings.LOCAL_SEARCH_SPATIAL_LEVELS:
             localSearch(final_steps_to_explore = Settings.STEPS_TO_EXPLORE, freeze_memories = True, freeze_spatials = False) # optimize spatial levels, may only remove factors from memory levels
         else:
             fanoutMaximization(arch, comp, bias_read, verbose) # saturate fanout dimensions
+        localSearch(final_steps_to_explore = Settings.STEPS_TO_EXPLORE, freeze_memories = False, freeze_spatials = True) # keep a single iteration on spatial levels, optimize memory levels
         already_seen.clear()
         already_seen.add(arch.hashFromFactors())
     localSearch(final_steps_to_explore = Settings.STEPS_TO_EXPLORE, freeze_memories = False, freeze_spatials = False) # co-optimize memory and spatial levels

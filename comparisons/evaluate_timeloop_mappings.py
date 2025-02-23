@@ -101,7 +101,9 @@ if __name__ == "__main__":
             if not any(k.startswith(arch_name.lower()) for k in archs.keys()):
                 print(f"Invalid architecture ({arch_name}) in:", subdir)
                 continue
-            arch = archs[arch_name + arch_tail]
+            arch = deepcopy(archs[arch_name + arch_tail])
+            if coupling == transposed_conv_coupling: # TODO: this is a quick workaround...fix me!
+                arch.coupling = transposed_conv_coupling
             for level in arch:
                 level.factors_constraints.clear()
                 if isinstance(level, MemLevel):

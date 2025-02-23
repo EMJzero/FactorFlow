@@ -241,17 +241,24 @@ if __name__ == "__main__":
         extra_constant_columns_values = []#["4"]
         
         Settings.VERBOSE = False
+        settings_backup = {setting: getattr(Settings, setting) for setting in dir(Settings) if not setting.startswith('__') and not callable(getattr(Settings, setting))}
         comp_BERT_large.pop("Out")
         comp_BERT_large.pop("FF2")
         table = PrettyTable(["Arch", "Comp", "EDP[J*cycle]", "MOPs", "Latency[cc]", "Energy[uJ]", "Utilization[/]", "Runtime"] + extra_constant_columns_names)
         for arch_name, current_arch in zip(["Gemmini", "Eyeriss", "Simba", "TPUv1"], [arch_gemmini, arch_eyeriss, arch_simba, arch_tpu] if supported_couplings[options["tryall"]] is gemm_coupling else [arch_gemmini_conv, arch_eyeriss_conv, arch_simba_conv, arch_tpu_conv]):
             for comp_name, current_comp in zip(supported_comp_groups[options["tryall"]].keys(), supported_comp_groups[options["tryall"]].values()):
                 current_arch_copy = copy.deepcopy(current_arch)
+                if supported_couplings[options["tryall"]] == transposed_conv_coupling: # TODO: this is a quick workaround...fix me!
+                    current_arch_copy.coupling = transposed_conv_coupling
+                for setting, value in settings_backup.items():
+                    setattr(Settings, setting, value)
                 printopt(f"Now running FactorFlow on arch: {arch_name} and comp: {comp_name}...")
                 if not current_arch_copy.fitConstraintsToComp(current_comp, comp_name):
                     continue
-                edp, mops, energy, latency, utilization, end_time, _ = run_engine(current_arch_copy, current_comp, gemm_coupling, bias_read, verbose = False)
+                edp, mops, energy, latency, utilization, end_time, _ = run_engine(current_arch_copy, current_comp, supported_couplings[options["tryall"]], bias_read, verbose = False)
                 table.add_row([arch_name, comp_name, f"{edp:.3e}", f"{mops[0]+mops[1]:.0f}", f"{latency:.3e}", f"{energy:.3e}", f"{utilization:.3e}", f"{end_time:.3f}"] + extra_constant_columns_values)
+                printopt(f"Mapping complete!")
+                time.sleep(5) # let the CPU catch some breath...
         print(table)
     
     elif options["gen-tests"]:
@@ -266,7 +273,7 @@ if __name__ == "__main__":
     else:
         arch.checkCouplingCompatibility(coupling, comp, verbose = not options["quiet"])
         arch.fitConstraintsToComp(comp, enforce = True)
-        edp, mops, energy, latency, utilization, end_time, arch = run_engine(arch, comp, coupling, bias_read, verbose = True)
+        edp, mops, energy, latency, utilization, end_time, arch = run_engine(arch, comp, coupling, bias_read, verbose = not options["quiet"])
 
     if options["interactive"]:
         printopt("\n------ interactive mode ------")

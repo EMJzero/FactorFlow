@@ -587,12 +587,12 @@ arch_tpu_conv = Arch([
     ),
     MemLevel(
         name = "Accumulator",
-        dataflow_constraints = ['C', 'R', 'S', '_', '_', '_'],
+        dataflow_constraints = [],
         size = 4096, # number of entries (PER ONE INSTANCE!!) (remember to account for operand size)
         value_access_energy = 3.03, # per operand (pJ)
         bandwidth = 8, # operands per cycle (shared)
         multiple_buffering = 2, # be wary of THIS!!!
-        factors_constraints = {'C': 1, 'R': 1, 'S': 1}, # output stationary
+        factors_constraints = {}, # output stationary
         bypasses = ['in', 'w']
     ),
     FanoutLevel(

@@ -18,23 +18,26 @@ from arch import *
 Update Settings to best target the provided architecture with the present mapper.
 """
 def mapperForcedSettingsUpdate(arch : Arch, verbose : bool = True) -> None:
-    #if len(list(filter(lambda l : isinstance(l, MemLevel), arch))) < 6:
-    #    steps_to_explore = max(4, Settings.STEPS_TO_EXPLORE)
-    #else:
-    #    steps_to_explore = max(2, Settings.STEPS_TO_EXPLORE)
-    steps_to_explore = max(2, Settings.STEPS_TO_EXPLORE)
-    if Settings.STEPS_TO_EXPLORE != steps_to_explore and verbose: print(f"INFO: forcefully updating setting STEPS_TO_EXPLORE to {steps_to_explore}")
-    Settings.STEPS_TO_EXPLORE = steps_to_explore
-    for level in arch:
-        if isinstance(level, SpatialLevel) and len(level.dims) >= 2:
-            Settings.LOCAL_SEARCH_SPATIAL_LEVELS = True
-            if verbose: print(f"INFO: forcefully updating setting LOCAL_SEARCH_SPATIAL_LEVELS to {Settings.LOCAL_SEARCH_SPATIAL_LEVELS}")
+    if sum(1 for l in arch if isinstance(l, MemLevel)) < 6:
+        steps_to_explore = max(2, Settings.STEPS_TO_EXPLORE)
+        if Settings.STEPS_TO_EXPLORE != steps_to_explore and verbose: print(f"INFO: forcefully updating setting STEPS_TO_EXPLORE to {steps_to_explore}")
+        Settings.STEPS_TO_EXPLORE = steps_to_explore
+    sp_levels = [sp_l for sp_l in arch if isinstance(sp_l, SpatialLevel)]
+    if any(len(sp_l.dims) >= 2 for sp_l in sp_levels):
+        if verbose: print("INFO: forcefully updating setting LOCAL_SEARCH_SPATIAL_LEVELS to True")
+        Settings.LOCAL_SEARCH_SPATIAL_LEVELS = True
+        if Settings.STEPS_TO_EXPLORE > 1:
+            if not Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC and verbose: print("INFO: forcefully updating setting LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC to True")
             Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC = True
-            if verbose: print(f"INFO: forcefully updating setting LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC to {Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC}")
+            if not Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and verbose: print("INFO: forcefully updating setting NO_CONSTRAINTS_CHECK_DURING_MULTISTEP to True")
             Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP = True
-            if verbose: print(f"INFO: forcefully updating setting NO_CONSTRAINTS_CHECK_DURING_MULTISTEP to {Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP}")
-            if verbose: print(f"INFO: --> the cause of this is the presence of a Fanout level ({level.name}) with multiple mapped dimensions ({level.dims}). Runtime might increase slightly...")
-            break
+        if verbose: print(f"INFO: --> the cause of this is the presence of Fanout levels ({', '.join(sp_l.name for sp_l in sp_levels if len(sp_l.dims) >= 2)}) with multiple mapped dimensions ({', '.join(str(sp_l.dims) for sp_l in sp_levels if len(sp_l.dims) >= 2)}). Runtime might increase slightly...")
+    if Settings.LOCAL_SEARCH_SPATIAL_LEVELS:
+        spatial_steps_to_explore = max(max(len(prime_factors(sp_l.mesh).keys()) for sp_l in sp_levels), Settings.SPATIAL_STEPS_TO_EXPLORE)
+        if Settings.SPATIAL_STEPS_TO_EXPLORE != spatial_steps_to_explore and verbose: print(f"INFO: forcefully updating setting SPATIAL_STEPS_TO_EXPLORE to {spatial_steps_to_explore}")
+        Settings.SPATIAL_STEPS_TO_EXPLORE = spatial_steps_to_explore
+        if not Settings.SPATIAL_ITERATE_AMOUNTS and verbose: print("INFO: forcefully updating setting SPATIAL_ITERATE_AMOUNTS to True")
+        Settings.SPATIAL_ITERATE_AMOUNTS = True
 
 """
 Pad comp's size to fully exploit the available spatial instances.
@@ -152,19 +155,21 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
     # track the count of moves performed
     moves_count = 0
     
-    # recursive function that explores and returns all mappings up to 'remaining_steps' away from the present one
-    # NOTE: 'freeze_memories' only prevents memories from being destinations (receiving factors)
-    # NOTE: 'freeze_spatials' prevents spatial levels from being both sources and destinations (neither giving nor receiving factors)
-    def exploreOneStep(remaining_steps : int = 1, target_dst_level_idx : Optional[int] = None, freeze_memories : bool = False, freeze_spatials : bool = False, only_flow_inward : bool = True) -> dict[tuple[Union[int, str]], float]:
+    """
+    Recursive function that explores all adjacent mappings to the present one, recurring to explore up to 'remaining_steps' adjacency
+    hops away and then greedily selecting the best move when collapsing each explored branch/trajectory.
+    
+    Arguments:
+    - remaining_steps: number of recursions/steps to explore.
+    - target_dst_level_idx: when specified, it enforces the specified level to receive any factors moved during the present recursion.
+    - freeze_memories: (only) prevents memories from being destinations (receiving factors).
+    - freeze_spatials: prevents spatial levels from being both sources and destinations (neither giving nor receiving factors).
+    - only_flow_inward: allows factors to only be moved from an outer level (lower idx) to an inner one.
+    - iterate_amounts: explore also moves that involve multiplicities of prime factors >1 (between the same pair of levels).
+    """
+    def exploreOneStep(remaining_steps : int = 1, target_dst_level_idx : Optional[int] = None, freeze_memories : bool = False, freeze_spatials : bool = False, only_flow_inward : bool = True, iterate_amounts : bool = False) -> dict[tuple[Union[int, str]], float]:
         choices = {}
-        for src_level_idx, dim, factor, amount in factorsIterator(arch, iterate_amounts = Settings.ITERATE_AMOUNTS, skip_spatial = freeze_spatials):
-            
-            # go back to the first valid source
-            #while src_level_idx >= 0 and dim in arch[src_level_idx].factors_constraints:
-            #    src_level_idx -= 1
-            #if src_level_idx < 0 or factor not in arch[src_level_idx].factors[dim]:
-            #    continue
-            
+        for src_level_idx, dim, factor, amount in factorsIterator(arch, iterate_amounts = iterate_amounts, skip_spatial = freeze_spatials):
             # pick the target level:
             # - only among inner levels under normal circumstances
             # - anywhere after hitting a dead end
@@ -194,21 +199,26 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
                     assert arch.moveFactor(dst_level_idx, src_level_idx, dim, factor, amount, skip_dst_constraints = Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and remaining_steps > 1) # something went wrong, unreversible move of a factor    
         return choices
     
-    def localSearch(initial_steps_to_explore : int = 1, final_steps_to_explore : int = 1, steps_to_explore_increment : int = 2, freeze_memories : bool = False, freeze_spatials : bool = False) -> None:
+    """
+    Runs a greedy local search around the present mapping up until a local optimum is found. To save time, only downward factor moves and up
+    to 'initial_steps_to_explore' adjacency hops are explored until the search gets stuck, both limitations get then released, with explored
+    hops progressively increasing by 'steps_to_explore_increment' up to 'final_steps_to_explore' or until an improving move is found, if any.
+    The arguments 'freeze_memories' and 'freeze_spatials' control which levels partake in the exploration, see 'exploreOneStep'.
+    """
+    def localSearch(initial_steps_to_explore : int = 1, final_steps_to_explore : int = 1, steps_to_explore_increment : int = 1, freeze_memories : bool = False, freeze_spatials : bool = False, iterate_amounts : bool = False) -> None:
         nonlocal best_wart, moves_count
         # when failing to find a better mapping, increase the explored hops ('steps_to_explore') until they reach Settings.STEPS_TO_EXPLORE, then terminate if no better mapping is found, otherswise reset the hops to one
         steps_to_explore = initial_steps_to_explore
         only_flow_inward = True
         while True:
-            choices = exploreOneStep(remaining_steps = steps_to_explore, freeze_spatials = freeze_spatials, freeze_memories = freeze_memories, only_flow_inward = only_flow_inward)
+            choices = exploreOneStep(remaining_steps = steps_to_explore, freeze_spatials = freeze_spatials, freeze_memories = freeze_memories, only_flow_inward = only_flow_inward, iterate_amounts = iterate_amounts)
             # >>> GREEDY MOVE <<<
             best_choice = max(choices, key = choices.get, default = None)
             if not best_choice or choices[best_choice] < best_wart:
                 if steps_to_explore < final_steps_to_explore:
-                    steps_to_explore *= steps_to_explore_increment
+                    steps_to_explore += steps_to_explore_increment
                     if steps_to_explore == final_steps_to_explore:
                         only_flow_inward = False
-                    continue
                 else:
                     if verbose: print(f"No valid follow-up configuration, stopping, current Wart: {best_wart:.3e}" if len(choices) == 0 else f"Stopping with current Wart: {best_wart:.3e}, while best choice is: {choices[best_choice]:.3e}")
                     break
@@ -217,21 +227,30 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
                 multisteps = len(best_choice) // 5
                 moves_count += multisteps
                 for i in range(multisteps):
-                    if verbose: print(f"Moving {arch[best_choice[5*i + 0]].name} --{best_choice[5*i + 2]}:{best_choice[5*i + 3]*best_choice[5*i + 4]}--> {arch[ best_choice[5*i + 1]].name}")
+                    if verbose: print(f"Moving {arch[best_choice[5*i + 0]].name} --{best_choice[5*i + 2]}:{best_choice[5*i + 3]*best_choice[5*i + 4]}--> {arch[best_choice[5*i + 1]].name}")
                     assert arch.moveFactor(best_choice[5*i + 0], best_choice[5*i + 1], best_choice[5*i + 2], best_choice[5*i + 3], best_choice[5*i + 4], skip_src_constraints = Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and i < multisteps - 1) # best choice is an invalid mapping
                 best_wart = choices[best_choice]
                 steps_to_explore = initial_steps_to_explore
                 only_flow_inward = True
     
     if not already_initialized:
-        localSearch(final_steps_to_explore = Settings.STEPS_TO_EXPLORE, freeze_memories = False, freeze_spatials = True) # keep a single iteration on spatial levels, optimize memory levels
+        # NOTE: the idea of first setting up memories and then fanouts is beneficial on Eyeriss since STEPS_TO_EXPLORE == 2, but an issue on Simba where STEPS_TO_EXPLORE == 1 usually and fanouts cannot be exploited due to memory constraints.
+        # => either deactivate the memory pre-allocation when STEPS_TO_EXPLORE < 2 or posticipate it after the allocation on fanouts (looses a bit of perf. on eyeriss...)
+        #if Settings.STEPS_TO_EXPLORE > 1:
+        #    localSearch(final_steps_to_explore = Settings.STEPS_TO_EXPLORE, freeze_memories = False, freeze_spatials = True, iterate_amounts = True) # keep a single iteration on spatial levels, optimize memory levels
         if Settings.LOCAL_SEARCH_SPATIAL_LEVELS:
-            localSearch(final_steps_to_explore = Settings.STEPS_TO_EXPLORE, freeze_memories = True, freeze_spatials = False) # optimize spatial levels, may only remove factors from memory levels
+            #if verbose: print("- local search of spatial levels -")
+            # NOTE: use a higher STEPS_TO_EXPLORE and 'iterate_amounts' to prevent disjoint large prime factors to contend with many small ones shared with the spatial level's available mesh.
+            localSearch(initial_steps_to_explore = Settings.SPATIAL_STEPS_TO_EXPLORE, final_steps_to_explore = Settings.SPATIAL_STEPS_TO_EXPLORE, freeze_memories = True, freeze_spatials = False, iterate_amounts = Settings.SPATIAL_ITERATE_AMOUNTS) # optimize spatial levels, may only remove factors from memory levels
         else:
+            #if verbose: print("- fanout maximization -")
             fanoutMaximization(arch, comp, bias_read, verbose) # saturate fanout dimensions
+        #if verbose: print("- local search of memory levels -")
+        localSearch(final_steps_to_explore = Settings.STEPS_TO_EXPLORE, freeze_memories = False, freeze_spatials = True, iterate_amounts = Settings.ITERATE_AMOUNTS) # keep a single iteration on spatial levels, optimize memory levels
         already_seen.clear()
         already_seen.add(arch.hashFromFactors())
-    localSearch(final_steps_to_explore = Settings.STEPS_TO_EXPLORE, freeze_memories = False, freeze_spatials = False) # co-optimize memory and spatial levels
+    #if verbose: print("- spatial-memory levels co-optimization -")
+    localSearch(final_steps_to_explore = Settings.STEPS_TO_EXPLORE, freeze_memories = False, freeze_spatials = False, iterate_amounts = Settings.ITERATE_AMOUNTS) # co-optimize memory and spatial levels
     
     updateStats(arch, bias_read)
     if verbose: print(f"Final condition:\nWart: {best_wart}\nEDP: {EDP(arch, bias_read, True):.3e} (J*cycle)")
@@ -581,13 +600,13 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
             else:
                 past_perms[key].increaseCounter()
             #print(f"Thread {thread_idx}: {key} - {current_perms[last_iterated_perm]} - increasing counter eq-match.")
-            skipped_perms = reduce(lambda tot, range : tot * (range[1] - range[0]), perms_ranges[last_iterated_perm + 1:len(perms_ranges)], 1)
+            skipped_perms = reduce(lambda tot, range : tot * (range[1] - range[0]), perms_ranges[last_iterated_perm + 1:], 1)
             skipped_perms_total += skipped_perms
             updateTriedCount(skipped_perms)
         
         equidataflow_past_solution = nextPermutations()
     
-    if verbose and thread_idx != -1: print(f"Terminating thread {thread_idx}, eq-matched perms: {skipped_perms_total}, pruned perms: {pruned_perms_total}.")
+    if verbose and thread_idx != -1: print(f"Terminating thread {thread_idx}, eq-matched perms: {skipped_perms_total}/{total_perms}" + (f", pruned perms: {pruned_perms_total}/{total_perms}" if Settings.PERM_PRUNING else "")+ ".")
     #print(f"Thread {thread_idx}: ", [(k, len(p), p.counter) for k, p in past_perms.items()])
     
     if thread_idx == -1:

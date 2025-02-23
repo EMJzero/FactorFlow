@@ -108,7 +108,7 @@ class Arch(list[Level]):
         # check src constraints
         if not self[src_level_idx].checkFactorsConstraints() and not skip_src_constraints:
             self[src_level_idx].addFactor(dimension, factor, amount)
-            return False   
+            return False
         self[dst_level_idx].addFactor(dimension, factor, amount)
         # update tile sizes
         factor_to_amount = factor**amount
@@ -318,7 +318,12 @@ class Arch(list[Level]):
                         print(f"WARNING: Arch: {self.name} -> Level: {level.name}: updating constraint ({dim}: {level.factors_constraints[dim + eq]}) to ({dim}: {comp[dim] // total_constraint}) to fit the computation.")
                         level.factors_constraints[dim + eq] = comp[dim] // total_constraint
                     elif eq == '' and (comp[dim] // total_constraint) % level.factors_constraints[dim] != 0 and not Settings.PADDED_MAPPINGS:
-                        assert False, f"Arch: {self.name} -> Level: {level.name}: Failed to fit comp to arch because the level's constraint ({dim}: {level.factors_constraints[dim]}) does not divide comp dimension {dim} ({comp[dim]}) exactly. To compensate, consider setting 'Settings.PADDED_MAPPINGS' to True."
+                        if enforce:
+                            assert False, f"Arch: {self.name} -> Level: {level.name}: Failed to fit comp to arch because the level's constraint ({dim}: {level.factors_constraints[dim]}) does not divide comp dimension {dim} ({comp[dim]}) exactly. To compensate, consider setting 'Settings.PADDED_MAPPINGS' to True."
+                        else:
+                            print(f"ERROR: Arch: {self.name} -> Level: {level.name}: Failed to fit comp to arch because the level's constraint ({dim}: {level.factors_constraints[dim]}) does not divide comp dimension {dim} ({comp[dim]}) exactly. To compensate, consider setting 'Settings.PADDED_MAPPINGS' to True.")
+                        failed = True
+                        break
                     total_constraint *= level.factors_constraints[dim + eq]
             if failed:
                 break
