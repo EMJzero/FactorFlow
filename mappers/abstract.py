@@ -27,7 +27,7 @@ Mapper Step 3: greedy descent factors allocation, navigating the map-space
 
 NOTE: this is a placeholder.
 """
-def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = False) -> tuple[Arch, float]:
+def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = False) -> tuple[Arch, float, int]:
     already_initialized = arch.initialized
     if not already_initialized:
         arch.initFactors(comp)

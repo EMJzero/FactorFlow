@@ -32,10 +32,11 @@ def mapperForcedSettingsUpdate(arch : Arch, verbose : bool = True) -> None:
         if isinstance(level, SpatialLevel) and len(level.dims) >= 2:
             Settings.LOCAL_SEARCH_SPATIAL_LEVELS = True
             if verbose: print(f"INFO: forcefully updating setting LOCAL_SEARCH_SPATIAL_LEVELS to {Settings.LOCAL_SEARCH_SPATIAL_LEVELS}")
-            Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC = True
-            if verbose: print(f"INFO: forcefully updating setting LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC to {Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC}")
-            Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP = True
-            if verbose: print(f"INFO: forcefully updating setting NO_CONSTRAINTS_CHECK_DURING_MULTISTEP to {Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP}")
+            if Settings.STEPS_TO_EXPLORE > 1:
+                Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC = True
+                if verbose: print(f"INFO: forcefully updating setting LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC to {Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC}")
+                Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP = True
+                if verbose: print(f"INFO: forcefully updating setting NO_CONSTRAINTS_CHECK_DURING_MULTISTEP to {Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP}")
             if verbose: print(f"INFO: --> the cause of this is the presence of a Fanout level ({level.name}) with multiple mapped dimensions ({level.dims}). Runtime might increase slightly...")
             break
 
@@ -136,7 +137,7 @@ Adjacency: two mappings are adjacent if one can be constructed from the other
            by moving exactly one prime factor between two loops/levels on the
            same dimension.
 """
-def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = False) -> tuple[Arch, float]:
+def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = False) -> tuple[Arch, float, int]:
     if verbose: print("-------- factorFlow --------")
     already_initialized = arch.initialized
     if not already_initialized:
@@ -197,7 +198,7 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
                     assert arch.moveFactor(dst_level_idx, src_level_idx, dim, factor, amount, skip_dst_constraints = Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and remaining_steps > 1) # something went wrong, unreversible move of a factor    
         return choices
     
-    def localSearch(initial_steps_to_explore : int = 1, final_steps_to_explore : int = 1, steps_to_explore_increment : int = 1, freeze_memories : bool = False, freeze_spatials : bool = False) -> None:
+    def localSearch(initial_steps_to_explore : int = 1, final_steps_to_explore : int = 1, steps_to_explore_increment : int = 2, freeze_memories : bool = False, freeze_spatials : bool = False) -> None:
         nonlocal best_wart, moves_count
         # when failing to find a better mapping, increase the explored hops ('steps_to_explore') until they reach Settings.STEPS_TO_EXPLORE, then terminate if no better mapping is found, otherswise reset the hops to one
         steps_to_explore = initial_steps_to_explore
@@ -208,7 +209,7 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
             best_choice = max(choices, key = choices.get, default = None)
             if not best_choice or choices[best_choice] < best_wart:
                 if steps_to_explore < final_steps_to_explore:
-                    steps_to_explore += steps_to_explore_increment
+                    steps_to_explore *= steps_to_explore_increment
                     if steps_to_explore == final_steps_to_explore:
                         only_flow_inward = False
                     continue

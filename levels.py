@@ -526,7 +526,7 @@ class MemLevel(Level):
                     # 'level' is the level immediately above the one that stores the bypassed operand after the self level
                     in_between, level = levels[:-1], levels[-1]
                     in_reads_bp, w_reads_bp, out_reads_bp, out_writes_bp, out_reads_bp_factors = level.MOPs(operand == 'in', operand == 'w', operand == 'out', True)
-                    # bulid the inner-most dataflow, by piling one against the other all non-1 loops, then look at which is the innermost dimension, that is the one that matters!
+                    # build the inner-most dataflow, by piling one against the other all non-1 loops, then look at which is the innermost dimension, that is the one that matters!
                     # TL;DR: consider the dataflow only w.r.t. the innermost loop, ignoring those with 1 iteration!
                     stationarity_to_address = not (any(level.factors.dimProduct(dim) > 1 and dim in self.arch.coupling.flatCouplingByOperand(operand) for dim in level.dataflow) if self.multiple_reuses else any(level.factors.dimProduct(dim) > 1 for dim in level.dataflow))
                     #level.bp_stationarity_solved_here[operand] = not stationarity_to_address
@@ -535,7 +535,7 @@ class MemLevel(Level):
                             # ignore loops at one
                             actual_dataflow_bp = list(filter(lambda dim : in_btwn.factors.dimProduct(dim) > 1, in_btwn.dataflow))
                             in_btwn_factors_full = in_btwn.factors.fullProduct()
-                            old_stationarity_to_address = stationarity_to_address
+                            #old_stationarity_to_address = stationarity_to_address
                             if in_reads_bp:
                                 if stationarity_to_address:
                                     # all inner loops were 1s or orthogonal, deal with the dataflow now!

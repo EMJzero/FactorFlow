@@ -25,6 +25,8 @@ class Settings():
     # into the destination level which was the source for the previous move.
     # NOTE: automatically set to True in case of 2 dimensions on the same fanout.
     LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC = False
+    # Same as LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC, but applies only when optimizing spatial levels.
+    SPATIAL_LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC = False
     # If True, any intermediate step of a multi-step exploration will not need to satisfy architectural
     # constraints, on the condition that the final step will satisfy them.
     # NOTE: can be True iif LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC is True
@@ -105,21 +107,21 @@ class Settings():
     # be found in the folder "./mappers", use the name of the python file for this setting.
     MAPPER = "hybrid"
     # Which settings apply to which mapper:
-    # Setting                               |  exponential  |   quadratic   |    linear     |    hybrid     |
-    # ITERATE_AMOUNTS                       |       o       |       o       |       o       |       o       |
-    # SPATIAL_ITERATE_AMOUNTS               |       x       |       x       |       x       |       o       |
-    # FREEZE_SPATIALS                       |       o       |       x       |       x       |       x       |
-    # STEPS_TO_EXPLORE                      |       o       |       o       |       o       |       o       |
-    # SPATIAL_STEPS_TO_EXPLORE              |       x       |       x       |       x       |       o       |
-    # LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC    |       o       |       o       |       o       |       o       |
-    # NO_CONSTRAINTS_CHECK_DURING_MULTISTEP |       o       |       o       |       o       |       o       |
-    # ONLY_MAXIMIZE_ONE_FANOUT_DIM          |       o       |       x       |       x       |       x       |
-    # LOCAL_SEARCH_SPATIAL_LEVELS           |       x       |       o       |       o       |       o       |
-    # PERM_SKIP                             |       o       |       o       |       o       |       o       |
-    # HARD_PERM_SKIP                        |       o       |       o       |       o       |       o       |
-    # DISTINCT_REUSE_OPPORTUNITIES          |       o       |       o       |       o       |       o       |
-    # PERM_PRUNING                          |       o       |       x       |       x       |       o       |
-    # RIPPLES                               |       x       |       x       |       o       |       x       |
+    # Setting                               |  exponential  |   quadratic   |    linear     |    hybrid     |     local     |
+    # ITERATE_AMOUNTS                       |       o       |       o       |       o       |       o       |       o       |
+    # SPATIAL_ITERATE_AMOUNTS               |       x       |       x       |       x       |       o       |       o       |
+    # FREEZE_SPATIALS                       |       o       |       x       |       x       |       x       |       x       |
+    # STEPS_TO_EXPLORE                      |       o       |       o       |       o       |       o       |       o       |
+    # SPATIAL_STEPS_TO_EXPLORE              |       x       |       x       |       x       |       o       |       o       |
+    # LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC    |       o       |       o       |       o       |       o       |       o       |
+    # NO_CONSTRAINTS_CHECK_DURING_MULTISTEP |       o       |       o       |       o       |       o       |       o       |
+    # ONLY_MAXIMIZE_ONE_FANOUT_DIM          |       o       |       x       |       x       |       x       |       x       |
+    # LOCAL_SEARCH_SPATIAL_LEVELS           |       x       |       o       |       o       |       o       |       o       |
+    # PERM_SKIP                             |       o       |       o       |       o       |       o       |       x       |
+    # HARD_PERM_SKIP                        |       o       |       o       |       o       |       o       |       x       |
+    # DISTINCT_REUSE_OPPORTUNITIES          |       o       |       o       |       o       |       o       |       x       |
+    # PERM_PRUNING                          |       o       |       x       |       x       |       o       |       x       |
+    # RIPPLES                               |       x       |       x       |       o       |       x       |       x       |
     
     # If True, the exploration of permutations done in optimizeDataflows will run across multiple
     # threads (or better, processes, due to the GIL).

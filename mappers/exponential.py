@@ -142,7 +142,7 @@ Adjacency: two mappings are adjacent if one can be constructed from the other
            by moving exactly one prime factor between two loops/levels on the
            same dimension.
 """
-def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = False) -> tuple[Arch, float]:
+def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = False) -> tuple[Arch, float, int]:
     if verbose: print("-------- factorFlow --------")
     already_initialized = arch.initialized
     if not already_initialized:
