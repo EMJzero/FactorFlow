@@ -173,7 +173,7 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
         for src_level_idx, dim, factor, amount in factorsIterator(arch, iterate_amounts = Settings.ITERATE_AMOUNTS, skip_spatial = Settings.FREEZE_SPATIALS):
             for dst_level_idx in range(len(arch)):
                 if (dst_level_idx != src_level_idx and dim in arch[dst_level_idx].dataflow and dim not in arch[dst_level_idx].factors_constraints and
-                    ((key := dim + '<=') not in arch[dst_level_idx].factors_constraints or arch[dst_level_idx].factors.dimProduct(dim)*factor <= arch[dst_level_idx].factors_constraints[key]) and
+                    ((key := dim + '<=') not in arch[dst_level_idx].factors_constraints or arch[dst_level_idx].factors.dimProduct(dim)*(factor**amount) <= arch[dst_level_idx].factors_constraints[key]) and
                     (not Settings.FREEZE_SPATIALS or not isinstance(arch[dst_level_idx], SpatialLevel))):
                     if target_dst_level_idx and dst_level_idx != target_dst_level_idx:
                         continue

@@ -172,7 +172,7 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
             # - anywhere after hitting a dead end
             for dst_level_idx in (range(src_level_idx + 1, len(arch)) if only_flow_inward else range(len(arch))):
                 if (dst_level_idx == src_level_idx or dim not in arch[dst_level_idx].dataflow or dim in arch[dst_level_idx].factors_constraints or # check constraints on factors to avoid exploring invalid mappings
-                    ((key := dim + '<=') in arch[dst_level_idx].factors_constraints and arch[dst_level_idx].factors.dimProduct(dim)*factor > arch[dst_level_idx].factors_constraints[key]) or
+                    ((key := dim + '<=') in arch[dst_level_idx].factors_constraints and arch[dst_level_idx].factors.dimProduct(dim)*(factor**amount) > arch[dst_level_idx].factors_constraints[key]) or
                     (freeze_spatials and isinstance(arch[dst_level_idx], SpatialLevel)) or (freeze_memories and isinstance(arch[dst_level_idx], MemLevel)) or (target_dst_level_idx and dst_level_idx != target_dst_level_idx)): # abide to the provided arguments
                     continue
                 if arch.moveFactor(src_level_idx, dst_level_idx, dim, factor, amount, skip_src_constraints = Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and remaining_steps > 1):

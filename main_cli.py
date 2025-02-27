@@ -5,6 +5,7 @@ from prettytable import PrettyTable
 from typing import TypeVar, Union, Any
 from types import FrameType
 import importlib.util
+import traceback
 import signal
 import code
 import copy
@@ -36,6 +37,10 @@ def signal_handler(signal: int, frame: Optional[FrameType]) -> None:
         sys.exit(0)
     else:
         print('\nHANDLING TERMINATION...\n')
+        stack = traceback.format_stack(frame)
+        print('------------ stack -----------')
+        print(''.join(stack[:-1])[:-1])
+        print('------------------------------')
         stop_engine()
         time.sleep(0.2)
         print('\nTERMINATION RECEIVED - SWITCHING TO INTERACTIVE MODE\n[type "exit()" or press "ctrl+c" again to terminate the program]\n')

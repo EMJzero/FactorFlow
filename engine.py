@@ -41,37 +41,41 @@ def forcedSettingsUpdate(arch : Arch, verbose : bool = True) -> None:
 Mapper entry point.
 """
 def run_engine(arch : Arch, comp : Shape, coupling : Coupling, bias_read : bool, verbose : bool = False) -> tuple[float, int, float, int, float, float, Arch]:
-    forcedSettingsUpdate(arch, verbose = verbose)
-    start_time = time.time()
-    
-    if Settings.MULTITHREADED:
-        past_perms = {(): ThreadSafeHeap()}
-        lock = threading.Lock()
-        barrier = threading.Barrier(Settings.THREADS_COUNT)
-        threads = []
-        for i in range(Settings.THREADS_COUNT):
-            t = threading.Thread(target=optimizeDataflows, args=(deepcopy(arch), deepcopy(comp), bias_read, i, Settings.THREADS_COUNT, past_perms, lock, barrier, Settings.VERBOSE))
-            threads.append(t)
-            t.start()
-            t.join
-        while any(t.is_alive() for t in threads):
-            for t in threads:
-                t.join(0.001)
-        assert () in past_perms and len(past_perms[()]) > 0, f"All threads failed to return or found no valid mapping, see above logs..."
-        _, mapping = past_perms[()].peek()
-        arch.initFactors(comp)
-        arch.importMapping(mapping)
-        wart = Wart(arch, comp, bias_read)
-    else:
-        arch, wart = optimizeDataflows(arch, comp, bias_read, verbose = Settings.VERBOSE)
-    
-    end_time = time.time() - start_time
-    
-    edp = EDP(arch, bias_read, True)
-    mops = MOPs(arch)
-    energy = Energy(arch, True)
-    latency = Latency(arch)
-    utilization = arch.spatialUtilization()
+    try:
+        forcedSettingsUpdate(arch, verbose = verbose)
+        start_time = time.time()
+        
+        if Settings.MULTITHREADED and Settings.MAPPER != 'local':
+            past_perms = {(): ThreadSafeHeap()}
+            lock = threading.Lock()
+            barrier = threading.Barrier(Settings.THREADS_COUNT)
+            threads = []
+            for i in range(Settings.THREADS_COUNT):
+                t = threading.Thread(target=optimizeDataflows, args=(deepcopy(arch), deepcopy(comp), bias_read, i, Settings.THREADS_COUNT, past_perms, lock, barrier, Settings.VERBOSE))
+                threads.append(t)
+                t.start()
+                t.join
+            while any(t.is_alive() for t in threads):
+                for t in threads:
+                    t.join(Settings.TIMEOUT)
+            assert () in past_perms and len(past_perms[()]) > 0, f"All threads failed to return or found no valid mapping, see above logs..."
+            _, mapping = past_perms[()].peek()
+            arch.initFactors(comp)
+            arch.importMapping(mapping)
+            wart = Wart(arch, comp, bias_read)
+        else:
+            arch, wart = optimizeDataflows(arch, comp, bias_read, verbose = Settings.VERBOSE)
+        
+        end_time = time.time() - start_time
+        
+        edp = EDP(arch, bias_read, True)
+        mops = MOPs(arch)
+        energy = Energy(arch, True)
+        latency = Latency(arch)
+        utilization = arch.spatialUtilization()
+    except Exception as e:
+        stop_engine()
+        raise e
     
     if verbose:
         print(f"\nFinished in: {end_time:.3f}s")
@@ -101,4 +105,4 @@ def stop_engine() -> None:
         threads.remove(threading.current_thread())
         while any(t.is_alive() for t in threads):
             for t in threads:
-                t.join(0.001)
+                t.join(Settings.TIMEOUT)

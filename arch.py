@@ -73,6 +73,22 @@ class Arch(list[Level]):
             self[i].tile_sizes = mapping[i].tile_sizes
 
     """
+    Copies's another Arch instances's mapping on the present one.
+    Minimizes the creation of new data structure instances.
+    """
+    def transferMapping(self, arch : Arch, transfer_factors : bool = True, transfer_dataflows : bool = True) -> None:
+        assert len(arch) == len(self) and all(type(l_a) == type(l_s) for l_a, l_s in zip(arch, self)) and arch.coupling.isSubcoupling(self.coupling), f"The provided arch ({arch.name}) does not have the same structure as the present arch ({self.name})."
+        for i in range(len(arch)):
+            if transfer_dataflows and not self[i].dataflow is arch[i].dataflow:
+                self[i].dataflow.clear()
+                for dim in arch[i].dataflow:
+                    self[i].dataflow.append(dim)
+            if transfer_factors and not self[i].factors is arch[i].factors:
+                self[i].factors = deepcopy(arch[i].factors)
+                for dim, v in arch[i].tile_sizes.items():
+                    self[i].tile_sizes[dim] = v
+
+    """
     Checks if the provided coupling is compatible with the architecture's.
     Updates the provided computation with its missing dimensions if needed.
     """

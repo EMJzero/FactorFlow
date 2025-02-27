@@ -19,8 +19,13 @@ class Settings():
     # NOTE: automatically raised to (at least) 2 in case of 2 dimensions on the same fanout.
     STEPS_TO_EXPLORE = 1
     # Number of one-factor steps to try during local search after of which the best choice is picked.
+    # NOTE: for the mappers using this, it applies during the spatial fanouts local search step.
     # NOTE: automatically raised to (at least) the maximum number of distinct prime factors on a fanout.
     SPATIAL_STEPS_TO_EXPLORE = 1
+    # Number of one-factor steps to try during local search after of which the best choice is picked.
+    # NOTE: for the mappers using this, it applies during the co-optimization local search step.
+    # NOTE: automatically raised to (at least) 2 in case of 2 dimensions on the same fanout.
+    CO_OPT_STEPS_TO_EXPLORE = 1
     # If True, any recursively explored step after the first one, will only attempt to move factors
     # into the destination level which was the source for the previous move.
     # NOTE: automatically set to True in case of 2 dimensions on the same fanout.
@@ -105,7 +110,7 @@ class Settings():
     
     # The mapper to import as part of the map-space exploration engine. Alternative mappers can
     # be found in the folder "./mappers", use the name of the python file for this setting.
-    MAPPER = "hybrid"
+    MAPPER = "local"
     # Which settings apply to which mapper:
     # Setting                               |  exponential  |   quadratic   |    linear     |    hybrid     |     local     |
     # ITERATE_AMOUNTS                       |       o       |       o       |       o       |       o       |       o       |
@@ -113,6 +118,7 @@ class Settings():
     # FREEZE_SPATIALS                       |       o       |       x       |       x       |       x       |       x       |
     # STEPS_TO_EXPLORE                      |       o       |       o       |       o       |       o       |       o       |
     # SPATIAL_STEPS_TO_EXPLORE              |       x       |       x       |       x       |       o       |       o       |
+    # CO_OPT_STEPS_TO_EXPLORE               |       x       |       x       |       x       |       o       |       o       |
     # LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC    |       o       |       o       |       o       |       o       |       o       |
     # NO_CONSTRAINTS_CHECK_DURING_MULTISTEP |       o       |       o       |       o       |       o       |       o       |
     # ONLY_MAXIMIZE_ONE_FANOUT_DIM          |       o       |       x       |       x       |       x       |       x       |
@@ -129,6 +135,8 @@ class Settings():
     # Number of threads to use if MULTITHREADED is True. If None, it is set to the number of
     # logical CPUs available on the system.
     THREADS_COUNT = 8
+    # Timeout for all blocking synchronization methods (e.g. join, wait).
+    TIMEOUT = 0.001
 
     # flag used to propagate a ctrl+c to all threads
     forced_termination_flag = False
@@ -137,6 +145,6 @@ class Settings():
     def toString(self) -> str:
         res = "Settings("
         for k, v in vars(self).items():
-            if not k.startswith("__"):
-                res += f"{k}={v},"
-        return res[:-1] + ")"
+            if not k.startswith("__") and not callable(getattr(self, k)):
+                res += f"{k}={v}, "
+        return res[:-2] + ")"

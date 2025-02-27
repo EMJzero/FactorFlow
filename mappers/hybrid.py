@@ -22,6 +22,8 @@ def mapperForcedSettingsUpdate(arch : Arch, verbose : bool = True) -> None:
         steps_to_explore = max(2, Settings.STEPS_TO_EXPLORE)
         if Settings.STEPS_TO_EXPLORE != steps_to_explore and verbose: print(f"INFO: forcefully updating setting STEPS_TO_EXPLORE to {steps_to_explore}")
         Settings.STEPS_TO_EXPLORE = steps_to_explore
+        if Settings.CO_OPT_STEPS_TO_EXPLORE != steps_to_explore and verbose: print(f"INFO: forcefully updating setting CO_OPT_STEPS_TO_EXPLORE to {steps_to_explore}")
+        Settings.CO_OPT_STEPS_TO_EXPLORE = steps_to_explore
     sp_levels = [sp_l for sp_l in arch if isinstance(sp_l, SpatialLevel)]
     if any(len(sp_l.dims) >= 2 for sp_l in sp_levels):
         if verbose: print("INFO: forcefully updating setting LOCAL_SEARCH_SPATIAL_LEVELS to True")
@@ -178,7 +180,7 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
             # - anywhere after hitting a dead end
             for dst_level_idx in (range(src_level_idx + 1, len(arch)) if only_flow_inward else range(len(arch))):
                 if (dst_level_idx == src_level_idx or dim not in arch[dst_level_idx].dataflow or dim in arch[dst_level_idx].factors_constraints or # check constraints on factors to avoid exploring invalid mappings
-                    ((key := dim + '<=') in arch[dst_level_idx].factors_constraints and arch[dst_level_idx].factors.dimProduct(dim)*factor > arch[dst_level_idx].factors_constraints[key]) or
+                    ((key := dim + '<=') in arch[dst_level_idx].factors_constraints and arch[dst_level_idx].factors.dimProduct(dim)*(factor**amount) > arch[dst_level_idx].factors_constraints[key]) or
                     (freeze_spatials and isinstance(arch[dst_level_idx], SpatialLevel)) or (freeze_memories and isinstance(arch[dst_level_idx], MemLevel)) or (target_dst_level_idx and dst_level_idx != target_dst_level_idx)): # abide to the provided arguments
                     continue
                 if arch.moveFactor(src_level_idx, dst_level_idx, dim, factor, amount, skip_src_constraints = Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and remaining_steps > 1):
@@ -250,11 +252,11 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
             #if verbose: print("- fanout maximization -")
             fanoutMaximization(arch, comp, bias_read, verbose) # saturate fanout dimensions
         #if verbose: print("- local search of memory levels -")
-        localSearch(final_steps_to_explore = Settings.STEPS_TO_EXPLORE, freeze_memories = False, freeze_spatials = True, iterate_amounts = Settings.ITERATE_AMOUNTS, limit_n_dst_to_c_src = Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC) # keep a single iteration on spatial levels, optimize memory levels
+        localSearch(final_steps_to_explore = Settings.STEPS_TO_EXPLORE, freeze_memories = False, freeze_spatials = True, iterate_amounts = Settings.ITERATE_AMOUNTS, limit_n_dst_to_c_src = Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC) # optimize memory levels
         already_seen.clear()
         already_seen.add(arch.hashFromFactors())
     #if verbose: print("- spatial-memory levels co-optimization -")
-    localSearch(final_steps_to_explore = Settings.STEPS_TO_EXPLORE, freeze_memories = False, freeze_spatials = False, iterate_amounts = Settings.ITERATE_AMOUNTS, limit_n_dst_to_c_src = Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC) # co-optimize memory and spatial levels
+    localSearch(final_steps_to_explore = Settings.CO_OPT_STEPS_TO_EXPLORE, freeze_memories = False, freeze_spatials = False, iterate_amounts = Settings.ITERATE_AMOUNTS, limit_n_dst_to_c_src = Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC) # co-optimize memory and spatial levels
     
     updateStats(arch, bias_read)
     if verbose: print(f"Final condition:\nWart: {best_wart}\nEDP: {EDP(arch, bias_read, True):.3e} (J*cycle)")
