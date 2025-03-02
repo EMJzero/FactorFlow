@@ -22,6 +22,10 @@ conv_coupling = Coupling(['M', 'P', 'Q', 'C', 'R', 'S'], ['C', ['P', 'R'], ['Q',
 # => Qstride*Q+Sdilation*S-1: Input width
 # ==> MAC: Out[m][p][q] += W[m][c][r][s] * In[c][p*Pstride+r*Rdilation][q*Qstride+s*Sdilation]
 conv_coupling_with_stride = Coupling(['M', 'P', 'Q', 'C', 'R', 'S'], ['C', ['P', 'R'], ['Q', 'S']], ['M', 'C', 'R', 'S'], ['M', 'P', 'Q'], in_strides = {'P': 'Pstride', 'R': 'Rdilation', 'Q': 'Qstride', 'S': 'Sdilation'})
+# WITH BATCHES too we get:
+# N: Batch size
+# ==> MAC: Out[n][m][p][q] += W[m][c][r][s] * In[n][c][p*Pstride+r*Rdilation][q*Qstride+s*Sdilation]
+conv_coupling_with_stride_and_batches = Coupling(['N', 'M', 'P', 'Q', 'C', 'R', 'S'], ['N', 'C', ['P', 'R'], ['Q', 'S']], ['M', 'C', 'R', 'S'], ['N', 'M', 'P', 'Q'], in_strides = {'P': 'Pstride', 'R': 'Rdilation', 'Q': 'Qstride', 'S': 'Sdilation'})
 # In a TRANSPOSED CONVOLUTION DIMENSIONS become:
 # P: Input height
 # Q: Input width
@@ -209,4 +213,9 @@ benchmark_convs_transposed = {
     # Transposed convs
     'XVI': Shape(C = 128, M = 256, P = 32, Q = 32, R = 4, S = 4, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
     'XVII': Shape(C = 576, M = 576, P = 7, Q = 7, R = 5, S = 5, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1)
+}
+benchmark_convs_batched = {
+    'XVIII': Shape(N = 64, C = 256, M = 256, P = 14, Q = 14, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
+    'XIX': Shape(N = 128, C = 72, M = 72, P = 28, Q = 28, R = 3, S = 3, Pstride = 2, Qstride = 2, Rdilation = 1, Sdilation = 1),
+    'XX': Shape(N = 32, C = 256, M = 256, P = 56, Q = 56, R = 3, S = 3, Pstride = 2, Qstride = 2, Rdilation = 3, Sdilation = 3)
 }

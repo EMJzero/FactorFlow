@@ -122,7 +122,7 @@ class Arch(list[Level]):
         if not self[src_level_idx].removeFactor(dimension, factor, amount):
             return False
         # check src constraints
-        if not self[src_level_idx].checkFactorsConstraints() and not skip_src_constraints:
+        if not skip_src_constraints and not self[src_level_idx].checkFactorsConstraints():
             self[src_level_idx].addFactor(dimension, factor, amount)
             return False
         self[dst_level_idx].addFactor(dimension, factor, amount)
@@ -135,8 +135,7 @@ class Arch(list[Level]):
             for i in range(dst_level_idx, src_level_idx):
                 self[i].tile_sizes[dimension] //= factor_to_amount
         # check dst and all in between constraints
-        constraints_check = [level.checkFactorsConstraints() for level in (self[src_level_idx:dst_level_idx+1] if src_level_idx < dst_level_idx else self[dst_level_idx:src_level_idx+1])]
-        if not all(constraints_check) and not skip_dst_constraints:
+        if not skip_dst_constraints and not all([level.checkFactorsConstraints() for level in (self[src_level_idx:dst_level_idx+1] if src_level_idx < dst_level_idx else self[dst_level_idx:src_level_idx+1])]):
             self[src_level_idx].addFactor(dimension, factor, amount)
             assert self[dst_level_idx].removeFactor(dimension, factor, amount) # something is broken, cannot undo the move
             if src_level_idx < dst_level_idx:
@@ -294,7 +293,7 @@ class Arch(list[Level]):
     """
     Hash unique for each factors allocation and dataflows pair.
     """
-    def hashFromFactors(self) -> int:
+    def hashFromFactors(self, return_string : bool = False) -> Union[int, str]:
         hsh = ""
         for level_idx in range(len(self)):
             hsh += f"|{level_idx}"
@@ -302,7 +301,38 @@ class Arch(list[Level]):
                 hsh += f"{dim}"
                 for factor, amount in self[level_idx].factors[dim].items():
                     hsh += f"{factor}{amount}"
-        return hash(hsh)
+        return hsh if return_string else hash(hsh)
+
+    """
+    Hash unique for each factors allocation and dataflows pair computed
+    for the mapping that would be produced if a certain move were to be
+    performed with 'moveFactor'.
+    
+    NOTE: the move's validity in terms of constraints is NOT checked.
+    """
+    def hashFromFactorsAfterMove(self, src_level_idx : int, dst_level_idx : int, move_dim : str, move_factor : int, move_amount : int = 1, return_string : bool = False) -> Union[int, str]:
+        hsh = ""
+        move_considered = False
+        for level_idx in range(len(self)):
+            hsh += f"|{level_idx}"
+            for dim in self[level_idx].dataflow:
+                hsh += f"{dim}"
+                if dim == move_dim:
+                    for factor, amount in self[level_idx].factors[dim].items():
+                        if factor == move_factor:
+                            if level_idx == src_level_idx and amount - move_amount != 0:
+                                hsh += f"{factor}{amount - move_amount}"
+                            elif level_idx == dst_level_idx:
+                                hsh += f"{factor}{amount + move_amount}"
+                            move_considered = True
+                        else:
+                            hsh += f"{factor}{amount}"
+                else:
+                    for factor, amount in self[level_idx].factors[dim].items():
+                        hsh += f"{factor}{amount}"
+        if not move_considered:
+            raise Exception("The mapping before and after the move would have been identical...")
+        return hsh if return_string else hash(hsh)
 
     """
     Reduces constraints to the largest possible ones that can be satisfied

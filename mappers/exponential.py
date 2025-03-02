@@ -168,7 +168,7 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
     moves_count = 0
     
     # recursive function that explores and returns all mappings up to 'remaining_steps' away from the present one
-    def exploreOneStep(remaining_steps : int = 1, target_dst_level_idx : Optional[int] = None) -> dict[tuple[Union[int, str]], float]:
+    def exploreOneStep(remaining_steps : int = 1, target_dst_level_idx : Optional[int] = None) -> dict[tuple[Union[int, str], ...], float]:
         choices = {}
         for src_level_idx, dim, factor, amount in factorsIterator(arch, iterate_amounts = Settings.ITERATE_AMOUNTS, skip_spatial = Settings.FREEZE_SPATIALS):
             for dst_level_idx in range(len(arch)):

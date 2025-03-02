@@ -159,7 +159,7 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
     # recursive function that explores and returns all mappings up to 'remaining_steps' away from the present one
     # NOTE: 'freeze_memories' only prevents memories from being destinations (receiving factors)
     # NOTE: 'freeze_spatials' prevents spatial levels from being both sources and destinations (neither giving nor receiving factors)
-    def exploreOneStep(remaining_steps : int = 1, target_dst_level_idx : Optional[int] = None, freeze_memories : bool = False, freeze_spatials : bool = False, only_flow_inward : bool = True) -> dict[tuple[Union[int, str]], float]:
+    def exploreOneStep(remaining_steps : int = 1, target_dst_level_idx : Optional[int] = None, freeze_memories : bool = False, freeze_spatials : bool = False, only_flow_inward : bool = True) -> dict[tuple[Union[int, str]], ..., float]:
         choices = {}
         for src_level_idx, dim, factor, amount in factorsIterator(arch, iterate_amounts = Settings.ITERATE_AMOUNTS, skip_spatial = freeze_spatials):
             

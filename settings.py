@@ -26,6 +26,9 @@ class Settings():
     # NOTE: for the mappers using this, it applies during the co-optimization local search step.
     # NOTE: automatically raised to (at least) 2 in case of 2 dimensions on the same fanout.
     CO_OPT_STEPS_TO_EXPLORE = 1
+    # Initial number of one-factor steps to try during local search, where it progressively increses
+    # up to STEPS_TO_EXPLORE or CO_OPT_STEPS_TO_EXPLORE depending on the step.
+    INITIAL_STEPS_TO_EXPLORE = 1
     # If True, any recursively explored step after the first one, will only attempt to move factors
     # into the destination level which was the source for the previous move.
     # NOTE: automatically set to True in case of 2 dimensions on the same fanout.
@@ -119,6 +122,7 @@ class Settings():
     # STEPS_TO_EXPLORE                      |       o       |       o       |       o       |       o       |       o       |
     # SPATIAL_STEPS_TO_EXPLORE              |       x       |       x       |       x       |       o       |       o       |
     # CO_OPT_STEPS_TO_EXPLORE               |       x       |       x       |       x       |       o       |       o       |
+    # INITIAL_STEPS_TO_EXPLORE              |       x       |       x       |       x       |       o       |       o       |
     # LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC    |       o       |       o       |       o       |       o       |       o       |
     # NO_CONSTRAINTS_CHECK_DURING_MULTISTEP |       o       |       o       |       o       |       o       |       o       |
     # ONLY_MAXIMIZE_ONE_FANOUT_DIM          |       o       |       x       |       x       |       x       |       x       |
