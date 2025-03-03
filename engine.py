@@ -45,7 +45,7 @@ def run_engine(arch : Arch, comp : Shape, coupling : Coupling, bias_read : bool,
         forcedSettingsUpdate(arch, verbose = verbose)
         start_time = time.time()
         
-        if Settings.MULTITHREADED and Settings.MAPPER != 'local':
+        if Settings.MULTITHREADED and 'local' not in Settings.MAPPER:
             past_perms = {(): ThreadSafeHeap()}
             lock = threading.Lock()
             barrier = threading.Barrier(Settings.THREADS_COUNT)

@@ -16,6 +16,8 @@ from utils import *
 from arch import *
 
 # TODO: put me in an inner scope!!!
+BATCH_SIZE = 8
+MAX_WORKSTEAL_AMOUNT = 2
 candidate_perms_per_mem_level : list[list[str]] = []
 
 """
@@ -329,24 +331,45 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
         queue = JoinableQueue()
         lock = threading.Lock()
         update_local_arch = [False for _ in range(Settings.THREADS_COUNT)]
+        workpiles = [[] for _ in range(Settings.THREADS_COUNT)]
+        workpile_locks = [threading.Lock() for _ in range(Settings.THREADS_COUNT)]
         
         def threadWorker(thread_idx : int) -> None:
             nonlocal choices
             local_arch = deepcopy(arch)
+            workpile = workpiles[thread_idx]
+            workpile_lock = workpile_locks[thread_idx]
             while stay_alive and not Settings.forced_termination_flag:
                 if align_threads:
                     time.sleep(Settings.TIMEOUT)
                     continue
+                work_stolen = False
                 try:
                     args = queue.get(timeout = Settings.TIMEOUT)
                 except Empty:
-                    #print(f"Thread {thread_idx} idle...")
-                    continue
+                    largest_pile_idx = max(len(workpiles[t_idx]) for t_idx in range(Settings.THREADS_COUNT) if t_idx != thread_idx)
+                    with workpile_locks[largest_pile_idx]:
+                        if len(workpiles[largest_pile_idx]) > 0:
+                            workpile += workpiles[largest_pile_idx][:MAX_WORKSTEAL_AMOUNT]
+                            del workpiles[largest_pile_idx][:MAX_WORKSTEAL_AMOUNT]
+                    if len(workpile) == 0:
+                        continue
+                    work_stolen = True
                 try:
                     if update_local_arch[thread_idx]:
                         local_arch.transferMapping(arch, True, False)
                         update_local_arch[thread_idx] = False
-                    local_choices = exploreOneStep(arch = local_arch, **args)
+                    local_choices = {}
+                    if not work_stolen:
+                        with workpile_lock:
+                            workpile = args.pop('factors_iterators')
+                    while True:
+                        with workpile_lock:
+                            factors_iterator = workpile.pop()
+                        local_choices = local_choices | exploreOneStep(arch = local_arch, factors_iterator = factors_iterator, **args)
+                        with workpile_lock:
+                            if len(workpile) == 0:
+                                break
                     # >>> GREEDY MOVE <<<
                     best_local_choice = max(local_choices, key = local_choices.get, default = None)
                     if best_local_choice:
@@ -355,7 +378,8 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
                 except Exception:
                     print(f"EXCEPTION IN WORKER THREAD {thread_idx}:", traceback.format_exc())
                 finally:
-                    queue.task_done()
+                    if not work_stolen:
+                        queue.task_done()
         
         threads = []
         for i in range(Settings.THREADS_COUNT):
@@ -438,6 +462,8 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
         while not Settings.forced_termination_flag:
             if Settings.MULTITHREADED:
                 align_threads = False
+                batch = []
+                counting = 0
                 for task in factorsIterator(arch, iterate_amounts = iterate_amounts, skip_spatial = freeze_spatials):
                     src_level_idx, dim, factor, amount = task
                     for target_dst_level_idx in (range(task[0] + 1, len(arch)) if only_flow_inward else range(len(arch))):
@@ -446,7 +472,13 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
                             not (freeze_spatials and isinstance(arch[target_dst_level_idx], SpatialLevel)) and not (freeze_memories and isinstance(arch[target_dst_level_idx], MemLevel))):
                             hsh = arch.hashFromFactorsAfterMove(src_level_idx, target_dst_level_idx, dim, factor, amount, ignore_dataflows = True, return_string = True)
                             if hsh not in already_seen or already_seen[hsh] > moves_count + 1:
-                                queue.put({'factors_iterator': (task,), 'target_dst_level_idx': target_dst_level_idx, 'remaining_steps': steps_to_explore, 'freeze_spatials': freeze_spatials, 'freeze_memories': freeze_memories, 'freeze_perms': freeze_perms, 'only_flow_inward': only_flow_inward, 'iterate_amounts': iterate_amounts, 'limit_n_dst_to_c_src': limit_n_dst_to_c_src})
+                                counting += 1
+                                batch.append((task,))
+                                if len(batch) >= BATCH_SIZE:
+                                    queue.put({'factors_iterators': batch, 'target_dst_level_idx': target_dst_level_idx, 'remaining_steps': steps_to_explore, 'freeze_spatials': freeze_spatials, 'freeze_memories': freeze_memories, 'freeze_perms': freeze_perms, 'only_flow_inward': only_flow_inward, 'iterate_amounts': iterate_amounts, 'limit_n_dst_to_c_src': limit_n_dst_to_c_src})
+                                    batch = []
+                if len(batch) > 0:
+                    queue.put({'factors_iterators': batch, 'target_dst_level_idx': target_dst_level_idx, 'remaining_steps': steps_to_explore, 'freeze_spatials': freeze_spatials, 'freeze_memories': freeze_memories, 'freeze_perms': freeze_perms, 'only_flow_inward': only_flow_inward, 'iterate_amounts': iterate_amounts, 'limit_n_dst_to_c_src': limit_n_dst_to_c_src})
                 all_done = False
                 while not (all_done or Settings.forced_termination_flag):
                     all_done = queue.join(Settings.TIMEOUT)
@@ -468,15 +500,15 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
                 multisteps = len(best_choice) // 5
                 moves_count += multisteps
                 for i in range(multisteps):
-                    if verbose: print(f"{'╶' if multisteps == 1 else ('┌' if i == 0 else ('└' if i == multisteps - 1 else '│'))} Moving {arch[best_choice[5*i + 0]].name} --{best_choice[5*i + 2]}:{best_choice[5*i + 3]*best_choice[5*i + 4]}--> {arch[best_choice[5*i + 1]].name}")
+                    if verbose: print(f"Moving {arch[best_choice[5*i + 0]].name} --{best_choice[5*i + 2]}:{best_choice[5*i + 3]*best_choice[5*i + 4]}--> {arch[best_choice[5*i + 1]].name}")
                     assert arch.moveFactor(best_choice[5*i + 0], best_choice[5*i + 1], best_choice[5*i + 2], best_choice[5*i + 3], best_choice[5*i + 4], skip_src_constraints = Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and i < multisteps - 1) # best choice is an invalid mapping
                 best_wart = choices[best_choice]
+                choices.clear()
                 steps_to_explore = initial_steps_to_explore
                 if Settings.MULTITHREADED:
                     for i in range(len(update_local_arch)):
                         update_local_arch[i] = True
                 only_flow_inward = True
-            choices.clear()
         if not freeze_perms:
             pickBestPermsIteratively(arch)
     

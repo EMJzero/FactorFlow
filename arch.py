@@ -293,14 +293,13 @@ class Arch(list[Level]):
     """
     Hash unique for each factors allocation and dataflows pair.
     """
-    def hashFromFactors(self, return_string : bool = False) -> Union[int, str]:
+    def hashFromFactors(self, ignore_dataflows : bool = False, return_string : bool = False) -> Union[int, str]:
         hsh = ""
         for level_idx in range(len(self)):
             hsh += f"|{level_idx}"
-            for dim in self[level_idx].dataflow:
-                hsh += f"{dim}"
-                for factor, amount in self[level_idx].factors[dim].items():
-                    hsh += f"{factor}{amount}"
+            # if not ignore_dataflows, let the order of dimensions depend on the dataflow
+            for dim in (sorted(self[level_idx].dataflow) if ignore_dataflows else self[level_idx].dataflow):
+                hsh += f"{dim}{self[level_idx].factors.dimProduct(dim)}"
         return hsh if return_string else hash(hsh)
 
     """
@@ -310,28 +309,19 @@ class Arch(list[Level]):
     
     NOTE: the move's validity in terms of constraints is NOT checked.
     """
-    def hashFromFactorsAfterMove(self, src_level_idx : int, dst_level_idx : int, move_dim : str, move_factor : int, move_amount : int = 1, return_string : bool = False) -> Union[int, str]:
+    def hashFromFactorsAfterMove(self, src_level_idx : int, dst_level_idx : int, move_dim : str, move_factor : int, move_amount : int = 1, ignore_dataflows : bool = False, return_string : bool = False) -> Union[int, str]:
         hsh = ""
-        move_considered = False
+        moved_iters = move_factor**move_amount
         for level_idx in range(len(self)):
             hsh += f"|{level_idx}"
-            for dim in self[level_idx].dataflow:
-                hsh += f"{dim}"
-                if dim == move_dim:
-                    for factor, amount in self[level_idx].factors[dim].items():
-                        if factor == move_factor:
-                            if level_idx == src_level_idx and amount - move_amount != 0:
-                                hsh += f"{factor}{amount - move_amount}"
-                            elif level_idx == dst_level_idx:
-                                hsh += f"{factor}{amount + move_amount}"
-                            move_considered = True
-                        else:
-                            hsh += f"{factor}{amount}"
+            # if not ignore_dataflows, let the order of dimensions depend on the dataflow
+            for dim in (sorted(self[level_idx].dataflow) if ignore_dataflows else self[level_idx].dataflow):
+                if dim == move_dim and level_idx == src_level_idx:
+                    hsh += f"{dim}{self[level_idx].factors.dimProduct(dim)//moved_iters}"
+                elif dim == move_dim and level_idx == dst_level_idx:
+                    hsh += f"{dim}{self[level_idx].factors.dimProduct(dim)*moved_iters}"
                 else:
-                    for factor, amount in self[level_idx].factors[dim].items():
-                        hsh += f"{factor}{amount}"
-        if not move_considered:
-            raise Exception("The mapping before and after the move would have been identical...")
+                    hsh += f"{dim}{self[level_idx].factors.dimProduct(dim)}"
         return hsh if return_string else hash(hsh)
 
     """
