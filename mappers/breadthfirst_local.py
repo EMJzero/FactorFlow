@@ -15,8 +15,6 @@ from model import *
 from utils import *
 from arch import *
 
-# NOTE: this has now become a breadth-first search!
-
 # TODO: put me in an inner scope!!!
 candidate_perms_per_mem_level : list[list[str]] = []
 
@@ -27,8 +25,8 @@ def mapperForcedSettingsUpdate(arch : Arch, verbose : bool = True) -> None:
     steps_to_explore = max(2, Settings.STEPS_TO_EXPLORE)
     if sum(1 for l in arch if isinstance(l, MemLevel)) < 6: # small architecture (less than six memories)
         steps_to_explore = max(4, Settings.STEPS_TO_EXPLORE)
-        if not Settings.ITERATE_AMOUNTS and verbose: print(f"INFO: forcefully updating setting ITERATE_AMOUNTS to True")
-        Settings.ITERATE_AMOUNTS = True
+    if not Settings.ITERATE_AMOUNTS and verbose: print(f"INFO: forcefully updating setting ITERATE_AMOUNTS to True")
+    Settings.ITERATE_AMOUNTS = True # -> set this to False to save time, but set this to True to co-optimize mem. and sp. levels effectively!
     if Settings.STEPS_TO_EXPLORE != steps_to_explore and verbose: print(f"INFO: forcefully updating setting STEPS_TO_EXPLORE to {steps_to_explore}")
     Settings.STEPS_TO_EXPLORE = steps_to_explore
     co_opt_steps_to_explore = max(4, Settings.CO_OPT_STEPS_TO_EXPLORE)
@@ -51,7 +49,7 @@ def mapperForcedSettingsUpdate(arch : Arch, verbose : bool = True) -> None:
         spatial_steps_to_explore = max(max(len(prime_factors(sp_l.mesh).keys()) for sp_l in sp_levels), Settings.SPATIAL_STEPS_TO_EXPLORE, 4)
         if Settings.SPATIAL_STEPS_TO_EXPLORE != spatial_steps_to_explore and verbose: print(f"INFO: forcefully updating setting SPATIAL_STEPS_TO_EXPLORE to {spatial_steps_to_explore}")
         Settings.SPATIAL_STEPS_TO_EXPLORE = spatial_steps_to_explore
-        if Settings.SPATIAL_LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC and verbose: print("INFO: forcefully updating setting LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC to False")
+        if Settings.SPATIAL_LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC and verbose: print("INFO: forcefully updating setting SPATIAL_LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC to False")
         Settings.SPATIAL_LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC = False
         if not Settings.SPATIAL_ITERATE_AMOUNTS and verbose: print("INFO: forcefully updating setting SPATIAL_ITERATE_AMOUNTS to True")
         Settings.SPATIAL_ITERATE_AMOUNTS = True
@@ -352,11 +350,7 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
                         local_choices = exploreOneStep(arch = local_arch, **args)
                     else:
                         local_choices = exploreOneStepFurther(arch = local_arch, **args)
-                    # >>> [NO] GREEDY MOVE <<<
-                    #best_local_choice = max(local_choices, key = local_choices.get, default = None)
-                    #if best_local_choice:
                     with lock:
-                        #choices[best_local_choice] = local_choices[best_local_choice]
                         choices = choices | local_choices
                 except Exception:
                     print(f"EXCEPTION IN WORKER THREAD {thread_idx}:", traceback.format_exc())
@@ -378,8 +372,8 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
     Arguments:
     - arch: reference model to explore.
     - remaining_steps: number of recursions/steps to explore.
+    - recursion_depth: number of recursive calls this function effectuated.
     - factors_iterator: iterator for the moves to explore on the outermost recursion, defaults to all moves.
-    - skip_set: set of already explored mappings that shall not be revisited, defaults to 'already_seen'.
     - target_dst_level_idx: when specified, it enforces the specified level to receive any factors moved during the present recursion.
     - freeze_memories: (only) prevents memories from being destinations (receiving factors).
     - freeze_spatials: prevents spatial levels from being both sources and destinations (neither giving nor receiving factors).
@@ -387,9 +381,8 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
     - only_flow_inward: allows factors to only be moved from an outer level (lower idx) to an inner one.
     - iterate_amounts: explore also moves that involve multiplicities of prime factors >1 (between the same pair of levels).
     - limit_n_dst_to_c_src: forces any next step's source level to be the one that was the destination in the previous step.
-    - use_threads: splits the present recursion's local search work among the available threads.
     """
-    def exploreOneStep(arch : Arch, remaining_steps : int = 1, recursion_depth : int = 1, factors_iterator : Optional[Iterator[tuple[int, str, int, int]]] = None, target_dst_level_idx : Optional[int] = None, freeze_memories : bool = False, freeze_spatials : bool = False, freeze_perms : bool = False, only_flow_inward : bool = True, iterate_amounts : bool = False, limit_n_dst_to_c_src : bool = False) -> dict[tuple[Union[int, str], ...], float]:
+    def exploreOneStep(arch : Arch, remaining_steps : int = 1, recursion_depth : int = 1, factors_iterator : Optional[Iterator[tuple[int, str, int, int]]] = None, target_dst_level_idx : Optional[int] = None, freeze_memories : bool = False, freeze_spatials : bool = False, freeze_perms : bool = False, only_flow_inward : bool = False, iterate_amounts : bool = False, limit_n_dst_to_c_src : bool = False) -> dict[tuple[Union[int, str], ...], float]:
         choices = {}
         if not factors_iterator:
             factors_iterator = factorsIterator(arch, iterate_amounts = iterate_amounts, skip_spatial = freeze_spatials)
@@ -397,49 +390,54 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
             # pick the target level:
             # - only among inner levels under normal circumstances
             # - anywhere after hitting a dead end
-            for dst_level_idx in ((range(src_level_idx + 1, len(arch)) if only_flow_inward else range(len(arch))) if not target_dst_level_idx else (target_dst_level_idx,)):
-                if (Settings.forced_termination_flag or dst_level_idx == src_level_idx or dim not in arch[dst_level_idx].dataflow or dim in arch[dst_level_idx].factors_constraints or # check constraints on factors to avoid exploring invalid mappings
-                    ((key := dim + '<=') in arch[dst_level_idx].factors_constraints and arch[dst_level_idx].factors.dimProduct(dim)*(factor**amount) > arch[dst_level_idx].factors_constraints[key]) or
+            for dst_level_idx in ((range(src_level_idx + 1, len(arch)) if only_flow_inward else range(len(arch))) if target_dst_level_idx == None else (target_dst_level_idx,)):
+                if (Settings.forced_termination_flag or dst_level_idx == src_level_idx or (target_dst_level_idx != None and only_flow_inward and target_dst_level_idx < src_level_idx) or # invalid source-destination pair
+                    dim not in arch[dst_level_idx].dataflow or dim in arch[dst_level_idx].factors_constraints or ((key := dim + '<=') in arch[dst_level_idx].factors_constraints and arch[dst_level_idx].factors.dimProduct(dim)*(factor**amount) > arch[dst_level_idx].factors_constraints[key]) or # check constraints on factors to avoid exploring invalid mappings
                     (freeze_spatials and isinstance(arch[dst_level_idx], SpatialLevel)) or (freeze_memories and isinstance(arch[dst_level_idx], MemLevel))): # abide to the provided arguments
                     continue
-                if arch.moveFactor(src_level_idx, dst_level_idx, dim, factor, amount, skip_src_constraints = Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and remaining_steps > 1):
-                    hsh = arch.hashFromFactors(ignore_dataflows = True, return_string = True)
-                    moves = moves_count + recursion_depth
-                    if hsh not in already_seen or already_seen[hsh] > moves:
-                        with lock:
-                            already_seen[hsh] = moves # min(moves, already_seen[hsh])
+                # predict the hash and anticipate the 'already_seen' check to save the time required for 'moveFactor'!
+                hsh = arch.hashFromFactorsAfterMove(src_level_idx, dst_level_idx, dim, factor, amount, ignore_dataflows = True, return_string = True)
+                moves = moves_count + recursion_depth
+                if (not_in := hsh not in already_seen) or already_seen[hsh] > moves:
+                    with lock:
+                        already_seen[hsh] = moves if not_in else min(moves, already_seen[hsh]) # be it valid or invalid, don't try an already seen mapping ever again.
+                    if arch.moveFactor(src_level_idx, dst_level_idx, dim, factor, amount, skip_src_constraints = Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP):
                         if not freeze_perms: pickBestPermsIteratively(arch)
-                        wart = Wart(arch, comp, bias_read)
+                        #wart = Wart(arch, comp, bias_read)
                         if remaining_steps > 1:
                             nested_choices = exploreOneStep(arch, remaining_steps - 1, recursion_depth = recursion_depth + 1, target_dst_level_idx = src_level_idx if limit_n_dst_to_c_src else None, freeze_memories = freeze_memories, freeze_spatials = freeze_spatials, freeze_perms = freeze_perms, only_flow_inward = only_flow_inward, iterate_amounts = iterate_amounts, limit_n_dst_to_c_src = limit_n_dst_to_c_src)
                             if len(nested_choices) == 0:
-                                if not Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP or arch[src_level_idx].checkFactorsConstraints():
-                                    choices[(src_level_idx, dst_level_idx, dim, factor, amount)] = wart
+                                #choices[(src_level_idx, dst_level_idx, dim, factor, amount)] = wart if not Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP or arch[src_level_idx].checkFactorsConstraints() else -1
+                                choices[(src_level_idx, dst_level_idx, dim, factor, amount)] = Wart(arch, comp, bias_read, utilization_exponent = 2 if Settings.SQUARE_UTIL_IN_SEARCH_SPATIAL_LEVELS and freeze_memories else 1) if not Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP or arch[src_level_idx].checkFactorsConstraints() else -1
                             else:
                                 # >>> GREEDY MOVE <<<
-                                best_choice = max(nested_choices, key=nested_choices.get)
-                                if nested_choices[best_choice] >= wart:
-                                    choices[(src_level_idx, dst_level_idx, dim, factor, amount) + best_choice] = nested_choices[best_choice]
-                                else:
-                                    if not Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP or arch[src_level_idx].checkFactorsConstraints():
-                                        choices[(src_level_idx, dst_level_idx, dim, factor, amount)] = wart
+                                #best_choice = max(nested_choices, key=nested_choices.get)
+                                #if nested_choices[best_choice] >= wart:
+                                #    choices[(src_level_idx, dst_level_idx, dim, factor, amount) + best_choice] = nested_choices[best_choice]
+                                #else:
+                                #    choices[(src_level_idx, dst_level_idx, dim, factor, amount)] = wart if not Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP or arch[src_level_idx].checkFactorsConstraints() else -1
+                                for nested_choice, nested_wart in nested_choices.items():
+                                    choices[(src_level_idx, dst_level_idx, dim, factor, amount) + nested_choice] = nested_wart
                         else:
-                            choices[(src_level_idx, dst_level_idx, dim, factor, amount)] = wart
-                    assert arch.moveFactor(dst_level_idx, src_level_idx, dim, factor, amount, skip_dst_constraints = Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and remaining_steps > 1) # something went wrong, unreversible move of a factor    
+                            #choices[(src_level_idx, dst_level_idx, dim, factor, amount)] = wart if not Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP or arch[src_level_idx].checkFactorsConstraints() else -1 # a negative wart will never be picked, but remains as a starting point for calls to 'exploreOneStepFurther'
+                            choices[(src_level_idx, dst_level_idx, dim, factor, amount)] = Wart(arch, comp, bias_read, utilization_exponent = 2 if Settings.SQUARE_UTIL_IN_SEARCH_SPATIAL_LEVELS and freeze_memories else 1) if not Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP or arch[src_level_idx].checkFactorsConstraints() else -1 # a negative wart will never be picked, but remains as a starting point for calls to 'exploreOneStepFurther'
+                        assert arch.moveFactor(dst_level_idx, src_level_idx, dim, factor, amount, skip_dst_constraints = Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP) # something went wrong, unreversible move of a factor    
         return choices
     
     """
     Same as 'exploreOneStep', but restarts from a known set of mappings and explores them one step further.
     """
-    def exploreOneStepFurther(arch : Arch, choices : dict[tuple[Union[int, str], ...], float], remaining_steps : int = 1, freeze_memories : bool = False, freeze_spatials : bool = False, freeze_perms : bool = False, only_flow_inward : bool = True, iterate_amounts : bool = False, limit_n_dst_to_c_src : bool = False) -> dict[tuple[Union[int, str], ...], float]:
+    def exploreOneStepFurther(arch : Arch, choices : dict[tuple[Union[int, str], ...], float], remaining_steps : int = 1, freeze_memories : bool = False, freeze_spatials : bool = False, freeze_perms : bool = False, only_flow_inward : bool = False, iterate_amounts : bool = False, limit_n_dst_to_c_src : bool = False) -> dict[tuple[Union[int, str], ...], float]:
         further_choices = {}
         for choice, wart in choices.items():
             if remaining_steps >= 1:
                 multisteps = len(choice) // 5
                 for i in range(multisteps):
-                    assert arch.moveFactor(choice[5*i + 0], choice[5*i + 1], choice[5*i + 2], choice[5*i + 3], choice[5*i + 4], skip_src_constraints = Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and i < multisteps - 1) # some previous choice was invalid
-            
-                nested_choices = exploreOneStep(arch, remaining_steps, recursion_depth = multisteps + 1, freeze_memories = freeze_memories, freeze_spatials = freeze_spatials, freeze_perms = freeze_perms, only_flow_inward = only_flow_inward, iterate_amounts = iterate_amounts, limit_n_dst_to_c_src = limit_n_dst_to_c_src)
+                    assert arch.moveFactor(choice[5*i + 0], choice[5*i + 1], choice[5*i + 2], choice[5*i + 3], choice[5*i + 4], skip_src_constraints = Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP) # some previous choice was invalid
+                
+                # >>> GREEDY BREADTH-FIRST: here we explore 'remaining_steps' further steps for each chioce and collaps all those "further" steps the best one for each!
+                # NOTE: this means that low values of 'remaining_steps' collaps more often and see less branches.
+                nested_choices = exploreOneStep(arch, remaining_steps, recursion_depth = multisteps + 1, target_dst_level_idx = choice[5*(multisteps - 1) + 0] if limit_n_dst_to_c_src else None, freeze_memories = freeze_memories, freeze_spatials = freeze_spatials, freeze_perms = freeze_perms, only_flow_inward = only_flow_inward, iterate_amounts = iterate_amounts, limit_n_dst_to_c_src = limit_n_dst_to_c_src)
                 if len(nested_choices) > 0:
                     # >>> GREEDY MOVE <<<
                     best_choice = max(nested_choices, key=nested_choices.get)
@@ -447,7 +445,7 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
                         further_choices[choice + best_choice] = nested_choices[best_choice]
             
                 for i in range(multisteps - 1, -1, -1):
-                    assert arch.moveFactor(choice[5*i + 1], choice[5*i + 0], choice[5*i + 2], choice[5*i + 3], choice[5*i + 4], skip_dst_constraints = Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and i < multisteps - 1) # some previous choice was invalid
+                    assert arch.moveFactor(choice[5*i + 1], choice[5*i + 0], choice[5*i + 2], choice[5*i + 3], choice[5*i + 4], skip_dst_constraints = Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP) # some previous choice was invalid
         return further_choices
     
     """
@@ -461,32 +459,32 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
         nonlocal best_wart, moves_count, choices, align_threads
         # when failing to find a better mapping, increase the explored hops ('steps_to_explore') until they reach Settings.STEPS_TO_EXPLORE, then terminate if no better mapping is found, otherswise reset the hops to one
         steps_to_explore = initial_steps_to_explore
-        only_flow_inward = False # TODO: in the end, it was better to disable this...it was too costly to explore from the current mapping all backward going options in one shot...
         while not Settings.forced_termination_flag:
             if steps_to_explore == initial_steps_to_explore:
                 if Settings.MULTITHREADED:
                     for task in factorsIterator(arch, iterate_amounts = iterate_amounts, skip_spatial = freeze_spatials):
                         src_level_idx, dim, factor, amount = task
-                        for target_dst_level_idx in (range(task[0] + 1, len(arch)) if only_flow_inward else range(len(arch))):
+                        for target_dst_level_idx in range(len(arch)):
                             if (src_level_idx != target_dst_level_idx and dim in arch[target_dst_level_idx].dataflow and dim not in arch[target_dst_level_idx].factors_constraints and
                                 not ((key := dim + '<=') in arch[target_dst_level_idx].factors_constraints and arch[target_dst_level_idx].factors.dimProduct(dim)*(factor**amount) > arch[target_dst_level_idx].factors_constraints[key]) and
                                 not (freeze_spatials and isinstance(arch[target_dst_level_idx], SpatialLevel)) and not (freeze_memories and isinstance(arch[target_dst_level_idx], MemLevel))):
                                 hsh = arch.hashFromFactorsAfterMove(src_level_idx, target_dst_level_idx, dim, factor, amount, ignore_dataflows = True, return_string = True)
                                 if hsh not in already_seen or already_seen[hsh] > moves_count + 1:
-                                    queue.put({'factors_iterator': (task,), 'target_dst_level_idx': target_dst_level_idx, 'remaining_steps': initial_steps_to_explore, 'freeze_spatials': freeze_spatials, 'freeze_memories': freeze_memories, 'freeze_perms': freeze_perms, 'only_flow_inward': only_flow_inward, 'iterate_amounts': iterate_amounts, 'limit_n_dst_to_c_src': limit_n_dst_to_c_src})
+                                    queue.put({'factors_iterator': (task,), 'target_dst_level_idx': target_dst_level_idx, 'remaining_steps': initial_steps_to_explore, 'freeze_spatials': freeze_spatials, 'freeze_memories': freeze_memories, 'freeze_perms': freeze_perms, 'iterate_amounts': iterate_amounts, 'limit_n_dst_to_c_src': limit_n_dst_to_c_src})
                     align_threads = False
                     all_done = False
                     while not (all_done or Settings.forced_termination_flag):
                         all_done = queue.join(Settings.TIMEOUT)
                     align_threads = True
                 else:
-                    choices = exploreOneStep(arch, remaining_steps = initial_steps_to_explore, freeze_spatials = freeze_spatials, freeze_memories = freeze_memories, freeze_perms = freeze_perms, only_flow_inward = only_flow_inward, iterate_amounts = iterate_amounts, limit_n_dst_to_c_src = limit_n_dst_to_c_src)
+                    choices = exploreOneStep(arch, remaining_steps = initial_steps_to_explore, freeze_spatials = freeze_spatials, freeze_memories = freeze_memories, freeze_perms = freeze_perms, iterate_amounts = iterate_amounts, limit_n_dst_to_c_src = limit_n_dst_to_c_src)
             else:
+                # >>> GREEDY BREADH-FIST: at this point we retain only the best "further" choice for each choice we already have, as to not grow exponentially the number of choices.
                 if Settings.MULTITHREADED:
                     for choice, wart in choices.items():
-                        # NOTE: idea, bring forward only the best choices...
+                        # TODO: idea, bring forward only the best choices...
                         #if wart > best_wart*0.9:
-                        queue.put({'choices': {choice: wart}, 'remaining_steps': steps_to_explore_increment, 'freeze_spatials': freeze_spatials, 'freeze_memories': freeze_memories, 'freeze_perms': freeze_perms, 'only_flow_inward': only_flow_inward, 'iterate_amounts': iterate_amounts, 'limit_n_dst_to_c_src': limit_n_dst_to_c_src})
+                        queue.put({'choices': {choice: wart}, 'remaining_steps': steps_to_explore_increment, 'freeze_spatials': freeze_spatials, 'freeze_memories': freeze_memories, 'freeze_perms': freeze_perms, 'iterate_amounts': iterate_amounts, 'limit_n_dst_to_c_src': limit_n_dst_to_c_src})
                     choices.clear()
                     # NOTE: here we use 'steps_to_explore' since when 'only_flow_inward' becomes False the original mapping is some moves behind...
                     #if not only_flow_inward:
@@ -497,16 +495,12 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
                         all_done = queue.join(Settings.TIMEOUT)
                     align_threads = True
                 else:
-                    choices = exploreOneStepFurther(arch, choices, remaining_steps = steps_to_explore_increment, freeze_spatials = freeze_spatials, freeze_memories = freeze_memories, freeze_perms = freeze_perms, only_flow_inward = only_flow_inward, iterate_amounts = iterate_amounts, limit_n_dst_to_c_src = limit_n_dst_to_c_src)
+                    choices = exploreOneStepFurther(arch, choices, remaining_steps = steps_to_explore_increment, freeze_spatials = freeze_spatials, freeze_memories = freeze_memories, freeze_perms = freeze_perms, iterate_amounts = iterate_amounts, limit_n_dst_to_c_src = limit_n_dst_to_c_src)
             # >>> GREEDY MOVE <<<
             best_choice = max(choices, key = choices.get, default = None)
             if not best_choice or choices[best_choice] < best_wart:
-                if steps_to_explore < final_steps_to_explore:
+                if best_choice and steps_to_explore < final_steps_to_explore:
                     steps_to_explore += steps_to_explore_increment
-                    # TODO: we could disengage 'only_flow_inward' earlier than the final attempt...
-                    # TODO: yeah, well...I ended up disabling it entirely ahahah!
-                    if steps_to_explore == final_steps_to_explore:
-                        only_flow_inward = False
                 else:
                     if verbose: print(f"No valid follow-up configuration, stopping, current Wart: {best_wart:.3e}" if len(choices) == 0 else f"Stopping with current Wart: {best_wart:.3e}, while best choice is: {choices[best_choice]:.3e}")
                     break
@@ -523,7 +517,6 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
                 if Settings.MULTITHREADED:
                     for i in range(len(update_local_arch)):
                         update_local_arch[i] = True
-                only_flow_inward = False # TODO: in the end, it was better to disable this...
         if not freeze_perms:
             pickBestPermsIteratively(arch)
     
@@ -537,11 +530,11 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
             if verbose: print("-- fanout maximization --")
             fanoutMaximization(arch, comp, bias_read, verbose) # saturate fanout dimensions
         if verbose: print("-- local search of memory levels --")
-        localSearch(initial_steps_to_explore = Settings.INITIAL_STEPS_TO_EXPLORE, final_steps_to_explore = Settings.STEPS_TO_EXPLORE, freeze_memories = False, freeze_spatials = True, iterate_amounts = Settings.ITERATE_AMOUNTS, limit_n_dst_to_c_src = Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC) # optimize memory levels
+        localSearch(initial_steps_to_explore = Settings.INITIAL_STEPS_TO_EXPLORE, final_steps_to_explore = Settings.STEPS_TO_EXPLORE, steps_to_explore_increment = 2, freeze_memories = False, freeze_spatials = True, iterate_amounts = Settings.ITERATE_AMOUNTS, limit_n_dst_to_c_src = Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC) # optimize memory levels
         #already_seen.clear()
         #already_seen[arch.hashFromFactors(ignore_dataflows = True, return_string = True)] = moves_count
     if verbose: print("-- spatial-memory levels co-optimization --")
-    localSearch(initial_steps_to_explore = Settings.INITIAL_STEPS_TO_EXPLORE, final_steps_to_explore = Settings.CO_OPT_STEPS_TO_EXPLORE, freeze_memories = False, freeze_spatials = False, iterate_amounts = Settings.ITERATE_AMOUNTS, limit_n_dst_to_c_src = Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC) # co-optimize memory and spatial levels
+    localSearch(initial_steps_to_explore = Settings.INITIAL_STEPS_TO_EXPLORE, final_steps_to_explore = Settings.CO_OPT_STEPS_TO_EXPLORE, steps_to_explore_increment = 2, freeze_memories = False, freeze_spatials = False, iterate_amounts = Settings.ITERATE_AMOUNTS, limit_n_dst_to_c_src = Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC) # co-optimize memory and spatial levels
     
     if Settings.MULTITHREADED:
         stay_alive = False

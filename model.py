@@ -157,10 +157,10 @@ Weighted Arithmetic Intensity (WART)
 It is equivalent to FLOPs/EDPoU, where EDPoU = (Energy * Latency) / Utilization
 => Maximizing the WART minimizes the EDPoU.
 """
-def Wart(arch : Arch, comp : Shape, bias_read : bool) -> float:
+def Wart(arch : Arch, comp : Shape, bias_read : bool, utilization_exponent : int = 1) -> float:
     FLOPs = comp.FLOPs()
     WMOPs, max_latency = updateStats(arch, bias_read)
-    utilization = arch.spatialUtilization() if Settings.UTILIZATION_IN_WART else 1
+    utilization = arch.spatialUtilization()**utilization_exponent if Settings.UTILIZATION_IN_WART else 1
     return (FLOPs/(WMOPs*max_latency))*utilization
 
 """

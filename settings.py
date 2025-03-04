@@ -52,6 +52,12 @@ class Settings():
     # If True, fanout maximization is replaced with an exploration of spatial fanout levels in three
     # steps, together with memory levels, within factorFlow's local search.
     LOCAL_SEARCH_SPATIAL_LEVELS = False
+    # If True, when spatial levels are being optimized (and memories are frozen), the Wart is computed
+    # with a squared utilization ratio at the denominator, further penalizing sub-utilized mappings.
+    SQUARE_UTIL_IN_SEARCH_SPATIAL_LEVELS = True
+    # If True, when memory and spatial levels are being co-optimized, if the source level for a move is
+    # a spatial level, at least one more move is always explored to try to replenish spatial utilization.
+    ONE_MORE_CO_OPT_STEP_IF_SRC_IS_SPATIAL = False
     # If True, saves time by assuming that any permutation differing from an optimal one by the order
     # of dimensions involving one with a single iteration can be optimized starting from where it
     # already is, and thus avoids a complete re-initialization.
@@ -127,6 +133,8 @@ class Settings():
     # NO_CONSTRAINTS_CHECK_DURING_MULTISTEP |       o       |       o       |       o       |       o       |       o       |
     # ONLY_MAXIMIZE_ONE_FANOUT_DIM          |       o       |       x       |       x       |       x       |       x       |
     # LOCAL_SEARCH_SPATIAL_LEVELS           |       x       |       o       |       o       |       o       |       o       |
+    # SQUARE_UTIL_IN_SEARCH_SPATIAL_LEVELS  |       x       |       x       |       x       |       x       |       o       |
+    # ONE_MORE_CO_OPT_STEP_IF_SRC_IS_SPATIAL|       x       |       x       |       x       |       x       |       o       |
     # PERM_SKIP                             |       o       |       o       |       o       |       o       |       x       |
     # HARD_PERM_SKIP                        |       o       |       o       |       o       |       o       |       x       |
     # DISTINCT_REUSE_OPPORTUNITIES          |       o       |       o       |       o       |       o       |       x       |

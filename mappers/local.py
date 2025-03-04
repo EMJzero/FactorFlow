@@ -24,12 +24,12 @@ Update Settings to best target the provided architecture with the present mapper
 def mapperForcedSettingsUpdate(arch : Arch, verbose : bool = True) -> None:
     steps_to_explore = max(2, Settings.STEPS_TO_EXPLORE)
     if sum(1 for l in arch if isinstance(l, MemLevel)) < 6: # small architecture (less than six memories)
-        steps_to_explore = max(4, Settings.STEPS_TO_EXPLORE)
+        steps_to_explore = max(3, Settings.STEPS_TO_EXPLORE)
         if not Settings.ITERATE_AMOUNTS and verbose: print(f"INFO: forcefully updating setting ITERATE_AMOUNTS to True")
         Settings.ITERATE_AMOUNTS = True
     if Settings.STEPS_TO_EXPLORE != steps_to_explore and verbose: print(f"INFO: forcefully updating setting STEPS_TO_EXPLORE to {steps_to_explore}")
     Settings.STEPS_TO_EXPLORE = steps_to_explore
-    co_opt_steps_to_explore = max(4, Settings.CO_OPT_STEPS_TO_EXPLORE)
+    co_opt_steps_to_explore = max(3, Settings.CO_OPT_STEPS_TO_EXPLORE)
     if Settings.CO_OPT_STEPS_TO_EXPLORE != co_opt_steps_to_explore and verbose: print(f"INFO: forcefully updating setting CO_OPT_STEPS_TO_EXPLORE to {co_opt_steps_to_explore}")
     Settings.CO_OPT_STEPS_TO_EXPLORE = co_opt_steps_to_explore
     initial_steps_to_explore = min(max(2, Settings.INITIAL_STEPS_TO_EXPLORE), steps_to_explore)
@@ -40,19 +40,21 @@ def mapperForcedSettingsUpdate(arch : Arch, verbose : bool = True) -> None:
         if verbose: print("INFO: forcefully updating setting LOCAL_SEARCH_SPATIAL_LEVELS to True")
         Settings.LOCAL_SEARCH_SPATIAL_LEVELS = True
         if Settings.STEPS_TO_EXPLORE > 1:
-            if not Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC and verbose: print("INFO: forcefully updating setting LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC to True")
-            Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC = True # -> set to True to save on execution time!
-            if not Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and verbose: print("INFO: forcefully updating setting NO_CONSTRAINTS_CHECK_DURING_MULTISTEP to True")
-            Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP = True # -> set to True when LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC is True!
+            if Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC and verbose: print("INFO: forcefully updating setting LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC to False")
+            Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC = False # -> set to True to save on execution time!
+            if Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and verbose: print("INFO: forcefully updating setting NO_CONSTRAINTS_CHECK_DURING_MULTISTEP to False")
+            Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP = False # -> set to True when LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC is True!
         if verbose: print(f"INFO: --> the cause of this is the presence of Fanout levels ({', '.join(sp_l.name for sp_l in sp_levels if len(sp_l.dims) >= 2)}) with multiple mapped dimensions ({', '.join(str(sp_l.dims) for sp_l in sp_levels if len(sp_l.dims) >= 2)}). Runtime might increase slightly...")
     if Settings.LOCAL_SEARCH_SPATIAL_LEVELS: # handling of spatial fanouts commuted from blind maximization to a preliminary local search
         spatial_steps_to_explore = max(max(len(prime_factors(sp_l.mesh).keys()) for sp_l in sp_levels), Settings.SPATIAL_STEPS_TO_EXPLORE, 4)
         if Settings.SPATIAL_STEPS_TO_EXPLORE != spatial_steps_to_explore and verbose: print(f"INFO: forcefully updating setting SPATIAL_STEPS_TO_EXPLORE to {spatial_steps_to_explore}")
         Settings.SPATIAL_STEPS_TO_EXPLORE = spatial_steps_to_explore
-        if Settings.SPATIAL_LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC and verbose: print("INFO: forcefully updating setting LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC to False")
+        if Settings.SPATIAL_LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC and verbose: print("INFO: forcefully updating setting SPATIAL_LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC to False")
         Settings.SPATIAL_LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC = False
         if not Settings.SPATIAL_ITERATE_AMOUNTS and verbose: print("INFO: forcefully updating setting SPATIAL_ITERATE_AMOUNTS to True")
         Settings.SPATIAL_ITERATE_AMOUNTS = True
+        #if not Settings.ONE_MORE_CO_OPT_STEP_IF_SRC_IS_SPATIAL: print("INFO: forcefully updating setting ONE_MORE_CO_OPT_STEP_IF_SRC_IS_SPATIAL to True")
+        #Settings.ONE_MORE_CO_OPT_STEP_IF_SRC_IS_SPATIAL = True
 
 """
 Pad comp's size to fully exploit the available spatial instances.
@@ -372,8 +374,8 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
     Arguments:
     - arch: reference model to explore.
     - remaining_steps: number of recursions/steps to explore.
+    - recursion_depth: number of recursive calls this function effectuated.
     - factors_iterator: iterator for the moves to explore on the outermost recursion, defaults to all moves.
-    - skip_set: set of already explored mappings that shall not be revisited, defaults to 'already_seen'.
     - target_dst_level_idx: when specified, it enforces the specified level to receive any factors moved during the present recursion.
     - freeze_memories: (only) prevents memories from being destinations (receiving factors).
     - freeze_spatials: prevents spatial levels from being both sources and destinations (neither giving nor receiving factors).
@@ -381,9 +383,8 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
     - only_flow_inward: allows factors to only be moved from an outer level (lower idx) to an inner one.
     - iterate_amounts: explore also moves that involve multiplicities of prime factors >1 (between the same pair of levels).
     - limit_n_dst_to_c_src: forces any next step's source level to be the one that was the destination in the previous step.
-    - use_threads: splits the present recursion's local search work among the available threads.
     """
-    def exploreOneStep(arch : Arch, remaining_steps : int = 1, recursion_depth : int = 1, factors_iterator : Optional[Iterator[tuple[int, str, int, int]]] = None, target_dst_level_idx : Optional[int] = None, freeze_memories : bool = False, freeze_spatials : bool = False, freeze_perms : bool = False, only_flow_inward : bool = True, iterate_amounts : bool = False, limit_n_dst_to_c_src : bool = False) -> dict[tuple[Union[int, str], ...], float]:
+    def exploreOneStep(arch : Arch, remaining_steps : int = 1, recursion_depth : int = 1, factors_iterator : Optional[Iterator[tuple[int, str, int, int]]] = None, target_dst_level_idx : Optional[int] = None, freeze_memories : bool = False, freeze_spatials : bool = False, freeze_perms : bool = False, only_flow_inward : bool = False, iterate_amounts : bool = False, limit_n_dst_to_c_src : bool = False) -> dict[tuple[Union[int, str], ...], float]:
         choices = {}
         if not factors_iterator:
             factors_iterator = factorsIterator(arch, iterate_amounts = iterate_amounts, skip_spatial = freeze_spatials)
@@ -391,9 +392,9 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
             # pick the target level:
             # - only among inner levels under normal circumstances
             # - anywhere after hitting a dead end
-            for dst_level_idx in ((range(src_level_idx + 1, len(arch)) if only_flow_inward else range(len(arch))) if not target_dst_level_idx else (target_dst_level_idx,)):
-                if (Settings.forced_termination_flag or dst_level_idx == src_level_idx or dim not in arch[dst_level_idx].dataflow or dim in arch[dst_level_idx].factors_constraints or # check constraints on factors to avoid exploring invalid mappings
-                    ((key := dim + '<=') in arch[dst_level_idx].factors_constraints and arch[dst_level_idx].factors.dimProduct(dim)*(factor**amount) > arch[dst_level_idx].factors_constraints[key]) or
+            for dst_level_idx in ((range(src_level_idx + 1, len(arch)) if only_flow_inward else range(len(arch))) if target_dst_level_idx == None else (target_dst_level_idx,)):
+                if (Settings.forced_termination_flag or dst_level_idx == src_level_idx or (target_dst_level_idx != None and only_flow_inward and target_dst_level_idx < src_level_idx) or # invalid source-destination pair
+                    dim not in arch[dst_level_idx].dataflow or dim in arch[dst_level_idx].factors_constraints or ((key := dim + '<=') in arch[dst_level_idx].factors_constraints and arch[dst_level_idx].factors.dimProduct(dim)*(factor**amount) > arch[dst_level_idx].factors_constraints[key]) or # check constraints on factors to avoid exploring invalid mappings
                     (freeze_spatials and isinstance(arch[dst_level_idx], SpatialLevel)) or (freeze_memories and isinstance(arch[dst_level_idx], MemLevel))): # abide to the provided arguments
                     continue
                 # predict the hash and anticipate the 'already_seen' check to save the time required for 'moveFactor'!
@@ -404,8 +405,8 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
                         already_seen[hsh] = moves if not_in else min(moves, already_seen[hsh]) # be it valid or invalid, don't try an already seen mapping ever again.
                     if arch.moveFactor(src_level_idx, dst_level_idx, dim, factor, amount, skip_src_constraints = Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and remaining_steps > 1):
                         if not freeze_perms: pickBestPermsIteratively(arch)
-                        wart = Wart(arch, comp, bias_read)
-                        if remaining_steps > 1:
+                        wart = Wart(arch, comp, bias_read, utilization_exponent = 2 if Settings.SQUARE_UTIL_IN_SEARCH_SPATIAL_LEVELS and freeze_memories else 1)
+                        if remaining_steps > 1 or (remaining_steps == 1 and Settings.ONE_MORE_CO_OPT_STEP_IF_SRC_IS_SPATIAL and not freeze_memories and not freeze_spatials and isinstance(arch[src_level_idx], SpatialLevel)):
                             nested_choices = exploreOneStep(arch, remaining_steps - 1, recursion_depth = recursion_depth + 1, target_dst_level_idx = src_level_idx if limit_n_dst_to_c_src else None, freeze_memories = freeze_memories, freeze_spatials = freeze_spatials, freeze_perms = freeze_perms, only_flow_inward = only_flow_inward, iterate_amounts = iterate_amounts, limit_n_dst_to_c_src = limit_n_dst_to_c_src)
                             if len(nested_choices) == 0:
                                 if not Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP or arch[src_level_idx].checkFactorsConstraints():
@@ -430,7 +431,7 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
     The arguments 'freeze_memories' and 'freeze_spatials' control which levels partake in the exploration, while 'freeze_perms' determines
     whether permutations are explored or kept fixed and 'limit_n_dst_to_c_src' forcefully creates a chain of moves, see 'exploreOneStep'.
     """
-    def localSearch(initial_steps_to_explore : int = 1, final_steps_to_explore : int = 1, steps_to_explore_increment : int = 2, freeze_memories : bool = False, freeze_spatials : bool = False, freeze_perms : bool = False, iterate_amounts : bool = False, limit_n_dst_to_c_src : bool = False) -> None:
+    def localSearch(initial_steps_to_explore : int = 1, final_steps_to_explore : int = 1, steps_to_explore_increment : int = 1, freeze_memories : bool = False, freeze_spatials : bool = False, freeze_perms : bool = False, iterate_amounts : bool = False, limit_n_dst_to_c_src : bool = False) -> None:
         nonlocal best_wart, moves_count, choices, align_threads
         # when failing to find a better mapping, increase the explored hops ('steps_to_explore') until they reach Settings.STEPS_TO_EXPLORE, then terminate if no better mapping is found, otherswise reset the hops to one
         steps_to_explore = initial_steps_to_explore
@@ -457,7 +458,7 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
             best_choice = max(choices, key = choices.get, default = None)
             if not best_choice or choices[best_choice] < best_wart:
                 if steps_to_explore < final_steps_to_explore:
-                    steps_to_explore *= steps_to_explore_increment
+                    steps_to_explore += steps_to_explore_increment
                     if steps_to_explore == final_steps_to_explore:
                         only_flow_inward = False
                 else:
