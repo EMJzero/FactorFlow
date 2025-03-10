@@ -1,4 +1,16 @@
-class Settings():
+class MetaSettings(type):
+    # Prevent instantiation of inheriting classes.
+    def __call__(cls, *args, **kwargs):
+        raise TypeError(f"Instances of {cls.__name__} cannot be created. Use the class directly.")
+    
+    # Print the forceful update INFO message every time a setting is assigned!
+    # If the VERBOSE attribute is present, use it to toggle the print.
+    def __setattr__(cls, name, value):
+        if getattr(cls, name, None) != value and (not hasattr(cls, "VERBOSE") or cls.VERBOSE) and name != "VERBOSE":
+            print(f"INFO: forcefully updating setting {name} to {value}")
+        super().__setattr__(name, value)
+
+class Settings(metaclass = MetaSettings):
     # If True, enables logging of the MSE process. Note that such prints occur during the timed
     # section of the program, set to False for accurate timing results.
     VERBOSE = True
@@ -54,9 +66,10 @@ class Settings():
     # If True, fanout maximization is replaced with an exploration of spatial fanout levels in three
     # steps, together with memory levels, within factorFlow's local search.
     LOCAL_SEARCH_SPATIAL_LEVELS = False
-    # If True, when spatial levels are being optimized (and memories are frozen), the Wart is computed
-    # with a squared utilization ratio at the denominator, further penalizing sub-utilized mappings.
-    SQUARE_UTIL_IN_SEARCH_SPATIAL_LEVELS = True
+    # When optimizing spatial levels (and memories are frozen), the Wart is computed with this number
+    # as the exponent on the utilization ratio at the denominator, penalizing sub-utilized mappings.
+    # NOTE: raise this if spatial optimization is underperforming, lower it if it's too greedy.
+    UTIL_EXP_IN_SEARCH_SPATIAL_LEVELS = 10
     # If True, when memory and spatial levels are being co-optimized, if the source level for a move is
     # a spatial level, at least one more move is always explored to try to replenish spatial utilization.
     ONE_MORE_CO_OPT_STEP_IF_SRC_IS_SPATIAL = False
@@ -136,7 +149,7 @@ class Settings():
     # NO_CONSTRAINTS_CHECK_DURING_MULTISTEP     |       o       |       o       |       o       |       o       |       o       |
     # ONLY_MAXIMIZE_ONE_FANOUT_DIM              |       o       |       x       |       x       |       x       |       x       |
     # LOCAL_SEARCH_SPATIAL_LEVELS               |       x       |       o       |       o       |       o       |       o       |
-    # SQUARE_UTIL_IN_SEARCH_SPATIAL_LEVELS      |       x       |       x       |       x       |       x       |       o       |
+    # UTIL_EXP_IN_SEARCH_SPATIAL_LEVELS         |       x       |       x       |       x       |       x       |       o       |
     # ONE_MORE_CO_OPT_STEP_IF_SRC_IS_SPATIAL    |       x       |       x       |       x       |       x       |       o       |
     # PERM_SKIP                                 |       o       |       o       |       o       |       o       |       x       |
     # HARD_PERM_SKIP                            |       o       |       o       |       o       |       o       |       x       |

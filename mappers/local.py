@@ -22,38 +22,30 @@ candidate_perms_per_mem_level : list[list[str]] = []
 Update Settings to best target the provided architecture with the present mapper.
 """
 def mapperForcedSettingsUpdate(arch : Arch, verbose : bool = True) -> None:
+    # Memories and Co-opt local search steps settings:
     steps_to_explore = max(2, Settings.STEPS_TO_EXPLORE)
     if sum(1 for l in arch if isinstance(l, MemLevel)) < 6: # small architecture (less than six memories)
         steps_to_explore = max(3, Settings.STEPS_TO_EXPLORE)
-        if not Settings.ITERATE_AMOUNTS and verbose: print(f"INFO: forcefully updating setting ITERATE_AMOUNTS to True")
         Settings.ITERATE_AMOUNTS = True
-    if Settings.STEPS_TO_EXPLORE != steps_to_explore and verbose: print(f"INFO: forcefully updating setting STEPS_TO_EXPLORE to {steps_to_explore}")
     Settings.STEPS_TO_EXPLORE = steps_to_explore
     co_opt_steps_to_explore = max(3, Settings.CO_OPT_STEPS_TO_EXPLORE)
-    if Settings.CO_OPT_STEPS_TO_EXPLORE != co_opt_steps_to_explore and verbose: print(f"INFO: forcefully updating setting CO_OPT_STEPS_TO_EXPLORE to {co_opt_steps_to_explore}")
     Settings.CO_OPT_STEPS_TO_EXPLORE = co_opt_steps_to_explore
     initial_steps_to_explore = min(max(2, Settings.INITIAL_STEPS_TO_EXPLORE), steps_to_explore)
-    if Settings.INITIAL_STEPS_TO_EXPLORE != initial_steps_to_explore and verbose: print(f"INFO: forcefully updating setting INITIAL_STEPS_TO_EXPLORE to {initial_steps_to_explore}")
     Settings.INITIAL_STEPS_TO_EXPLORE = initial_steps_to_explore
     sp_levels = [sp_l for sp_l in arch if isinstance(sp_l, SpatialLevel)]
+    # Local search multistep settings:
     if any(len(sp_l.dims) >= 2 for sp_l in sp_levels): # a spatial fanout supports multiple dimensions
-        if verbose: print("INFO: forcefully updating setting LOCAL_SEARCH_SPATIAL_LEVELS to True")
         Settings.LOCAL_SEARCH_SPATIAL_LEVELS = True
         if Settings.STEPS_TO_EXPLORE > 1:
-            if Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC and verbose: print("INFO: forcefully updating setting LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC to False")
             Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC = False # -> set to True to save on execution time!
-            if Settings.CO_OPT_LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC and verbose: print("INFO: forcefully updating setting CO_OPT_LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC to False")
             Settings.CO_OPT_LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC = False # -> set to True to save on execution time!
-            if Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and verbose: print("INFO: forcefully updating setting NO_CONSTRAINTS_CHECK_DURING_MULTISTEP to False")
             Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP = False # -> set to True when LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC is True!
         if verbose: print(f"INFO: --> the cause of this is the presence of Fanout levels ({', '.join(sp_l.name for sp_l in sp_levels if len(sp_l.dims) >= 2)}) with multiple mapped dimensions ({', '.join(str(sp_l.dims) for sp_l in sp_levels if len(sp_l.dims) >= 2)}). Runtime might increase slightly...")
+    # Spatial levels local search steps settings:
     if Settings.LOCAL_SEARCH_SPATIAL_LEVELS: # handling of spatial fanouts commuted from blind maximization to a preliminary local search
         spatial_steps_to_explore = max(max(len(prime_factors(sp_l.mesh).keys()) for sp_l in sp_levels), Settings.SPATIAL_STEPS_TO_EXPLORE, 4)
-        if Settings.SPATIAL_STEPS_TO_EXPLORE != spatial_steps_to_explore and verbose: print(f"INFO: forcefully updating setting SPATIAL_STEPS_TO_EXPLORE to {spatial_steps_to_explore}")
         Settings.SPATIAL_STEPS_TO_EXPLORE = spatial_steps_to_explore
-        if Settings.SPATIAL_LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC and verbose: print("INFO: forcefully updating setting SPATIAL_LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC to False")
         Settings.SPATIAL_LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC = False
-        if not Settings.SPATIAL_ITERATE_AMOUNTS and verbose: print("INFO: forcefully updating setting SPATIAL_ITERATE_AMOUNTS to True")
         Settings.SPATIAL_ITERATE_AMOUNTS = True
         #if not Settings.ONE_MORE_CO_OPT_STEP_IF_SRC_IS_SPATIAL: print("INFO: forcefully updating setting ONE_MORE_CO_OPT_STEP_IF_SRC_IS_SPATIAL to True")
         #Settings.ONE_MORE_CO_OPT_STEP_IF_SRC_IS_SPATIAL = True
@@ -89,9 +81,7 @@ NOTE: when LOCAL_SEARCH_SPATIAL_LEVELS is True, this is ditched and
 def fanoutMaximization(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = False) -> None:
     # TECHNIQUE: Find the prime factors of the mesh, and pick the largest common ones with the dimension
     # mapped along that mesh, continue picking from the largest ones in common until you run out!
-    # IMPORTANT: from optimizeDataflow, if there are unconstrained dimensions, those are always the first ones!
     # NOTE: This step applies to ComputeLevels too!
-    if verbose: print("\nStarting fanout maximization:\n")
     for i in range(1, len(arch) - 1): # first round: start from common factors
         level = arch[i]
         if isinstance(level, SpatialLevel):
@@ -101,6 +91,7 @@ def fanoutMaximization(arch : Arch, comp : Shape, bias_read : bool, verbose : bo
                 amount = arch[0].factors[dim][f]
                 while amount > 0:
                     if arch.moveFactor(0, i, dim, f, amount):
+                        if verbose: print(f"╶ Moving {arch[0].name} --{dim}:{f**amount}--> {arch[i].name}")
                         break
                     amount -= 1 # lower the amount until you succeed
     
@@ -114,11 +105,10 @@ def fanoutMaximization(arch : Arch, comp : Shape, bias_read : bool, verbose : bo
                     space = level.mesh // level.factors.fullProduct()
                     factors, _ = largest_product_less_than(arch[0].factors.toList(dim), space)
                     for f in factors:
-                        if not arch.moveFactor(0, i, dim, f, 1) and verbose:
-                            print(f"Arch: {arch.name}: fanout maximization failed to fill up the leftover space on level {level.name}, dim {dim} with factor {f} (mesh: {level.mesh}, space: {space})...")
-    
-    if verbose: print(f"After fanout maximization (Wart: {Wart(arch, comp, bias_read):.3e}):")
-    if verbose: printFactors(arch)
+                        if not arch.moveFactor(0, i, dim, f, 1):
+                            if verbose: print(f"Arch: {arch.name}: fanout maximization failed to fill up the leftover space on level {level.name}, dim {dim} with factor {f} (mesh: {level.mesh}, space: {space})...")
+                        else:
+                            if verbose: print(f"╶ Moving {arch[0].name} --{dim}:{f}--> {arch[i].name}")
 
 
 """
@@ -407,7 +397,7 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
                         already_seen[hsh] = moves if not_in else min(moves, already_seen[hsh]) # be it valid or invalid, don't try an already seen mapping ever again.
                     if arch.moveFactor(src_level_idx, dst_level_idx, dim, factor, amount, skip_src_constraints = Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and remaining_steps > 1):
                         if not freeze_perms: pickBestPermsIteratively(arch)
-                        wart = Wart(arch, comp, bias_read, utilization_exponent = 2 if Settings.SQUARE_UTIL_IN_SEARCH_SPATIAL_LEVELS and freeze_memories else 1)
+                        wart = Wart(arch, comp, bias_read, utilization_exponent = Settings.UTIL_EXP_IN_SEARCH_SPATIAL_LEVELS if freeze_memories else 1)
                         if remaining_steps > 1 or (remaining_steps == 1 and Settings.ONE_MORE_CO_OPT_STEP_IF_SRC_IS_SPATIAL and not freeze_memories and not freeze_spatials and isinstance(arch[src_level_idx], SpatialLevel)):
                             nested_choices = exploreOneStep(arch, remaining_steps - 1, recursion_depth = recursion_depth + 1, target_dst_level_idx = src_level_idx if limit_n_dst_to_c_src else None, freeze_memories = freeze_memories, freeze_spatials = freeze_spatials, freeze_perms = freeze_perms, only_flow_inward = only_flow_inward, iterate_amounts = iterate_amounts, limit_n_dst_to_c_src = limit_n_dst_to_c_src)
                             if len(nested_choices) == 0:
@@ -464,7 +454,7 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
                     if steps_to_explore == final_steps_to_explore:
                         only_flow_inward = False
                 else:
-                    if verbose: print(f"No valid follow-up configuration, stopping, current Wart: {best_wart:.3e}" if len(choices) == 0 else f"Stopping with current Wart: {best_wart:.3e}, while best choice is: {choices[best_choice]:.3e}")
+                    if verbose: print(f"No valid follow-up configuration, stopping, current Wart: {best_wart:.3e}" if not best_choice else f"Stopping with current Wart: {best_wart:.3e}, while best choice is: {choices[best_choice]:.3e}")
                     break
             else:
                 # each individual choice is defined by 5 parameters, chained to another 5 for each nested exploration step
@@ -507,6 +497,7 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
     updateStats(arch, bias_read)
     if verbose: print(f"\nFinal condition:\nWart: {best_wart}\nEDP: {EDP(arch, bias_read, True):.3e} (J*cycle)")
     if verbose: printFactors(arch)
+    if verbose: print(f"\nVisited {len(already_seen)} mappings.")
     return arch, best_wart, moves_count
 
 """

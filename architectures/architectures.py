@@ -497,7 +497,7 @@ arch_tpu = Arch([
         # pe_to_pe should be used, since the TPU uses a systolic array, but Timeloop
         # does not have this feature, so for sake of comparison, it is turned off
         #pe_to_pe = True, 
-        factors_constraints = {'M': 256}
+        factors_constraints = {}
     ),
     MemLevel(
         name = "Accumulator",
@@ -516,7 +516,7 @@ arch_tpu = Arch([
         # pe_to_pe should be used, since the TPU uses a systolic array, but Timeloop
         # does not have this feature, so for sake of comparison, it is turned off
         #pe_to_pe = True, 
-        factors_constraints = {'K': 256}
+        factors_constraints = {}
     ),
     MemLevel(
         name = "Register",
@@ -583,7 +583,7 @@ arch_tpu_conv = Arch([
         # pe_to_pe should be used, since the TPU uses a systolic array, but Timeloop
         # does not have this feature, so for sake of comparison, it is turned off
         #pe_to_pe = True, 
-        factors_constraints = {'M': 256}
+        factors_constraints = {}
     ),
     MemLevel(
         name = "Accumulator",
@@ -602,7 +602,7 @@ arch_tpu_conv = Arch([
         # pe_to_pe should be used, since the TPU uses a systolic array, but Timeloop
         # does not have this feature, so for sake of comparison, it is turned off
         #pe_to_pe = True, 
-        factors_constraints = {'C': 256}
+        factors_constraints = {}
     ),
     MemLevel(
         name = "Register",

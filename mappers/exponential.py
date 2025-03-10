@@ -21,13 +21,9 @@ def mapperForcedSettingsUpdate(arch : Arch, verbose : bool = True) -> None:
     for level in arch:
         if isinstance(level, SpatialLevel) and len(level.dims) >= 2:
             Settings.FREEZE_SPATIALS = False
-            if verbose: print(f"INFO: forcefully updating setting FREEZE_SPATIALS to {Settings.FREEZE_SPATIALS}")
             Settings.STEPS_TO_EXPLORE = max(2, Settings.STEPS_TO_EXPLORE)
-            if verbose: print(f"INFO: forcefully updating setting STEPS_TO_EXPLORE to {Settings.STEPS_TO_EXPLORE}")
             Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC = True
-            if verbose: print(f"INFO: forcefully updating setting LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC to {Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC}")
             Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP = True
-            if verbose: print(f"INFO: forcefully updating setting NO_CONSTRAINTS_CHECK_DURING_MULTISTEP to {Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP}")
             if verbose: print(f"INFO: --> the cause of this is the presence of a Fanout level ({level.name}) with multiple mapped dimensions ({level.dims}). Runtime might increase exponentially with STEPS_TO_EXPLORE...")
             break
 

@@ -92,6 +92,8 @@ def run_engine(arch : Arch, comp : Shape, coupling : Coupling, bias_read : bool,
         if Settings.PADDED_MAPPINGS:
             print("")
             printPadding(arch, comp)
+    else:
+        printFactors(arch)
     
     return edp, mops, energy, latency, utilization, end_time, arch
 

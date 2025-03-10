@@ -27,33 +27,23 @@ def mapperForcedSettingsUpdate(arch : Arch, verbose : bool = True) -> None:
     steps_to_explore = max(2, Settings.STEPS_TO_EXPLORE)
     if sum(1 for l in arch if isinstance(l, MemLevel)) < 6: # small architecture (less than six memories)
         steps_to_explore = max(4, Settings.STEPS_TO_EXPLORE)
-        if not Settings.ITERATE_AMOUNTS and verbose: print(f"INFO: forcefully updating setting ITERATE_AMOUNTS to True")
         Settings.ITERATE_AMOUNTS = True
-    if Settings.STEPS_TO_EXPLORE != steps_to_explore and verbose: print(f"INFO: forcefully updating setting STEPS_TO_EXPLORE to {steps_to_explore}")
     Settings.STEPS_TO_EXPLORE = steps_to_explore
     co_opt_steps_to_explore = max(4, Settings.CO_OPT_STEPS_TO_EXPLORE)
-    if Settings.CO_OPT_STEPS_TO_EXPLORE != co_opt_steps_to_explore and verbose: print(f"INFO: forcefully updating setting CO_OPT_STEPS_TO_EXPLORE to {co_opt_steps_to_explore}")
     Settings.CO_OPT_STEPS_TO_EXPLORE = co_opt_steps_to_explore
     initial_steps_to_explore = min(max(2, Settings.INITIAL_STEPS_TO_EXPLORE), steps_to_explore)
-    if Settings.INITIAL_STEPS_TO_EXPLORE != initial_steps_to_explore and verbose: print(f"INFO: forcefully updating setting INITIAL_STEPS_TO_EXPLORE to {initial_steps_to_explore}")
     Settings.INITIAL_STEPS_TO_EXPLORE = initial_steps_to_explore
     sp_levels = [sp_l for sp_l in arch if isinstance(sp_l, SpatialLevel)]
     if any(len(sp_l.dims) >= 2 for sp_l in sp_levels): # a spatial fanout supports multiple dimensions
-        if verbose: print("INFO: forcefully updating setting LOCAL_SEARCH_SPATIAL_LEVELS to True")
         Settings.LOCAL_SEARCH_SPATIAL_LEVELS = True
         if Settings.STEPS_TO_EXPLORE > 1:
-            if not Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC and verbose: print("INFO: forcefully updating setting LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC to True")
             Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC = True # -> set to True to save on execution time!
-            if not Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP and verbose: print("INFO: forcefully updating setting NO_CONSTRAINTS_CHECK_DURING_MULTISTEP to True")
             Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP = True # -> set to True when LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC is True!
         if verbose: print(f"INFO: --> the cause of this is the presence of Fanout levels ({', '.join(sp_l.name for sp_l in sp_levels if len(sp_l.dims) >= 2)}) with multiple mapped dimensions ({', '.join(str(sp_l.dims) for sp_l in sp_levels if len(sp_l.dims) >= 2)}). Runtime might increase slightly...")
     if Settings.LOCAL_SEARCH_SPATIAL_LEVELS: # handling of spatial fanouts commuted from blind maximization to a preliminary local search
         spatial_steps_to_explore = max(max(len(prime_factors(sp_l.mesh).keys()) for sp_l in sp_levels), Settings.SPATIAL_STEPS_TO_EXPLORE, 4)
-        if Settings.SPATIAL_STEPS_TO_EXPLORE != spatial_steps_to_explore and verbose: print(f"INFO: forcefully updating setting SPATIAL_STEPS_TO_EXPLORE to {spatial_steps_to_explore}")
         Settings.SPATIAL_STEPS_TO_EXPLORE = spatial_steps_to_explore
-        if Settings.SPATIAL_LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC and verbose: print("INFO: forcefully updating setting LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC to False")
         Settings.SPATIAL_LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC = False
-        if not Settings.SPATIAL_ITERATE_AMOUNTS and verbose: print("INFO: forcefully updating setting SPATIAL_ITERATE_AMOUNTS to True")
         Settings.SPATIAL_ITERATE_AMOUNTS = True
 
 """
