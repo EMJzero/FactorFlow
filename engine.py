@@ -42,7 +42,7 @@ Mapper entry point.
 """
 def run_engine(arch : Arch, comp : Shape, coupling : Coupling, bias_read : bool, verbose : bool = False) -> tuple[float, int, float, int, float, float, Arch]:
     try:
-        forcedSettingsUpdate(arch, verbose = verbose)
+        forcedSettingsUpdate(arch, verbose = Settings.VERBOSE)
         start_time = time.time()
         
         if Settings.MULTITHREADED and 'local' not in Settings.MAPPER:
@@ -77,7 +77,7 @@ def run_engine(arch : Arch, comp : Shape, coupling : Coupling, bias_read : bool,
         stop_engine()
         raise e
     
-    if verbose:
+    if Settings.VERBOSE:
         print(f"\nFinished in: {end_time:.3f}s")
         
         print(f"\nBest mapping found with:\n\tWart: {wart:.3e}\n\tEDP: {edp:.3e} (J*cycle)\n\tEnergy: {energy:.3e} (uJ)\n\tLatency: {latency:.3e} (cc)")
@@ -92,7 +92,7 @@ def run_engine(arch : Arch, comp : Shape, coupling : Coupling, bias_read : bool,
         if Settings.PADDED_MAPPINGS:
             print("")
             printPadding(arch, comp)
-    else:
+    elif verbose:
         printFactors(arch)
     
     return edp, mops, energy, latency, utilization, end_time, arch

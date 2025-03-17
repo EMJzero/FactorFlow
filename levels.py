@@ -691,7 +691,7 @@ class MemLevel(Level):
     its constraints, including fitting in the available memory.
     """
     def checkFactorsConstraints(self) -> bool:
-        return self.factors.memFootprint(self.tile_sizes, self.arch.coupling, not self.bypasses or 'in' not in self.bypasses, not self.bypasses or 'w' not in self.bypasses, not self.bypasses or 'out' not in self.bypasses) <= self.size/self.multiple_buffering and super().checkFactorsConstraints()
+        return self.factors.memFootprint(self.tile_sizes, self.arch, not self.bypasses or 'in' not in self.bypasses, not self.bypasses or 'w' not in self.bypasses, not self.bypasses or 'out' not in self.bypasses) <= self.size/self.multiple_buffering and super().checkFactorsConstraints()
 
     """
     Returns True iif this level's dataflow satisfies all of its constraints.
@@ -720,7 +720,7 @@ class MemLevel(Level):
         if not super().checkFactorsConstraints():
             return super().logConstraintsViolation()
         elif not self.checkFactorsConstraints():
-            mem_footprint = self.factors.memFootprint(self.tile_sizes, self.arch.coupling, not self.bypasses or 'in' not in self.bypasses, not self.bypasses or 'w' not in self.bypasses, not self.bypasses or 'out' not in self.bypasses)
+            mem_footprint = self.factors.memFootprint(self.tile_sizes, self.arch, not self.bypasses or 'in' not in self.bypasses, not self.bypasses or 'w' not in self.bypasses, not self.bypasses or 'out' not in self.bypasses)
             return f"CONSTRAINTS VIOLATION: Arch: {self.arch.name} -> Level: {self.name}: memory used: {mem_footprint} VS memory available: {self.size/self.multiple_buffering:.0f}"
         elif not self.checkDataflowConstraints():
             return f"CONSTRAINTS VIOLATION: Arch: {self.arch.name} -> Level: {self.name}: dataflow: {self.dataflow} VS " + (f"dataflow constraints for relative order: {self.dataflow_constraints}" if '_' not in self.dataflow_constraints else f"positional dataflow constraints: {self.dataflow_constraints} ('_' are placeholders)")

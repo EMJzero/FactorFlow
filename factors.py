@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING, Optional, Union
 
 from itertools import permutations
 from functools import reduce
@@ -6,7 +7,9 @@ from math import prod
 
 from utils import *
 
-from typing import Optional, Union
+# fix static typechecking without recursive imports
+if TYPE_CHECKING:
+    from arch import Arch
 
 """
 Coupling defines the relationship between the dimensions and the tensors
@@ -48,7 +51,7 @@ up to indicize an operand, each index can be given a coefficient, a stride,
 which by default is 1. A stride is created by binding its name to a dimension:
 
 w_stride = {'Y': 'Ystride', 'Z': 'Zstride'}
-# continuing from above, imples an indexing like
+# continuing from above, implies an indexing like
 W[x][ystride*y + zstride*z]
 
 Constructor arguments:
@@ -127,7 +130,6 @@ class Coupling:
     """
     def isSubcoupling(self, coupling : Coupling) -> bool:
         return (self.isCompatibleCoupling(coupling) and
-                len(self.in_coupling) == len(coupling.in_coupling) and len(self.w_coupling) == len(coupling.w_coupling) and len(self.out_coupling) == len(coupling.out_coupling) and
                 any(all(set(dim_sum) <= set(self_dim_sum) for dim_sum, self_dim_sum in zip(coupling.in_coupling, perm)) for perm in permutations(self.in_coupling, len(coupling.in_coupling))) and
                 any(all(set(dim_sum) <= set(self_dim_sum) for dim_sum, self_dim_sum in zip(coupling.w_coupling, perm)) for perm in permutations(self.w_coupling, len(coupling.w_coupling))) and
                 any(all(set(dim_sum) <= set(self_dim_sum) for dim_sum, self_dim_sum in zip(coupling.out_coupling, perm)) for perm in permutations(self.out_coupling, len(coupling.out_coupling))))
@@ -303,10 +305,14 @@ class Factors(dict[str, dict[int, int]]):
     (It is assumed that a level always stores all data for the
     iterations unfolding over it)
     """
-    def memFootprint(self, tile_sizes : Shape, coupling : Coupling, in_bp : bool = 1, w_bp : bool = 1, out_bp : bool = 1) -> int:
-        return (prod(sum(tile_sizes[dim]*self._dim_products[dim] for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in coupling.in_coupling)*in_bp +
-                prod(sum(tile_sizes[dim]*self._dim_products[dim] for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in coupling.w_coupling)*w_bp +
-                prod(sum(tile_sizes[dim]*self._dim_products[dim] for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in coupling.out_coupling)*out_bp)
+    def memFootprint(self, tile_sizes : Shape, arch : Arch, in_bp : bool = 1, w_bp : bool = 1, out_bp : bool = 1) -> int:
+        return (prod(sum(tile_sizes[dim]*self._dim_products[dim] for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in arch.coupling.in_coupling)*in_bp +
+                prod(sum(tile_sizes[dim]*self._dim_products[dim] for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in arch.coupling.w_coupling)*w_bp +
+                prod(sum(tile_sizes[dim]*self._dim_products[dim] for dim in dim_sum) - len(dim_sum) + 1 for dim_sum in arch.coupling.out_coupling)*out_bp)
+        # TODO: uncomment me to fix invalid mappings!
+        #return (prod(distinct_values([tile_sizes[dim]*self._dim_products[dim] for dim in dim_sum], [arch.getInStride(dim) for dim in dim_sum]) for dim_sum in arch.coupling.in_coupling)*in_bp +
+        #        prod(distinct_values([tile_sizes[dim]*self._dim_products[dim] for dim in dim_sum], [arch.getWStride(dim) for dim in dim_sum]) for dim_sum in arch.coupling.w_coupling)*w_bp +
+        #        prod(distinct_values([tile_sizes[dim]*self._dim_products[dim] for dim in dim_sum], [arch.getOutStride(dim) for dim in dim_sum]) for dim_sum in arch.coupling.out_coupling)*out_bp)
 
     """
     Returns the factors present on the specified dimension as a list rather

@@ -4,6 +4,7 @@ from factors import Shape, Coupling
 # M: Weight/Out rows
 # K: Inner dimension, Weight cols/In rows
 # N: In/Out cols
+# ==> MAC: Out[m][n] += W[m][k] * In[k][n]
 gemm_coupling = Coupling(['M', 'K', 'N'], ['K', 'N'], ['M', 'K'], ['M', 'N'])
 
 # DIMENSIONS and COUPLING for CONVOLUTIONS:
@@ -33,6 +34,14 @@ conv_coupling_with_stride_and_batches = Coupling(['N', 'M', 'P', 'Q', 'C', 'R', 
 # => Q+S-1: Out width
 # ==> MAC: Out[m][p+r][q+s] += W[m][c][r][s] * In[c][p][q] (stride and dilation omitted for clarity)
 transposed_conv_coupling = Coupling(['M', 'P', 'Q', 'C', 'R', 'S'], ['C', 'P', 'Q'], ['M', 'C', 'R', 'S'], ['M', ['P', 'R'], ['Q', 'S']], out_strides = {'P': 'Pstride', 'R': 'Rdilation', 'Q': 'Qstride', 'S': 'Sdilation'})
+# WITH BATCHES too we get:
+# N: Batch size
+# ==> MAC: Out[n][m][p+r][q+s] += W[m][c][r][s] * In[n][c][p][q] (stride and dilation omitted for clarity)
+transposed_conv_coupling_with_batches = Coupling(['N', 'M', 'P', 'Q', 'C', 'R', 'S'], ['N', 'C', 'P', 'Q'], ['M', 'C', 'R', 'S'], ['N', 'M', ['P', 'R'], ['Q', 'S']], out_strides = {'P': 'Pstride', 'R': 'Rdilation', 'Q': 'Qstride', 'S': 'Sdilation'})
+
+# NOTE: each comp must be strictly compatible with its coupling, that is, it must assign a value to each of the coupling's dimensions.
+#       Then, the comp's coupling may happen to be a subcoupling of the one used to define the current architecture.
+
 
 """
 Generates computation instances for each GEMM of a BERT Transformer
@@ -217,5 +226,5 @@ benchmark_convs_transposed = {
 benchmark_convs_batched = {
     'XVIII': Shape(N = 64, C = 256, M = 256, P = 14, Q = 14, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
     'XIX': Shape(N = 128, C = 72, M = 72, P = 28, Q = 28, R = 3, S = 3, Pstride = 2, Qstride = 2, Rdilation = 1, Sdilation = 1),
-    'XX': Shape(N = 32, C = 256, M = 256, P = 56, Q = 56, R = 3, S = 3, Pstride = 2, Qstride = 2, Rdilation = 3, Sdilation = 3)
+    'XX': Shape(N = 32, C = 256, M = 256, P = 56, Q = 56, R = 5, S = 5, Pstride = 2, Qstride = 2, Rdilation = 3, Sdilation = 3)
 }

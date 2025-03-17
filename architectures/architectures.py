@@ -1,4 +1,4 @@
-from computations import gemm_coupling, conv_coupling, conv_coupling_with_stride
+from computations import gemm_coupling, conv_coupling, conv_coupling_with_stride, conv_coupling_with_stride_and_batches
 from levels import *
 from arch import *
 
@@ -135,7 +135,7 @@ arch_gemmini_conv = Arch([
         mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
-    )], coupling=conv_coupling_with_stride, name="Gemmini (conv)")
+    )], coupling=conv_coupling_with_stride_and_batches, name="Gemmini (conv)")
 
 
 # >>> EYERISS <<<
@@ -274,7 +274,7 @@ arch_eyeriss_conv = Arch([
         mesh = 1,
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
-    )], coupling=conv_coupling_with_stride, name="Eyeriss (conv)")
+    )], coupling=conv_coupling_with_stride_and_batches, name="Eyeriss (conv)")
 
 
 # >>> SIMBA <<<
@@ -443,7 +443,7 @@ arch_simba_conv = Arch([
         mesh = 1,
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
-    )], coupling=conv_coupling_with_stride, name="Simba (conv)")
+    )], coupling=conv_coupling_with_stride_and_batches, name="Simba (conv)")
 
 
 # >>>  TPU  <<<
@@ -619,7 +619,7 @@ arch_tpu_conv = Arch([
         mesh = 1,
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
-    )], coupling=conv_coupling_with_stride, name="TPUv1 (conv)")
+    )], coupling=conv_coupling_with_stride_and_batches, name="TPUv1 (conv)")
 
 
 # >>>  NVDLA  <<<

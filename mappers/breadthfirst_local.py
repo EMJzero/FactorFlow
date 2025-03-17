@@ -274,11 +274,13 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
         align_threads = True
         queue = JoinableQueue()
         lock = threading.Lock()
-        update_local_arch = [False for _ in range(Settings.THREADS_COUNT)]
+        barrier = threading.Barrier(Settings.THREADS_COUNT + 1)
+        update_local_arch = [True for _ in range(Settings.THREADS_COUNT)]
         
         def threadWorker(thread_idx : int) -> None:
             nonlocal choices
             local_arch = deepcopy(arch)
+            barrier.wait()
             while stay_alive and not Settings.forced_termination_flag:
                 if align_threads:
                     time.sleep(Settings.TIMEOUT)
@@ -308,6 +310,7 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
             t = threading.Thread(target=threadWorker,args=(i,))
             t.start()
             threads.append(t)
+        barrier.wait()
     else:
         lock = OptionalLock(None)
     

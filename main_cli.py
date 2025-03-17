@@ -139,8 +139,8 @@ if __name__ == "__main__":
     if options["accelergy-data"]:
         from architectures.architectures_hw_data import *
         supported_archs_accelergy = {"gemmini": get_arch_gemmini_hw_data, "eyeriss": get_arch_eyeriss_hw_data, "simba": get_arch_simba_hw_data, "tpu": get_arch_tpu_hw_data}
-    supported_comp_groups = {'BERT': comp_BERT_large, 'MB': comp_maestro_blas, 'VGG16': comp_vgg_16, 'ResNet18': comp_resnet_18, 'BMC' : benchmark_convs, 'BMCT': benchmark_convs_transposed}
-    supported_couplings = {'BERT': gemm_coupling, 'MB': gemm_coupling, 'VGG16': conv_coupling, 'ResNet18': conv_coupling_with_stride, 'BMC': conv_coupling_with_stride, 'BMCT': transposed_conv_coupling}
+    supported_comp_groups = {'BERT': comp_BERT_large, 'MB': comp_maestro_blas, 'VGG16': comp_vgg_16, 'ResNet18': comp_resnet_18, 'BMC' : benchmark_convs, 'BMCT': benchmark_convs_transposed, 'BMCB': benchmark_convs_batched}
+    supported_couplings = {'BERT': gemm_coupling, 'MB': gemm_coupling, 'VGG16': conv_coupling, 'ResNet18': conv_coupling_with_stride, 'BMC': conv_coupling_with_stride, 'BMCT': transposed_conv_coupling, 'BMCB': conv_coupling_with_stride_and_batches}
     
     if options["help"]:
         print("------------ HELP ------------")
@@ -211,8 +211,8 @@ if __name__ == "__main__":
                 coupling = conv_coupling_with_stride
             printopt("Computation:", comp)
             printopt("Coupling:", coupling.compactStr())
-        if coupling == transposed_conv_coupling: # TODO: this is a quick workaround...fix me!
-            arch.coupling = transposed_conv_coupling
+        if transposed_conv_coupling_with_batches.isSubcoupling(coupling): # TODO: this is a quick workaround...fix me!
+            arch.coupling = transposed_conv_coupling_with_batches
     else:
         printopt("-------- try all mode --------")
         if options["tryall"] not in supported_comp_groups:
@@ -253,14 +253,15 @@ if __name__ == "__main__":
         for arch_name, current_arch in zip(["Gemmini", "Eyeriss", "Simba", "TPUv1"], [arch_gemmini, arch_eyeriss, arch_simba, arch_tpu] if supported_couplings[options["tryall"]] is gemm_coupling else [arch_gemmini_conv, arch_eyeriss_conv, arch_simba_conv, arch_tpu_conv]):
             for comp_name, current_comp in zip(supported_comp_groups[options["tryall"]].keys(), supported_comp_groups[options["tryall"]].values()):
                 current_arch_copy = copy.deepcopy(current_arch)
-                if supported_couplings[options["tryall"]] == transposed_conv_coupling: # TODO: this is a quick workaround...fix me!
-                    current_arch_copy.coupling = transposed_conv_coupling
+                if transposed_conv_coupling_with_batches.isSubcoupling(supported_couplings[options["tryall"]]): # TODO: this is a quick workaround...fix me!
+                    current_arch_copy.coupling = transposed_conv_coupling_with_batches
+                current_arch_copy.checkCouplingCompatibility(supported_couplings[options["tryall"]], current_comp, verbose = False)
                 for setting, value in settings_backup.items():
                     setattr(Settings, setting, value)
                 printopt(f"Now running FactorFlow on arch: {arch_name} and comp: {comp_name}...")
                 if not current_arch_copy.fitConstraintsToComp(current_comp, comp_name):
                     continue
-                edp, mops, energy, latency, utilization, end_time, _ = run_engine(current_arch_copy, current_comp, supported_couplings[options["tryall"]], bias_read, verbose = False)
+                edp, mops, energy, latency, utilization, end_time, _ = run_engine(current_arch_copy, current_comp, supported_couplings[options["tryall"]], bias_read, verbose = not options["quiet"])
                 table.add_row([arch_name, comp_name, f"{edp:.3e}", f"{mops[0]+mops[1]:.0f}", f"{latency:.3e}", f"{energy:.3e}", f"{utilization:.3e}", f"{end_time:.3f}"] + extra_constant_columns_values)
                 printopt(f"Mapping complete!")
                 time.sleep(5) # let the CPU catch some breath...
@@ -269,7 +270,7 @@ if __name__ == "__main__":
     elif options["gen-tests"]:
         arch.checkCouplingCompatibility(coupling, comp, verbose = not options["quiet"])
         arch.fitConstraintsToComp(comp, enforce = True)
-        edp, mops, energy, latency, utilization, end_time, arch = run_engine(arch, comp, coupling, bias_read, verbose = not options["quiet"])
+        edp, mops, energy, latency, utilization, end_time, arch = run_engine(arch, comp, coupling, bias_read, verbose = options["quiet"])
         from test import generateTestMOPs, generateTestLatency
         print("\nGenerated tests:")
         generateTestMOPs(arch)
@@ -278,7 +279,7 @@ if __name__ == "__main__":
     else:
         arch.checkCouplingCompatibility(coupling, comp, verbose = not options["quiet"])
         arch.fitConstraintsToComp(comp, enforce = True)
-        edp, mops, energy, latency, utilization, end_time, arch = run_engine(arch, comp, coupling, bias_read, verbose = not options["quiet"])
+        edp, mops, energy, latency, utilization, end_time, arch = run_engine(arch, comp, coupling, bias_read, verbose = options["quiet"])
 
     if options["interactive"]:
         printopt("\n------ interactive mode ------")

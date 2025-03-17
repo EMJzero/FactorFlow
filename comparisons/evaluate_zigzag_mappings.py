@@ -84,6 +84,7 @@ if __name__ == "__main__":
     gemm_comps = comp_BERT_large | comp_maestro_blas
     conv_comps = {"VGG16-" + k: v for k, v in comp_vgg_16.items()} | {"ResNet18-" + k: v for k, v in comp_resnet_18.items()} | benchmark_convs
     conv_transp = benchmark_convs_transposed
+    conv_batched = benchmark_convs_batched
     table = PrettyTable(["Mapper", "Arch", "Comp", "EDP[J*cycle]", "MOPs", "Latency[cc]", "Energy[uJ]", "Utilization[/]", "Runtime"])
     for subdir in os.listdir(root):
         subdir = os.path.join(root, subdir)
@@ -94,7 +95,7 @@ if __name__ == "__main__":
             else:
                 continue
             
-            if comp_name not in gemm_comps and comp_name not in conv_comps and comp_name not in conv_transp:
+            if comp_name not in gemm_comps and comp_name not in conv_comps and comp_name not in conv_transp and comp_name not in conv_batched:
                 print(f"Invalid computation ({comp_name}) in:", subdir)
                 continue
             if comp_name in gemm_comps:
@@ -102,13 +103,16 @@ if __name__ == "__main__":
                 dims_renaming = {'D': 'M', 'E': 'K', 'L': 'N'}
                 comp = gemm_comps[comp_name]
                 arch_tail = ""
-            elif comp_name in conv_comps:
-                coupling = conv_coupling_with_stride
+            elif comp_name in conv_comps or comp_name in conv_batched:
+                coupling = conv_coupling_with_stride_and_batches
                 dims_renaming = {'D': 'M', 'E': 'C', 'L': 'P'}
-                comp = conv_comps[comp_name]
+                if comp_name in conv_comps:
+                    comp = conv_comps[comp_name]
+                else:
+                    comp = conv_batched[comp_name]
                 arch_tail = "-conv"
             else:
-                coupling = transposed_conv_coupling
+                coupling = transposed_conv_coupling_with_batches
                 dims_renaming = {'D': 'M', 'E': 'C', 'L': 'P'}
                 comp = conv_transp[comp_name]
                 arch_tail = "-conv"
@@ -116,10 +120,12 @@ if __name__ == "__main__":
             if not any(k.startswith(arch_name.lower()) for k in archs.keys()):
                 print(f"Invalid architecture ({arch_name}) in:", subdir)
                 continue
+            
             arch = archs[arch_name + arch_tail]
+            comp.fitToCoupling(coupling)
             arch.resetFactors()
             #level_name_to_idx = {l.name.lower(): i for i, l in enumerate(arch)}
-            
+
             class simpleLevel():
                 def __init__(self, name : str, idx : int):
                     self.name = name
@@ -215,11 +221,11 @@ if __name__ == "__main__":
                                 new_loopsline_in = True
                             if dim in coupling.flat_w_coupling and not loopslines[-1].w_level.name.startswith(mem_w):
                                 new_w_level_idx = next((i + new_w_level_idx + 1 for i, l in enumerate(arch[new_w_level_idx + 1:]) if l.name.lower() == mem_w and 'w' not in l.bypasses), -1)
-                                assert new_w_level_idx != -1, f"Issue in {shorten_path(filepath)}: can't find a level storing inputs with name {mem_w}..."
+                                assert new_w_level_idx != -1, f"Issue in {shorten_path(filepath)}: can't find a level storing weights with name {mem_w}..."
                                 new_loopsline_w = True
                             if dim in coupling.flat_out_coupling and not loopslines[-1].out_level.name.startswith(mem_out):
                                 new_out_level_idx = next((i + new_out_level_idx + 1 for i, l in enumerate(arch[new_out_level_idx + 1:]) if l.name.lower() == mem_out and 'out' not in l.bypasses), -1)
-                                assert new_out_level_idx != -1, f"Issue in {shorten_path(filepath)}: can't find a level storing inputs with name {mem_out}..."
+                                assert new_out_level_idx != -1, f"Issue in {shorten_path(filepath)}: can't find a level storing outputs with name {mem_out}..."
                                 new_loopsline_out = True
                             
                             #print("--------------------------") # REMOVE ME

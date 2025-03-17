@@ -11,11 +11,13 @@ Class wrapping a list of levels into an architecture.
 In FF, the terms outermost and innermost refer to the first and last elements
 in the list, in accordance with the HW componenets represented by levels.
 
-This class becomes operational in 4 steps:
+This class becomes operational in 5 steps:
 1) construction of the 'Level' instances it wraps <- per-level arguments
-2) construction of this class <- coupling
+2) construction of this class <- levels, coupling
 3) initialization and validation of all 'Level' instances with calls to 'initArch'
-4) initialization of this class with a call to 'initFactors' <- computation
+4) validation of the target computation and its coupling with a call to 'checkCouplingCompatibility' <- computation, coupling
+opt) relaxation of constraints to accomodate the computation with a a call to 'fitConstraintsToComp' <- comp
+5) initialization of this class with a call to 'initFactors' <- computation
 
 Constructor arguments:
 - levels: the list of levels for the architecture
@@ -89,15 +91,16 @@ class Arch(list[Level]):
                     self[i].tile_sizes[dim] = v
 
     """
-    Checks if the provided coupling is compatible with the architecture's.
+    Checks if the provided computation is compatible with its provided coupling.
     Updates the provided computation with its missing dimensions if needed.
+    Checks if the provided computation's coupling is compatible with the architecture's.
     """
     def checkCouplingCompatibility(self, coupling : Coupling, comp : Shape, verbose : bool = False) -> None:
         assert coupling.isCompatibleComp(comp), f"The provided computation ({comp}) is not compatible with the provided coupling ({coupling.compactStr()}), note that each dimension and stride of the latter must appear in the computation."
         assert self.coupling.isCompatibleCoupling(coupling), f"The provided coupling ({coupling.compactStr()}) is not compatible with arch {self.name}'s coupling ({self.coupling.compactStr()})."
         if verbose and not self.coupling.isSubcoupling(coupling):
             print(f"WARNING: the used coupling ({coupling.compactStr()}) is not a subcoupling of arch {self.name}'s coupling ({self.coupling.compactStr()}), but is still compatible.")
-        comp.fitToCoupling(coupling)
+        comp.fitToCoupling(self.coupling)
 
     """
     Moves a factor between the same dimension of two levels, transitioning

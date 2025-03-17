@@ -69,6 +69,7 @@ if __name__ == "__main__":
     gemm_comps = comp_BERT_large | comp_maestro_blas
     conv_comps = {"VGG16-" + k: v for k, v in comp_vgg_16.items()} | {"ResNet18-" + k: v for k, v in comp_resnet_18.items()} | benchmark_convs
     conv_transp = benchmark_convs_transposed
+    conv_batched = benchmark_convs_batched
     table = PrettyTable(["Arch", "Comp", "EDP[J*cycle]", "MOPs", "Latency[cc]", "Energy[uJ]", "Utilization[/]", "Runtime", "Model Error w.r.t. FF"])
     for subdir in os.listdir(root):
         subdir = os.path.join(root, subdir)
@@ -79,7 +80,7 @@ if __name__ == "__main__":
             else:
                 continue
             
-            if comp_name not in gemm_comps and comp_name not in conv_comps and comp_name not in conv_transp:
+            if comp_name not in gemm_comps and comp_name not in conv_comps and comp_name not in conv_transp and comp_name not in conv_batched:
                 print(f"Invalid computation ({comp_name}) in:", subdir)
                 continue
             if comp_name in gemm_comps:
@@ -92,6 +93,11 @@ if __name__ == "__main__":
                 dims_renaming = {'D': 'M', 'E': 'C', 'L': 'P'}
                 comp = conv_comps[comp_name]
                 arch_tail = "-conv"
+            elif comp_name in conv_batched:
+                coupling = conv_coupling_with_stride_and_batches
+                dims_renaming = {'D': 'M', 'E': 'C', 'L': 'P'}
+                comp = conv_batched[comp_name]
+                arch_tail = "-conv"
             else:
                 coupling = transposed_conv_coupling
                 dims_renaming = {'D': 'M', 'E': 'C', 'L': 'P'}
@@ -102,13 +108,14 @@ if __name__ == "__main__":
                 print(f"Invalid architecture ({arch_name}) in:", subdir)
                 continue
             arch = deepcopy(archs[arch_name + arch_tail])
-            if coupling == transposed_conv_coupling: # TODO: this is a quick workaround...fix me!
-                arch.coupling = transposed_conv_coupling
+            if transposed_conv_coupling_with_batches.isSubcoupling(coupling): # TODO: this is a quick workaround...fix me!
+                arch.coupling = transposed_conv_coupling_with_batches
             for level in arch:
                 level.factors_constraints.clear()
                 if isinstance(level, MemLevel):
                     level.dataflow_constraints.clear()
             arch.resetFactors()
+            arch.checkCouplingCompatibility(coupling, comp, False)
             arch.initFactors(comp)
             
             stats = os.path.join(subdir, "timeloop-mapper.stats.txt")
