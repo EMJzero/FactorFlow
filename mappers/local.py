@@ -517,7 +517,16 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
                 candidate_perms = [perm for perm in slot_in(level.dataflow_constraints, level.dataflow, '_')]
             else:
                 candidate_perms = [perm for perm in interleave(level.dataflow_constraints, [dim for dim in level.dataflow if dim not in level.dataflow_constraints])]
-            candidate_perms = filter_equivalent_perms(candidate_perms, {frozenset(arch.coupling.flat_in_coupling), frozenset(arch.coupling.flat_w_coupling), frozenset(arch.coupling.flat_out_coupling)})
+            # NOTE: can't remove here some couplings w.r.t stored/not-stored operands because they still have an effect when there is a bypass...
+            coupling_sets = [frozenset(arch.coupling.flat_in_coupling), frozenset(arch.coupling.flat_w_coupling), frozenset(arch.coupling.flat_out_coupling)]
+            if level.multiple_reuses:
+                # considering skipped dimensions and halo reuse, for each operand changing order of loops before and after the innermost iterated dimension coupled to the operand doesn't impact reuse, while such innermost dimension dictates the halo reuse (if a dimsum is present)
+                # => remove permutations with a different order of loops inside those determining the dataflow or outside them for each operand
+                dimsums_flags = [int(any(isinstance(dimsum, list) and len(dimsum) > 1 for dimsum in arch.coupling.in_coupling)), int(any(isinstance(dimsum, list) and len(dimsum) > 1 for dimsum in arch.coupling.w_coupling)), int(any(isinstance(dimsum, list) and len(dimsum) > 1 for dimsum in arch.coupling.out_coupling))]
+                candidate_perms = filter_equivalent_perms(candidate_perms, coupling_sets, dimsums_flags)
+            else:
+                # same as above, but we don't have halo reuse
+                candidate_perms = filter_equivalent_perms(candidate_perms, coupling_sets)
             candidate_perms_per_mem_level.append(candidate_perms)
     
     arch, wart, moves = factorFlow(arch, comp, bias_read, verbose)

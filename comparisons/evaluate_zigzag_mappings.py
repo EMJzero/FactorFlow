@@ -75,7 +75,7 @@ def largest_product_less_than_with_tags(arr : list[tuple[Any, ...]], target : in
 if __name__ == "__main__":
 
     if len(sys.argv) < 2 or not os.path.exists(sys.argv[1]) or not os.path.isdir(sys.argv[1]):
-        print(f"The first argument ({sys.argv[1]}) must be a path to a directory containing one or more Timeloop output directories.")
+        print(f"The first argument ({sys.argv[1] if len(sys.argv) > 1 else None}) must be a path to a directory containing one or more Timeloop output directories.")
         print("E.g.: say that '~/outputs/test_1' and '~/outputs/test_2' are where Timeloop wrote its outputs, hence you have file like '~/outputs/test_1/loma.txt' or '~/outputs/test_1/salsa.txt', the first argument shall be '~/outputs'. Note also that the middle directory's name, like 'test_1' shall contain an underscore to separate the name of the used architecture and the used computation like 'arch_comp'.")
         sys.exit(1)
     root = sys.argv[1]

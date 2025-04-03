@@ -60,7 +60,7 @@ def read_n_to_last_line(filename : str, n : int = 1, to_the_end : bool = False) 
 if __name__ == "__main__":
 
     if len(sys.argv) < 2 or not os.path.exists(sys.argv[1]) or not os.path.isdir(sys.argv[1]):
-        print(f"The first argument ({sys.argv[1]}) must be a path to a directory containing one or more Timeloop output directories.")
+        print(f"The first argument ({sys.argv[1] if len(sys.argv) > 1 else None}) must be a path to a directory containing one or more Timeloop output directories.")
         print("E.g.: say that '~/outputs/test_1' and '~/outputs/test_2' are where Timeloop wrote its outputs, hence you have file like '~/outputs/test_1/timeloop-mapper.map.txt' and '~/outputs/test_1/timeloop-mapper.stats.txt', the first argument shall be '~/outputs'. Note also that the middle directory's name, like 'test_1' shall contain an underscore to separate the name of the used architecture and the used computation like 'arch_comp'.")
         sys.exit(1)
     root = sys.argv[1]
@@ -70,7 +70,7 @@ if __name__ == "__main__":
     conv_comps = {"VGG16-" + k: v for k, v in comp_vgg_16.items()} | {"ResNet18-" + k: v for k, v in comp_resnet_18.items()} | benchmark_convs
     conv_transp = benchmark_convs_transposed
     conv_batched = benchmark_convs_batched
-    table = PrettyTable(["Arch", "Comp", "EDP[J*cycle]", "MOPs", "Latency[cc]", "Energy[uJ]", "Utilization[/]", "Runtime", "Model Error w.r.t. FF"])
+    table = PrettyTable(["Arch", "Comp", "EDP[J*cycle]", "MOPs", "Latency[cc]", "Energy[uJ]", "Utilization[/]", "Runtime", "EDP Error w.r.t. FF", "MOPs Error w.r.t. FF"])
     for subdir in os.listdir(root):
         subdir = os.path.join(root, subdir)
         if os.path.isdir(subdir):
@@ -123,7 +123,7 @@ if __name__ == "__main__":
             
             if not os.path.exists(stats) or not os.path.exists(mapping):
                 print("Unrecognized results files in:", subdir)
-                table.add_row([arch_name, comp_name, "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A"])
+                table.add_row([arch_name, comp_name, "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A", "N/A"])
                 continue
             
             last_line = read_n_to_last_line(stats)
@@ -178,7 +178,7 @@ if __name__ == "__main__":
             utilization = arch.spatialUtilization()
             
             #printFactors(arch)
-            #printMOPs(arch)
+            #printMOPs(arch, True)
             #printLatency(arch)
             
             last_lines = read_n_to_last_line(stats, 24, True)
@@ -188,8 +188,16 @@ if __name__ == "__main__":
                 tl_edp = "N/A"
             else:
                 tl_edp = f"{(float(tl_edp.group(1)) - edp)*100/edp:.1f}%"
-            
-            table.add_row([arch_name, comp_name, f"{edp:.3e}", f"{mops[0]+mops[1]:.0f}", f"{latency:.3e}", f"{energy:.3e}", f"{utilization:.3e}", runtime, tl_edp])
+            with open(stats, 'r') as file:
+                data = file.read()
+                tl_mops = re.findall(r'Utilized\sinstances\s\(max\)\s*:\s(\d+)\s*Utilized\sclusters\s\(max\)\s*:\s\d+\s*Scalar\sreads\s\(per-instance\)\s*:\s(\d+)\s*Scalar\sfills\s\(per-instance\)\s*:\s(\d+)\s*Scalar\supdates\s\(per-instance\)\s*:\s(\d+)', data)
+                if not tl_mops:
+                    print("Could not find the Timeloop's predicted MOPs in:", stats)
+                    tl_mops = "N/A"
+                else:
+                    tl_mops = sum(int(l[0])*(int(l[1]) + int(l[2]) + int(l[3])) for l in tl_mops)
+                    tl_mops = f"{(tl_mops - (mops[0]+mops[1]))*100/(mops[0]+mops[1]):.1f}%"
+            table.add_row([arch_name, comp_name, f"{edp:.3e}", f"{mops[0]+mops[1]:.0f}", f"{latency:.3e}", f"{energy:.3e}", f"{utilization:.3e}", runtime, tl_edp, tl_mops])
 
     if not Settings.FREE_DRAINS:
         print("Warning: 'Settings.FREE_DRAINS' is False, this makes FactorFlow's model more accurate, but also makes it diverge from Timeloop's model, thus, expect a worse modeling error.")

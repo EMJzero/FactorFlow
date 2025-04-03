@@ -199,17 +199,18 @@ Two permutations are equivalent iff for each set of relevant elements:
 - Elements from k-N+1 to k (if N > 0) are exactly the same and in the same order.
 - Elements strictly before k are the same but may be in different order.
 """
-def filter_equivalent_perms(perms : list[list[T]], relevant_elements_sets : set[set[T]], N : int = 0) -> list[list[T]]:
-    def key_func(perm, rel_elems):
+def filter_equivalent_perms(perms : list[list[T]], relevant_elements_sets : list[frozenset[T]], N : Optional[list[int]] = None) -> list[list[T]]:
+    def key_func(perm : list[T], rel_elems : frozenset[T], n : int) -> tuple[int, tuple[T, ...], frozenset[T], frozenset[T]]:
         k = max((i for i, el in enumerate(perm) if el in rel_elems), default=-1)
-        fixed_prefix = tuple(perm[max(0, k - N + 1):k + 1]) if N > 0 else ()
-        unordered_before = frozenset(perm[:max(0, k - N + 1)])
+        fixed_prefix = tuple(perm[max(0, k - n + 1):k + 1]) if n > 0 else ()
+        unordered_before = frozenset(perm[:max(0, k - n + 1)])
         unordered_after = frozenset(perm[k + 1:])
         return k, fixed_prefix, unordered_before, unordered_after
 
+    if not N: N = [0 for _ in relevant_elements_sets]
     seen = {}
     for perm in perms:
-        key = tuple(chain(key_func(perm, rel_elems) for rel_elems in relevant_elements_sets))
+        key = tuple(chain(key_func(perm, rel_elems, n) for rel_elems, n in zip(relevant_elements_sets, N)))
         if key not in seen:
             seen[key] = perm
     return list(seen.values())

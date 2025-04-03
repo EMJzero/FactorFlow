@@ -252,7 +252,9 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
             if Settings.DISTINCT_REUSE_OPPORTUNITIES and level.multiple_reuses:
                 # considering skipped dimensions and halo reuse, for each operand changing order of loops before and after the innermost iterated dimension coupled to the operand doesn't impact reuse, while such innermost dimension dictates the halo reuse
                 # => remove permutations with a different order of loops inside those determining the dataflow or outside them for each operand
-                return filter_equivalent_perms(perms, {frozenset(arch.coupling.flat_in_coupling), frozenset(arch.coupling.flat_w_coupling), frozenset(arch.coupling.flat_out_coupling)}, 1)
+                coupling_sets = [frozenset(arch.coupling.flat_in_coupling), frozenset(arch.coupling.flat_w_coupling), frozenset(arch.coupling.flat_out_coupling)]
+                dimsums_flags = [int(any(isinstance(dimsum, list) and len(dimsum) > 1 for dimsum in arch.coupling.in_coupling)), int(any(isinstance(dimsum, list) and len(dimsum) > 1 for dimsum in arch.coupling.w_coupling)), int(any(isinstance(dimsum, list) and len(dimsum) > 1 for dimsum in arch.coupling.out_coupling))]
+                return filter_equivalent_perms(perms, coupling_sets, dimsums_flags)
             elif Settings.DISTINCT_REUSE_OPPORTUNITIES:
                 # same as above, but we don't have halo reuse
                 return filter_equivalent_perms(perms, {frozenset(arch.coupling.flat_in_coupling), frozenset(arch.coupling.flat_w_coupling), frozenset(arch.coupling.flat_out_coupling)})

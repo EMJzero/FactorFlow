@@ -176,17 +176,17 @@ comp_resnet_18 = {
     #'L4': Shape(C = 64, M = 64, P = 56, Q = 56, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
     'L5': Shape(C = 64, M = 128, P = 28, Q = 28, R = 3, S = 3, Pstride = 2, Qstride = 2, Rdilation = 1, Sdilation = 1),
     'L6': Shape(C = 128, M = 128, P = 28, Q = 28, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
-    'L7': Shape(C = 64, M = 128, P = 28, Q = 28, R = 1, S = 1, Pstride = 2, Qstride = 2, Rdilation = 1, Sdilation = 1), # depth-wise
+    'L7': Shape(C = 64, M = 128, P = 28, Q = 28, R = 1, S = 1, Pstride = 2, Qstride = 2, Rdilation = 1, Sdilation = 1), # point-wise
     #'L8': Shape(C = 128, M = 128, P = 28, Q = 28, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
     #'L9': Shape(C = 128, M = 128, P = 28, Q = 28, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
     'L10': Shape(C = 128, M = 128, P = 14, Q = 14, R = 3, S = 3, Pstride = 2, Qstride = 2, Rdilation = 1, Sdilation = 1),
     'L11': Shape(C = 256, M = 256, P = 14, Q = 14, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
-    'L12': Shape(C = 128, M = 256, P = 14, Q = 14, R = 1, S = 1, Pstride = 2, Qstride = 2, Rdilation = 1, Sdilation = 1), # depth-wise
+    'L12': Shape(C = 128, M = 256, P = 14, Q = 14, R = 1, S = 1, Pstride = 2, Qstride = 2, Rdilation = 1, Sdilation = 1), # point-wise
     #'L13': Shape(C = 256, M = 256, P = 14, Q = 14, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
     #'L14': Shape(C = 256, M = 256, P = 14, Q = 14, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
     'L15': Shape(C = 256, M = 512, P = 7, Q = 7, R = 3, S = 3, Pstride = 2, Qstride = 2, Rdilation = 1, Sdilation = 1),
     'L16': Shape(C = 512, M = 512, P = 7, Q = 7, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
-    'L17': Shape(C = 256, M = 512, P = 7, Q = 7, R = 1, S = 1, Pstride = 2, Qstride = 2, Rdilation = 1, Sdilation = 1), # depth-wise
+    'L17': Shape(C = 256, M = 512, P = 7, Q = 7, R = 1, S = 1, Pstride = 2, Qstride = 2, Rdilation = 1, Sdilation = 1), # point-wise
     #'L18': Shape(C = 512, M = 512, P = 7, Q = 7, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
     #'L19': Shape(C = 512, M = 512, P = 7, Q = 7, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
     'L20': Shape(C = 512, M = 1000, P = 1, Q = 1, R = 1, S = 1, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1), # fully connected
@@ -207,12 +207,12 @@ benchmark_convs = {
     'V': Shape(C = 128, M = 128, P = 28, Q = 28, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
     'VI': Shape(C = 256, M = 256, P = 14, Q = 14, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
     'VII': Shape(C = 256, M = 512, P = 7, Q = 7, R = 3, S = 3, Pstride = 2, Qstride = 2, Rdilation = 1, Sdilation = 1),
-    'VIII': Shape(C = 64, M = 256, P = 56, Q = 56, R = 1, S = 1, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1), # depth-wise
+    'VIII': Shape(C = 64, M = 256, P = 56, Q = 56, R = 1, S = 1, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1), # point-wise
     # MobileNetV3
     'IX': Shape(C = 3, M = 64, P = 112, Q = 112, R = 3, S = 3, Pstride = 2, Qstride = 2, Rdilation = 1, Sdilation = 1),
     'X': Shape(C = 72, M = 72, P = 28, Q = 28, R = 3, S = 3, Pstride = 2, Qstride = 2, Rdilation = 1, Sdilation = 1),
     'XI': Shape(C = 576, M = 576, P = 7, Q = 7, R = 5, S = 5, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
-    'XII': Shape(C = 24, M = 88, P = 28, Q = 28, R = 1, S = 1, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1), # depth-wise
+    'XII': Shape(C = 24, M = 88, P = 28, Q = 28, R = 1, S = 1, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1), # point-wise
     # Strides and Dilation
     'XIII': Shape(C = 16, M = 16, P = 224, Q = 224, R = 3, S = 3, Pstride = 3, Qstride = 3, Rdilation = 4, Sdilation = 4),
     'XIV': Shape(C = 128, M = 128, P = 112, Q = 112, R = 9, S = 9, Pstride = 4, Qstride = 4, Rdilation = 3, Sdilation = 3),
@@ -224,6 +224,7 @@ benchmark_convs_transposed = {
     'XVII': Shape(C = 576, M = 576, P = 7, Q = 7, R = 5, S = 5, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1)
 }
 benchmark_convs_batched = {
+    # Batched convs
     'XVIII': Shape(N = 64, C = 256, M = 256, P = 14, Q = 14, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
     'XIX': Shape(N = 128, C = 72, M = 72, P = 28, Q = 28, R = 3, S = 3, Pstride = 2, Qstride = 2, Rdilation = 1, Sdilation = 1),
     'XX': Shape(N = 32, C = 256, M = 256, P = 56, Q = 56, R = 5, S = 5, Pstride = 2, Qstride = 2, Rdilation = 3, Sdilation = 3)
