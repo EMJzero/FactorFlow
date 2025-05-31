@@ -18,6 +18,13 @@ from arch import *
 # TODO: put me in an inner scope!!!
 candidate_perms_per_mem_level : list[list[str]] = []
 
+# WARNING: TRUST THESE ONLY IN SINGLE-THREADED MODE!!!
+surv = 0
+cnt = 0
+seen = 0
+main_steps = 0
+beam_steps = 0
+
 """
 Update Settings to best target the provided architecture with the present mapper.
 """
@@ -157,6 +164,7 @@ Select the best permutations to maximize reuse on a certain factors allocation.
 Method: iterate all meaningful permutations and pick the best performing one.
 """
 def pickBestPermsIteratively(arch : Arch) -> None:
+    global cnt, surv
     # NOTE: even without permutations being defined, we can go inside->out from the first level storing an operand after it has been bypassed,
     # and find the first level with a factor on a dimension coupled to that operand, that is the level solving the dataflow for the bypass!
     # Once the level handling the dataflow has been found, the amount of reuse is still ONLY determined by the tile sizes at THAT level and
@@ -172,6 +180,8 @@ def pickBestPermsIteratively(arch : Arch) -> None:
 
         dims_not_at_one = [dim for dim in arch.coupling.dims if level.factors.dimProduct(dim) > 1]
         if len(dims_not_at_one) <= 1: # no iterations or a single dimension is iterated, permutations don't matter
+            cnt += 1
+            surv += 1
             continue
         
         in_matters = 'in' not in level.bypasses or levels_handling_bypass_dataflows['in'] == i
@@ -183,10 +193,20 @@ def pickBestPermsIteratively(arch : Arch) -> None:
             candidate_perms = [dims_at_one + dims_not_at_one, dims_at_one + dims_not_at_one[::-1]]
         elif len(dims_not_at_one) < 6: # some dimensions not iterated, check equi-dataflow matches
             candidate_perms = candidate_perms_per_mem_level[i]
-            # TODO: try to do another round of filter_equivalent_perms here, giving as sets only the couplings of operands that "matter"!
+            #relevant_elements_sets = set()
+            #if in_matters: relevant_elements_sets.add(frozenset(arch.coupling.flat_in_coupling))
+            #if w_matters: relevant_elements_sets.add(frozenset(arch.coupling.flat_w_coupling))
+            #if out_matters: relevant_elements_sets.add(frozenset(arch.coupling.flat_out_coupling))
+            #if level.multiple_reuses:
+            #    candidate_perms = filter_equivalent_perms(candidate_perms, relevant_elements_sets, 1)
+            #else:
+            #    candidate_perms = filter_equivalent_perms(candidate_perms, relevant_elements_sets)
             candidate_perms = filterEquiDataflowPerms(level, arch.coupling, candidate_perms, in_matters, w_matters, out_matters)
         else: # six dimensions iterated, all candidates must be tried
             candidate_perms = candidate_perms_per_mem_level[i]
+        
+        cnt += 1
+        surv += len(candidate_perms)
         
         best_perm, best_mops = None, math.inf
         for perm in candidate_perms:
@@ -332,6 +352,7 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
     - limit_n_dst_to_c_src: forces any next step's source level to be the one that was the destination in the previous step.
     """
     def exploreOneStep(arch : Arch, remaining_steps : int = 1, recursion_depth : int = 1, factors_iterator : Optional[Iterator[tuple[int, str, int, int]]] = None, target_dst_level_idx : Optional[int] = None, freeze_memories : bool = False, freeze_spatials : bool = False, freeze_perms : bool = False, only_flow_inward : bool = False, iterate_amounts : bool = False, limit_n_dst_to_c_src : bool = False) -> dict[tuple[Union[int, str], ...], float]:
+        global seen
         choices = {}
         if not factors_iterator:
             factors_iterator = factorsIterator(arch, iterate_amounts = iterate_amounts, skip_spatial = freeze_spatials)
@@ -351,6 +372,7 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
                     with lock:
                         already_seen[hsh] = moves if not_in else min(moves, already_seen[hsh]) # be it valid or invalid, don't try an already seen mapping ever again.
                     if arch.moveFactor(src_level_idx, dst_level_idx, dim, factor, amount, skip_src_constraints = Settings.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP):
+                        seen += 1
                         if not freeze_perms: pickBestPermsIteratively(arch)
                         if remaining_steps > 1:
                             nested_choices = exploreOneStep(arch, remaining_steps - 1, recursion_depth = recursion_depth + 1, target_dst_level_idx = src_level_idx if limit_n_dst_to_c_src else None, freeze_memories = freeze_memories, freeze_spatials = freeze_spatials, freeze_perms = freeze_perms, only_flow_inward = only_flow_inward, iterate_amounts = iterate_amounts, limit_n_dst_to_c_src = limit_n_dst_to_c_src)
@@ -397,11 +419,13 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
     whether permutations are explored or kept fixed and 'limit_n_dst_to_c_src' forcefully creates a chain of moves, see 'exploreOneStep'.
     """
     def localSearch(initial_steps_to_explore : int = 1, final_steps_to_explore : int = 1, steps_to_explore_increment : int = 1, freeze_memories : bool = False, freeze_spatials : bool = False, freeze_perms : bool = False, iterate_amounts : bool = False, limit_n_dst_to_c_src : bool = False) -> None:
+        global main_steps, beam_steps
         nonlocal best_wart, moves_count, choices, align_threads
         # when failing to find a better mapping, increase the explored hops ('steps_to_explore') until they reach Settings.STEPS_TO_EXPLORE, then terminate if no better mapping is found, otherswise reset the hops to one
         steps_to_explore = initial_steps_to_explore
         while not Settings.forced_termination_flag:
             if steps_to_explore == initial_steps_to_explore:
+                main_steps += 1
                 if Settings.MULTITHREADED:
                     for task in factorsIterator(arch, iterate_amounts = iterate_amounts, skip_spatial = freeze_spatials):
                         src_level_idx, dim, factor, amount = task
@@ -420,6 +444,7 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
                 else:
                     choices = exploreOneStep(arch, remaining_steps = initial_steps_to_explore, freeze_spatials = freeze_spatials, freeze_memories = freeze_memories, freeze_perms = freeze_perms, iterate_amounts = iterate_amounts, limit_n_dst_to_c_src = limit_n_dst_to_c_src)
             else:
+                beam_steps += 1
                 # >>> GREEDY BREADH-FIST: at this point we retain only the best "further" choice for each choice we already have, as to not grow exponentially the number of choices.
                 if Settings.MULTITHREADED:
                     for choice, wart in choices.items():
@@ -481,9 +506,9 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
             t.join()
     
     updateStats(arch, bias_read)
-    if verbose: print(f"\nFinal condition:\nWart: {best_wart}\nEDP: {EDP(arch, bias_read, True):.3e} (J*cycle)")
+    if verbose: print(f"\nFinal condition:\nWart: {best_wart:.3e}\nEDP: {EDP(arch, bias_read, True):.3e} (J*cycle)")
     if verbose: printFactors(arch)
-    if verbose: print(f"\nVisited {len(already_seen)} mappings.")
+    if verbose: print("\nVisited mappings:", len(already_seen))
     return arch, best_wart, moves_count
 
 """
@@ -494,6 +519,13 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
     # if enabled, pad the computation to exploit all spatial instances
     if Settings.PADDED_MAPPINGS:
         comp = padCompToFanoutLevels(arch, comp, verbose)
+    
+    global cnt, surv, seen, main_steps, beam_steps
+    cnt = 0
+    surv = 0
+    seen = 0
+    main_steps = 0
+    beam_steps = 0
     
     # consider for each level only permutations introducing a distinct set of reuse opportunities
     candidate_perms_per_mem_level.clear()
@@ -516,7 +548,10 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
             candidate_perms_per_mem_level.append(candidate_perms)
     
     arch, wart, moves = factorFlow(arch, comp, bias_read, verbose)
-    if verbose: print(f"\nFinished in {moves} moves.")
+    if verbose: print(f"Avg. surviving perms: {surv/cnt:.3f}")
+    if verbose: print("Map-space points visited:", seen)
+    if verbose: print("Routine steps:", main_steps, "main,", beam_steps, "beam")
+    if verbose: print("Performed moves:", moves)
     if thread_idx == -1:
         return arch, wart
     elif thread_idx == 0:

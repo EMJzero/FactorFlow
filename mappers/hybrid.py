@@ -13,6 +13,7 @@ from model import *
 from utils import *
 from arch import *
 
+cnt = 0
 
 """
 Update Settings to best target the provided architecture with the present mapper.
@@ -133,6 +134,7 @@ Adjacency: two mappings are adjacent if one can be constructed from the other
            same dimension.
 """
 def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = False) -> tuple[Arch, float, int]:
+    global cnt
     if verbose: print("-------- factorFlow --------")
     already_initialized = arch.initialized
     if not already_initialized:
@@ -245,10 +247,13 @@ def factorFlow(arch : Arch, comp : Shape, bias_read : bool, verbose : bool = Fal
             fanoutMaximization(arch, comp, bias_read, verbose) # saturate fanout dimensions
         #if verbose: print("- local search of memory levels -")
         localSearch(initial_steps_to_explore = Settings.INITIAL_STEPS_TO_EXPLORE, final_steps_to_explore = Settings.STEPS_TO_EXPLORE, freeze_memories = False, freeze_spatials = True, iterate_amounts = Settings.ITERATE_AMOUNTS, limit_n_dst_to_c_src = Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC) # optimize memory levels
+        cnt += len(already_seen)
         already_seen.clear()
         already_seen.add(arch.hashFromFactors())
     #if verbose: print("- spatial-memory levels co-optimization -")
     localSearch(initial_steps_to_explore = Settings.INITIAL_STEPS_TO_EXPLORE, final_steps_to_explore = Settings.CO_OPT_STEPS_TO_EXPLORE, freeze_memories = False, freeze_spatials = False, iterate_amounts = Settings.ITERATE_AMOUNTS, limit_n_dst_to_c_src = Settings.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC) # co-optimize memory and spatial levels
+    
+    cnt += len(already_seen)
     
     updateStats(arch, bias_read)
     if verbose: print(f"Final condition:\nWart: {best_wart}\nEDP: {EDP(arch, bias_read, True):.3e} (J*cycle)")
@@ -277,6 +282,9 @@ The function is meant as the entry point for multiple processes or threads:
 - return_list: shared list among tasks for the return values.
 """
 def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : int = -1, threads_count : int = 1, past_perms : dict[tuple[int, ...], ThreadSafeHeap[float, list[LevelCore], int, int]] = None, lock : threading.Lock = None, barrier : threading.Barrier = None, verbose : bool = False) -> Optional[tuple[Arch, float]]:
+    global cnt
+    cnt = 0
+    
     if verbose and thread_idx <= 0: print("-------- optimizeDataflows --------")
     
     # if enabled, pad the computation to exploit all spatial instances
@@ -605,6 +613,9 @@ def optimizeDataflows(arch : Arch, comp : Shape, bias_read : bool, thread_idx : 
             updateTriedCount(skipped_perms)
         
         equidataflow_past_solution = nextPermutations()
+    
+    if len([t for t in threading.enumerate() if t.is_alive()]) <= 2 and verbose:
+        print(f"Map-space points visited: {cnt}")
     
     if verbose and thread_idx != -1: print(f"Terminating thread {thread_idx}, eq-matched perms: {skipped_perms_total}/{total_perms}" + (f", pruned perms: {pruned_perms_total}/{total_perms}" if Settings.PERM_PRUNING else "")+ ".")
     #print(f"Thread {thread_idx}: ", [(k, len(p), p.counter) for k, p in past_perms.items()])
