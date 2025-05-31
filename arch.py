@@ -91,9 +91,10 @@ class Arch(list[Level]):
                     self[i].tile_sizes[dim] = v
 
     """
-    Checks if the provided computation is compatible with its provided coupling.
-    Updates the provided computation with its missing dimensions if needed.
+    Asserts that the provided computation is compatible with its provided coupling.
     Checks if the provided computation's coupling is compatible with the architecture's.
+    Updates the provided computation with its missing dimensions if needed.
+    NOTE: provided coupling and comp must match, the comp might be extended to fit the architecture.
     """
     def checkCouplingCompatibility(self, coupling : Coupling, comp : Shape, verbose : bool = False) -> None:
         assert coupling.isCompatibleComp(comp), f"The provided computation ({comp}) is not compatible with the provided coupling ({coupling.compactStr()}), note that each dimension and stride of the latter must appear in the computation."
@@ -372,7 +373,7 @@ class Arch(list[Level]):
     Returns the overall estimated area for the architecture (in um^2).
     Returns None if any component is missing an area estimate.
     """
-    def totalArea(self, verbose : bool = False) -> float:
+    def totalArea(self, verbose : bool = False) -> Optional[float]:
         area = 0
         physical_instances = 1
         for level in self:

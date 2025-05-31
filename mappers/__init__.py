@@ -1,4 +1,9 @@
 __all__ = [
+    "abstract",
+    "breadthfirst_local",
     "exponential",
-    "quadratic"
+    "hybrid",
+    "linear",
+    "local",
+    "quadratic",
 ]

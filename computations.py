@@ -209,7 +209,7 @@ benchmark_convs = {
     'VII': Shape(C = 256, M = 512, P = 7, Q = 7, R = 3, S = 3, Pstride = 2, Qstride = 2, Rdilation = 1, Sdilation = 1),
     'VIII': Shape(C = 64, M = 256, P = 56, Q = 56, R = 1, S = 1, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1), # point-wise
     # MobileNetV3
-    'IX': Shape(C = 3, M = 64, P = 112, Q = 112, R = 3, S = 3, Pstride = 2, Qstride = 2, Rdilation = 1, Sdilation = 1),
+    'IX': Shape(C = 3, M = 96, P = 176, Q = 176, R = 3, S = 3, Pstride = 2, Qstride = 2, Rdilation = 1, Sdilation = 1),
     'X': Shape(C = 72, M = 72, P = 28, Q = 28, R = 3, S = 3, Pstride = 2, Qstride = 2, Rdilation = 1, Sdilation = 1),
     'XI': Shape(C = 576, M = 576, P = 7, Q = 7, R = 5, S = 5, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
     'XII': Shape(C = 24, M = 88, P = 28, Q = 28, R = 1, S = 1, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1), # point-wise
