@@ -3,6 +3,7 @@ from math import log2, ceil
 from architectures.accelergy_hw_data import accelergy_estimate_energy, accelergy_estimate_area
 from architectures.architectures import WS, OS, IS
 from prints import printEnergyPerAction, printAreaPerLevel
+from computations import conv_coupling_with_stride_and_batches
 from levels import *
 from arch import *
 
@@ -368,7 +369,7 @@ def get_arch_gemmini_hw_data():
 # C -> K
 # M -> M
 # P -> N
-def get_arch_eyeriss_hw_data():
+def get_arch_eyeriss_hw_data(global_buffer_size : int = 16384*8, global_buffer_banks : int = 2, sa_cols : int = 14, sa_rows : int = 12, in_reg_size : int = 12*2, w_reg_size : int = 192*2, out_reg_size : int = 16*2) -> Arch:
     cycle_seconds = 1.2e-09
     technology = "32nm"
     arguments = { # in theory, this is not needed on anything but "leak"
@@ -382,11 +383,15 @@ def get_arch_eyeriss_hw_data():
     }
     SRAM_attributes = {
         "n_rw_ports": 1,
-        "depth": 16384,
+        #"n_rd_ports": 1,
+        #"n_wr_ports": 1,
+        #"n_rdwr_ports": 1,
+        "depth": math.ceil(global_buffer_size/8),
         "width": 64,
         "technology": technology,
         "cycle_seconds": cycle_seconds,
-        "n_banks": 2,
+        #"global_cycle_seconds": cycle_seconds,
+        "n_banks": global_buffer_banks,
     }
     
     arch = Arch([
@@ -425,7 +430,7 @@ def get_arch_eyeriss_hw_data():
         MemLevel(
             name = "GlobalBuffer",
             dataflow_constraints = [], #WS,
-            size = 16384*8, # number of entries
+            size = global_buffer_size, # number of entries
             read_wordline_access_energy = accelergy_estimate_energy({
                 "class_name": "SRAM",
                 "attributes": SRAM_attributes,
@@ -456,63 +461,62 @@ def get_arch_eyeriss_hw_data():
         ),
         FanoutLevel(
             name = "SACols",
-            mesh = 14,
-            dims = WS[:2],
+            mesh = sa_cols,
+            dims = ['Q', 'M'],
             area = 0,
-            factors_constraints = {} #{'M': 8}
+            factors_constraints = {}
         ),
         FanoutLevel(
             name = "SARows",
-            mesh = 12,
-            dims = WS[:1],
+            mesh = sa_rows,
+            dims = ['S', 'C', 'M'],
             area = 0,
-            factors_constraints = {} #{'M': 12}
+            factors_constraints = {}
         ),
         MemLevel(
             name = "InRegister",
             dataflow_constraints = [], #WS,
-            size = 12*2, # number of entries
-            read_wordline_access_energy = smartbuffer_registerfile(12, 16, 8, cycle_seconds, technology, "read"),
-            write_wordline_access_energy = smartbuffer_registerfile(12, 16, 8, cycle_seconds, technology, "write"),
-            leakage_energy = smartbuffer_registerfile(12, 16, 8, cycle_seconds, technology, "leak"),
+            size = in_reg_size, # number of entries
+            read_wordline_access_energy = smartbuffer_registerfile(math.ceil(in_reg_size/2), 16, 8, cycle_seconds, technology, "read"),
+            write_wordline_access_energy = smartbuffer_registerfile(math.ceil(in_reg_size/2), 16, 8, cycle_seconds, technology, "write"),
+            leakage_energy = smartbuffer_registerfile(math.ceil(in_reg_size/2), 16, 8, cycle_seconds, technology, "leak"),
             word_bits = 16,
             value_bits = 8,
-            area = smartbuffer_registerfile(12, 16, 8, cycle_seconds, technology, energy = False),
+            area = smartbuffer_registerfile(math.ceil(in_reg_size/2), 16, 8, cycle_seconds, technology, energy = False),
             bandwidth = 4, # operands per cycle (shared)
-            factors_constraints = {'M': 1, 'K': 1, 'N': 1},
+            factors_constraints = {'M': 1, 'C': 1, 'P': 1},
             bypasses = ['w', 'out']
         ),
         MemLevel(
             name = "WRegister",
             dataflow_constraints = [], #WS,
-            size = 192*2, # number of entries
-            read_wordline_access_energy = smartbuffer_registerfile(192, 16, 8, cycle_seconds, technology, "read"),
-            write_wordline_access_energy = smartbuffer_registerfile(192, 16, 8, cycle_seconds, technology, "write"),
-            leakage_energy = smartbuffer_registerfile(192, 16, 8, cycle_seconds, technology, "leak"),
+            size = w_reg_size, # number of entries
+            read_wordline_access_energy = smartbuffer_registerfile(math.ceil(w_reg_size/2), 16, 8, cycle_seconds, technology, "read"),
+            write_wordline_access_energy = smartbuffer_registerfile(math.ceil(w_reg_size/2), 16, 8, cycle_seconds, technology, "write"),
+            leakage_energy = smartbuffer_registerfile(math.ceil(w_reg_size/2), 16, 8, cycle_seconds, technology, "leak"),
             word_bits = 16,
             value_bits = 8,
-            area = smartbuffer_registerfile(192, 16, 8, cycle_seconds, technology, energy = False),
+            area = smartbuffer_registerfile(math.ceil(w_reg_size/2), 16, 8, cycle_seconds, technology, energy = False),
             bandwidth = 4, # operands per cycle (shared)
-            factors_constraints = {'M': 1, 'N': 1},
+            factors_constraints = {'M': 1, 'P': 1},
             bypasses = ['in', 'out']
         ),
         MemLevel(
             name = "OutRegister",
             dataflow_constraints = [], #WS,
-            size = 16*2, # number of entries
-            read_wordline_access_energy = smartbuffer_registerfile(16, 16, 16, cycle_seconds, technology, "read"),
-            write_wordline_access_energy = smartbuffer_registerfile(16, 16, 16, cycle_seconds, technology, "write"),
-            leakage_energy = smartbuffer_registerfile(16, 16, 16, cycle_seconds, technology, "leak"),
+            size = out_reg_size, # number of entries
+            read_wordline_access_energy = smartbuffer_registerfile(out_reg_size, 16, 16, cycle_seconds, technology, "read"),
+            write_wordline_access_energy = smartbuffer_registerfile(out_reg_size, 16, 16, cycle_seconds, technology, "write"),
+            leakage_energy = smartbuffer_registerfile(out_reg_size, 16, 16, cycle_seconds, technology, "leak"),
             word_bits = 16,
             value_bits = 16,
-            area = smartbuffer_registerfile(16, 16, 16, cycle_seconds, technology, energy = False),
+            area = smartbuffer_registerfile(out_reg_size, 16, 16, cycle_seconds, technology, energy = False),
             bandwidth = 4, # operands per cycle (shared)
-            factors_constraints = {'K': 1, 'N': 1},
+            factors_constraints = {'C': 1, 'N': 1},
             bypasses = ['in', 'w']
         ),
         ComputeLevel(
             name = "Compute",
-            dim = WS[2],
             mesh = 1,
             compute_energy = accelergy_estimate_energy({
                 "class_name": "aladdin_adder", # multiplier
@@ -565,15 +569,14 @@ def get_arch_eyeriss_hw_data():
                 }
             }),
             cycles = 1,
-            factors_constraints = {'N': 1}
         )
-    ], name="Eyeriss (Accelergy data)")
+    ], coupling=conv_coupling_with_stride_and_batches, name="Eyeriss (Accelergy data)")
     
     print(f"\nEnergy per action in {arch.name}:")
     printEnergyPerAction(arch)
     print(f"\nArea per level in {arch.name}:")
     printAreaPerLevel(arch)
-    print(f"Total area of {arch.name}: {arch.totalArea(True):.3e} um^2")
+    print(f"Total area of {arch.name}: {arch.totalArea(True):.3e} um^2\n")
     return arch
 
 

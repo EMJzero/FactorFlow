@@ -6,6 +6,12 @@ from factors import Shape, Coupling
 # N: In/Out cols
 # ==> MAC: Out[m][n] += W[m][k] * In[k][n]
 gemm_coupling = Coupling(['M', 'K', 'N'], ['K', 'N'], ['M', 'K'], ['M', 'N'])
+# GEMM carved out of a CONVOLUTION:
+# M => M
+# K => C
+# N => P
+# ==> MAC: Out[m][p] += W[m][c] * In[c][p]
+gemm_coupling_as_conv = Coupling(['M', 'C', 'P'], ['C', 'P'], ['M', 'C'], ['M', 'P'])
 
 # DIMENSIONS and COUPLING for CONVOLUTIONS:
 # M: Filter num/Out depth
