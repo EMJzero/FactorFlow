@@ -1,5 +1,7 @@
 from architectures.architectures import WS, OS, IS
+from computations import gemm_coupling
 from levels import *
+from arch import *
 from arch import *
 
 # ZigZag conversions:
@@ -82,7 +84,7 @@ arch_gemmini_zigzag_compatible = Arch([
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # NOTE: unfair compared to the Gemmini architecture in "architectures.py"
@@ -154,7 +156,7 @@ arch_gemmini_zigzag_loma_kqv = Arch([
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: bert large VScores
@@ -223,7 +225,7 @@ arch_gemmini_zigzag_loma_vscores = Arch([
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: bert large KTQ
@@ -283,7 +285,7 @@ arch_gemmini_zigzag_loma_ktq = Arch([
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: bert large FF1
@@ -343,7 +345,7 @@ arch_gemmini_zigzag_loma_ff1 = Arch([
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 1
@@ -403,7 +405,7 @@ arch_gemmini_zigzag_loma_mb1 = Arch([
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 2
@@ -463,7 +465,7 @@ arch_gemmini_zigzag_loma_mb2 = Arch([
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 3
@@ -523,7 +525,7 @@ arch_gemmini_zigzag_loma_mb3 = Arch([
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 4
@@ -592,7 +594,7 @@ arch_gemmini_zigzag_loma_mb4 = Arch([
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 5
@@ -661,7 +663,7 @@ arch_gemmini_zigzag_loma_mb5 = Arch([
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 6
@@ -721,7 +723,7 @@ arch_gemmini_zigzag_loma_mb6 = Arch([
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: bert large KQV
@@ -781,7 +783,7 @@ arch_gemmini_zigzag_salsa_kqv = Arch([
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: bert large KTQ
@@ -841,7 +843,7 @@ arch_gemmini_zigzag_salsa_ktq = Arch([
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: bert large VScores
@@ -910,7 +912,7 @@ arch_gemmini_zigzag_salsa_vscores = Arch([
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: bert large FF1
@@ -970,7 +972,7 @@ arch_gemmini_zigzag_salsa_ff1 = Arch([
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 1
@@ -1030,7 +1032,7 @@ arch_gemmini_zigzag_salsa_mb1 = Arch([
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 2
@@ -1090,7 +1092,7 @@ arch_gemmini_zigzag_salsa_mb2 = Arch([
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 3
@@ -1150,7 +1152,7 @@ arch_gemmini_zigzag_salsa_mb3 = Arch([
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 4
@@ -1219,7 +1221,7 @@ arch_gemmini_zigzag_salsa_mb4 = Arch([
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 5
@@ -1288,7 +1290,7 @@ arch_gemmini_zigzag_salsa_mb5 = Arch([
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 6
@@ -1348,7 +1350,7 @@ arch_gemmini_zigzag_salsa_mb6 = Arch([
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 
 # >>> EYERISS <<<
@@ -1420,7 +1422,7 @@ arch_eyeriss_zigzag_compatible = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # Modified architecture without constraints
 arch_eyeriss_zigzag_compatible_2 = Arch([
@@ -1489,7 +1491,7 @@ arch_eyeriss_zigzag_compatible_2 = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # NOTE: solution obtained by constraining the fanout levels to the known best. Ignore.
@@ -1559,7 +1561,7 @@ arch_eyeriss_zigzag_loma_kqv = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # NOTE: unfair compared to the Eyeriss architecture in "architectures.py"
@@ -1631,7 +1633,7 @@ arch_eyeriss_zigzag_loma_vscores = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # NOTE: unfair compared to the Eyeriss architecture in "architectures.py"
@@ -1703,7 +1705,7 @@ arch_eyeriss_zigzag_loma_vscores = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: bert large KTQ
@@ -1772,7 +1774,7 @@ arch_eyeriss_zigzag_loma_ktq = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: bert large FF1
@@ -1841,7 +1843,7 @@ arch_eyeriss_zigzag_loma_ff1 = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 1
@@ -1910,7 +1912,7 @@ arch_eyeriss_zigzag_loma_mb1 = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 2
@@ -1979,7 +1981,7 @@ arch_eyeriss_zigzag_loma_mb2 = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 3
@@ -2048,7 +2050,7 @@ arch_eyeriss_zigzag_loma_mb3 = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 4
@@ -2126,7 +2128,7 @@ arch_eyeriss_zigzag_loma_mb4 = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 5
@@ -2195,7 +2197,7 @@ arch_eyeriss_zigzag_loma_mb5 = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 6
@@ -2273,7 +2275,7 @@ arch_eyeriss_zigzag_loma_mb6 = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: bert large KQV
@@ -2342,7 +2344,7 @@ arch_eyeriss_zigzag_salsa_kqv = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: bert large KTQ
@@ -2411,7 +2413,7 @@ arch_eyeriss_zigzag_salsa_ktq = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: bert large VScores
@@ -2489,7 +2491,7 @@ arch_eyeriss_zigzag_salsa_vscores = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: bert large FF1
@@ -2558,7 +2560,7 @@ arch_eyeriss_zigzag_salsa_ff1 = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 1
@@ -2627,7 +2629,7 @@ arch_eyeriss_zigzag_salsa_mb1 = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 2
@@ -2696,7 +2698,7 @@ arch_eyeriss_zigzag_salsa_mb2 = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 3
@@ -2765,7 +2767,7 @@ arch_eyeriss_zigzag_salsa_mb3 = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 4
@@ -2843,7 +2845,7 @@ arch_eyeriss_zigzag_salsa_mb4 = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 5
@@ -2912,7 +2914,7 @@ arch_eyeriss_zigzag_salsa_mb5 = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 6
@@ -2981,7 +2983,7 @@ arch_eyeriss_zigzag_salsa_mb6 = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 
 # >>> SIMBA <<<
@@ -3068,7 +3070,7 @@ arch_simba_zigzag_loma_kqv = Arch([
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: bert large VScores
@@ -3152,7 +3154,7 @@ arch_simba_zigzag_loma_vscores = Arch([
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: bert large KTQ
@@ -3236,7 +3238,7 @@ arch_simba_zigzag_loma_ktq = Arch([
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: bert large FF1
@@ -3320,7 +3322,7 @@ arch_simba_zigzag_loma_ff1 = Arch([
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 1
@@ -3404,7 +3406,7 @@ arch_simba_zigzag_loma_mb1 = Arch([
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 2
@@ -3488,7 +3490,7 @@ arch_simba_zigzag_loma_mb2 = Arch([
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 3
@@ -3572,7 +3574,7 @@ arch_simba_zigzag_loma_mb3 = Arch([
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 4
@@ -3656,7 +3658,7 @@ arch_simba_zigzag_loma_mb4 = Arch([
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 5
@@ -3740,7 +3742,7 @@ arch_simba_zigzag_loma_mb5 = Arch([
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 6
@@ -3824,7 +3826,7 @@ arch_simba_zigzag_loma_mb6 = Arch([
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: bert large KQV
@@ -3917,7 +3919,7 @@ arch_simba_zigzag_salsa_kqv = Arch([
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: bert large KTQ
@@ -4010,7 +4012,7 @@ arch_simba_zigzag_salsa_ktq = Arch([
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: bert large VScores
@@ -4103,7 +4105,7 @@ arch_simba_zigzag_salsa_vscores = Arch([
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: bert large FF1
@@ -4196,7 +4198,7 @@ arch_simba_zigzag_salsa_ff1 = Arch([
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 1
@@ -4289,7 +4291,7 @@ arch_simba_zigzag_salsa_mb1 = Arch([
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 2
@@ -4382,7 +4384,7 @@ arch_simba_zigzag_salsa_mb2 = Arch([
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 3
@@ -4466,7 +4468,7 @@ arch_simba_zigzag_salsa_mb3 = Arch([
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 4
@@ -4559,7 +4561,7 @@ arch_simba_zigzag_salsa_mb4 = Arch([
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 5
@@ -4643,7 +4645,7 @@ arch_simba_zigzag_salsa_mb5 = Arch([
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 6
@@ -4727,7 +4729,7 @@ arch_simba_zigzag_salsa_mb6 = Arch([
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 
 # >>> TPU <<<
@@ -4810,7 +4812,7 @@ arch_tpu_zigzag_loma_kqv = Arch([
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: bert large KTQ
@@ -4890,7 +4892,7 @@ arch_tpu_zigzag_loma_ktq = Arch([
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: bert large VScores
@@ -4970,7 +4972,7 @@ arch_tpu_zigzag_loma_vscores = Arch([
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: bert large FF1
@@ -5050,7 +5052,7 @@ arch_tpu_zigzag_loma_ff1 = Arch([
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 1
@@ -5130,7 +5132,7 @@ arch_tpu_zigzag_loma_mb1 = Arch([
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 2
@@ -5210,7 +5212,7 @@ arch_tpu_zigzag_loma_mb2 = Arch([
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 3
@@ -5290,7 +5292,7 @@ arch_tpu_zigzag_loma_mb3 = Arch([
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 4
@@ -5370,7 +5372,7 @@ arch_tpu_zigzag_loma_mb4 = Arch([
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 5
@@ -5450,7 +5452,7 @@ arch_tpu_zigzag_loma_mb5 = Arch([
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH LOMA:
 # Comp: MAESTRO-BLAS 6
@@ -5530,7 +5532,7 @@ arch_tpu_zigzag_loma_mb6 = Arch([
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: bert large KQV
@@ -5610,7 +5612,7 @@ arch_tpu_zigzag_salsa_kqv = Arch([
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: bert large KTQ
@@ -5690,7 +5692,7 @@ arch_tpu_zigzag_salsa_ktq = Arch([
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: bert large VScores
@@ -5770,7 +5772,7 @@ arch_tpu_zigzag_salsa_vscores = Arch([
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: bert large FF1
@@ -5850,7 +5852,7 @@ arch_tpu_zigzag_salsa_ff1 = Arch([
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 1
@@ -5930,7 +5932,7 @@ arch_tpu_zigzag_salsa_mb1 = Arch([
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 2
@@ -6010,7 +6012,7 @@ arch_tpu_zigzag_salsa_mb2 = Arch([
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 3
@@ -6090,7 +6092,7 @@ arch_tpu_zigzag_salsa_mb3 = Arch([
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 4
@@ -6170,7 +6172,7 @@ arch_tpu_zigzag_salsa_mb4 = Arch([
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 5
@@ -6250,7 +6252,7 @@ arch_tpu_zigzag_salsa_mb5 = Arch([
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)
 
 # SOLUTION GIVEN BY ZigZag WITH SALSA:
 # Comp: MAESTRO-BLAS 6
@@ -6330,4 +6332,4 @@ arch_tpu_zigzag_salsa_mb6 = Arch([
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )])
+    )], coupling=gemm_coupling)

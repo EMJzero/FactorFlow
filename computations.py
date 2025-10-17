@@ -1,4 +1,47 @@
-from factors import Shape
+from factors import Shape, Coupling
+
+# DIMENSIONS and COUPLING for GEMMS:
+# M: Weight/Out rows
+# K: Inner dimension, Weight cols/In rows
+# N: In/Out cols
+# ==> MAC: Out[m][n] += W[m][k] * In[k][n]
+gemm_coupling = Coupling(['M', 'K', 'N'], ['K', 'N'], ['M', 'K'], ['M', 'N'])
+
+# DIMENSIONS and COUPLING for CONVOLUTIONS:
+# M: Filter num/Out depth
+# P: Out height
+# Q: Out width
+# C: Filter/Input depth
+# R: Filter height
+# S: Filter width
+# => P+R-1: Input height
+# => Q+S-1: Input width
+# ==> MAC: Out[m][p][q] += W[m][c][r][s] * In[c][p+r][q+s]
+conv_coupling = Coupling(['M', 'P', 'Q', 'C', 'R', 'S'], ['C', ['P', 'R'], ['Q', 'S']], ['M', 'C', 'R', 'S'], ['M', 'P', 'Q'])
+# WITH STRIDE the indexing becomes:
+# => Pstride*P+Rdilation*R-1: Input height
+# => Qstride*Q+Sdilation*S-1: Input width
+# ==> MAC: Out[m][p][q] += W[m][c][r][s] * In[c][p*Pstride+r*Rdilation][q*Qstride+s*Sdilation]
+conv_coupling_with_stride = Coupling(['M', 'P', 'Q', 'C', 'R', 'S'], ['C', ['P', 'R'], ['Q', 'S']], ['M', 'C', 'R', 'S'], ['M', 'P', 'Q'], in_strides = {'P': 'Pstride', 'R': 'Rdilation', 'Q': 'Qstride', 'S': 'Sdilation'})
+# WITH BATCHES too we get:
+# N: Batch size
+# ==> MAC: Out[n][m][p][q] += W[m][c][r][s] * In[n][c][p*Pstride+r*Rdilation][q*Qstride+s*Sdilation]
+conv_coupling_with_stride_and_batches = Coupling(['N', 'M', 'P', 'Q', 'C', 'R', 'S'], ['N', 'C', ['P', 'R'], ['Q', 'S']], ['M', 'C', 'R', 'S'], ['N', 'M', 'P', 'Q'], in_strides = {'P': 'Pstride', 'R': 'Rdilation', 'Q': 'Qstride', 'S': 'Sdilation'})
+# In a TRANSPOSED CONVOLUTION DIMENSIONS become:
+# P: Input height
+# Q: Input width
+# => P+R-1: Out height
+# => Q+S-1: Out width
+# ==> MAC: Out[m][p+r][q+s] += W[m][c][r][s] * In[c][p][q] (stride and dilation omitted for clarity)
+transposed_conv_coupling = Coupling(['M', 'P', 'Q', 'C', 'R', 'S'], ['C', 'P', 'Q'], ['M', 'C', 'R', 'S'], ['M', ['P', 'R'], ['Q', 'S']], out_strides = {'P': 'Pstride', 'R': 'Rdilation', 'Q': 'Qstride', 'S': 'Sdilation'})
+# WITH BATCHES too we get:
+# N: Batch size
+# ==> MAC: Out[n][m][p+r][q+s] += W[m][c][r][s] * In[n][c][p][q] (stride and dilation omitted for clarity)
+transposed_conv_coupling_with_batches = Coupling(['N', 'M', 'P', 'Q', 'C', 'R', 'S'], ['N', 'C', 'P', 'Q'], ['M', 'C', 'R', 'S'], ['N', 'M', ['P', 'R'], ['Q', 'S']], out_strides = {'P': 'Pstride', 'R': 'Rdilation', 'Q': 'Qstride', 'S': 'Sdilation'})
+
+# NOTE: each comp must be strictly compatible with its coupling, that is, it must assign a value to each of the coupling's dimensions.
+#       Then, the comp's coupling may happen to be a subcoupling of the one used to define the current architecture.
+
 
 """
 Generates computation instances for each GEMM of a BERT Transformer
@@ -96,4 +139,93 @@ comp_maestro_blas = {
         K = 256,
         N = 256
     )
+}
+
+"""
+Convolutions from the layers of VGG16. See:
+"Very Deep Convolutional Networks for Large-Scale Image Recognition"
+"""
+comp_vgg_16 = {
+    'L0': Shape(C = 3, M = 64, P = 224, Q = 224, R = 3, S = 3),
+    'L1': Shape(C = 64, M = 64, P = 224, Q = 224, R = 3, S = 3),
+    'L2': Shape(C = 64, M = 128, P = 112, Q = 112, R = 3, S = 3),
+    'L3': Shape(C = 128, M = 128, P = 112, Q = 112, R = 3, S = 3),
+    'L4': Shape(C = 128, M = 256, P = 56, Q = 56, R = 3, S = 3),
+    'L5': Shape(C = 256, M = 256, P = 56, Q = 56, R = 3, S = 3),
+    #'L6': Shape(C = 256, M = 256, P = 56, Q = 56, R = 3, S = 3),
+    'L7': Shape(C = 256, M = 512, P = 28, Q = 28, R = 3, S = 3),
+    'L8': Shape(C = 512, M = 512, P = 28, Q = 28, R = 3, S = 3),
+    #'L9': Shape(C = 512, M = 512, P = 28, Q = 28, R = 3, S = 3),
+    'L10': Shape(C = 512, M = 512, P = 14, Q = 14, R = 3, S = 3),
+    #'L11': Shape(C = 512, M = 512, P = 14, Q = 14, R = 3, S = 3),
+    #'L12': Shape(C = 512, M = 512, P = 14, Q = 14, R = 3, S = 3),
+    'L13': Shape(C = 25088, M = 4096, P = 1, Q = 1, R = 1, S = 1), # fully connected
+    'L14': Shape(C = 4096, M = 4096, P = 1, Q = 1, R = 1, S = 1), # fully connected
+    'L15': Shape(C = 4096, M = 1000, P = 1, Q = 1, R = 1, S = 1), # fully connected
+    'L3+': Shape(C = 128, M = 128, P = 112, Q = 112, R = 9, S = 9) # large filter experiment
+}
+
+"""
+Convolutions from the layers of ResNet18.
+"""
+comp_resnet_18 = {
+    'L0': Shape(C = 3, M = 64, P = 112, Q = 112, R = 7, S = 7, Pstride = 2, Qstride = 2, Rdilation = 1, Sdilation = 1),
+    'L1': Shape(C = 64, M = 64, P = 56, Q = 56, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
+    #'L2': Shape(C = 64, M = 64, P = 56, Q = 56, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
+    #'L3': Shape(C = 64, M = 64, P = 56, Q = 56, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
+    #'L4': Shape(C = 64, M = 64, P = 56, Q = 56, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
+    'L5': Shape(C = 64, M = 128, P = 28, Q = 28, R = 3, S = 3, Pstride = 2, Qstride = 2, Rdilation = 1, Sdilation = 1),
+    'L6': Shape(C = 128, M = 128, P = 28, Q = 28, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
+    'L7': Shape(C = 64, M = 128, P = 28, Q = 28, R = 1, S = 1, Pstride = 2, Qstride = 2, Rdilation = 1, Sdilation = 1), # point-wise
+    #'L8': Shape(C = 128, M = 128, P = 28, Q = 28, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
+    #'L9': Shape(C = 128, M = 128, P = 28, Q = 28, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
+    'L10': Shape(C = 128, M = 128, P = 14, Q = 14, R = 3, S = 3, Pstride = 2, Qstride = 2, Rdilation = 1, Sdilation = 1),
+    'L11': Shape(C = 256, M = 256, P = 14, Q = 14, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
+    'L12': Shape(C = 128, M = 256, P = 14, Q = 14, R = 1, S = 1, Pstride = 2, Qstride = 2, Rdilation = 1, Sdilation = 1), # point-wise
+    #'L13': Shape(C = 256, M = 256, P = 14, Q = 14, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
+    #'L14': Shape(C = 256, M = 256, P = 14, Q = 14, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
+    'L15': Shape(C = 256, M = 512, P = 7, Q = 7, R = 3, S = 3, Pstride = 2, Qstride = 2, Rdilation = 1, Sdilation = 1),
+    'L16': Shape(C = 512, M = 512, P = 7, Q = 7, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
+    'L17': Shape(C = 256, M = 512, P = 7, Q = 7, R = 1, S = 1, Pstride = 2, Qstride = 2, Rdilation = 1, Sdilation = 1), # point-wise
+    #'L18': Shape(C = 512, M = 512, P = 7, Q = 7, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
+    #'L19': Shape(C = 512, M = 512, P = 7, Q = 7, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
+    'L20': Shape(C = 512, M = 1000, P = 1, Q = 1, R = 1, S = 1, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1), # fully connected
+    'L1+': Shape(C = 256, M = 256, P = 56, Q = 56, R = 3, S = 3, Pstride = 2, Qstride = 2, Rdilation = 3, Sdilation = 3), # 2D dilation experiment
+    'L3+': Shape(C = 128, M = 128, P = 112, Q = 112, R = 9, S = 9, Pstride = 1, Qstride = 4, Rdilation = 1, Sdilation = 3) # 1D dilation experiment
+}
+
+"""
+Convolutions chosen as benchmark for the tool.
+"""
+benchmark_convs = {
+    # VGG16
+    'I': Shape(C = 128, M = 256, P = 56, Q = 56, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
+    'II': Shape(C = 512, M = 512, P = 28, Q = 28, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
+    # ResNet18 and 50
+    'III': Shape(C = 3, M = 64, P = 112, Q = 112, R = 7, S = 7, Pstride = 2, Qstride = 2, Rdilation = 1, Sdilation = 1),
+    'IV': Shape(C = 64, M = 64, P = 56, Q = 56, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
+    'V': Shape(C = 128, M = 128, P = 28, Q = 28, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
+    'VI': Shape(C = 256, M = 256, P = 14, Q = 14, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
+    'VII': Shape(C = 256, M = 512, P = 7, Q = 7, R = 3, S = 3, Pstride = 2, Qstride = 2, Rdilation = 1, Sdilation = 1),
+    'VIII': Shape(C = 64, M = 256, P = 56, Q = 56, R = 1, S = 1, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1), # point-wise
+    # MobileNetV3
+    'IX': Shape(C = 3, M = 96, P = 176, Q = 176, R = 3, S = 3, Pstride = 2, Qstride = 2, Rdilation = 1, Sdilation = 1),
+    'X': Shape(C = 72, M = 72, P = 28, Q = 28, R = 3, S = 3, Pstride = 2, Qstride = 2, Rdilation = 1, Sdilation = 1),
+    'XI': Shape(C = 576, M = 576, P = 7, Q = 7, R = 5, S = 5, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
+    'XII': Shape(C = 24, M = 88, P = 28, Q = 28, R = 1, S = 1, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1), # point-wise
+    # Strides and Dilation
+    'XIII': Shape(C = 16, M = 16, P = 224, Q = 224, R = 3, S = 3, Pstride = 3, Qstride = 3, Rdilation = 4, Sdilation = 4),
+    'XIV': Shape(C = 128, M = 128, P = 112, Q = 112, R = 9, S = 9, Pstride = 4, Qstride = 4, Rdilation = 3, Sdilation = 3),
+    'XV': Shape(C = 256, M = 256, P = 56, Q = 56, R = 3, S = 3, Pstride = 2, Qstride = 2, Rdilation = 3, Sdilation = 3)
+}
+benchmark_convs_transposed = {
+    # Transposed convs
+    'XVI': Shape(C = 128, M = 256, P = 32, Q = 32, R = 4, S = 4, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
+    'XVII': Shape(C = 576, M = 576, P = 7, Q = 7, R = 5, S = 5, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1)
+}
+benchmark_convs_batched = {
+    # Batched convs
+    'XVIII': Shape(N = 64, C = 256, M = 256, P = 14, Q = 14, R = 3, S = 3, Pstride = 1, Qstride = 1, Rdilation = 1, Sdilation = 1),
+    'XIX': Shape(N = 128, C = 72, M = 72, P = 28, Q = 28, R = 3, S = 3, Pstride = 2, Qstride = 2, Rdilation = 1, Sdilation = 1),
+    'XX': Shape(N = 32, C = 256, M = 256, P = 56, Q = 56, R = 5, S = 5, Pstride = 2, Qstride = 2, Rdilation = 3, Sdilation = 3)
 }

@@ -1,26 +1,54 @@
-from levels import *
-import os
+class MetaSettings(type):
+    # Prevent instantiation of inheriting classes.
+    def __call__(cls, *args, **kwargs):
+        raise TypeError(f"Instances of {cls.__name__} cannot be created. Use the class directly.")
+    
+    # Print the forceful update INFO message every time a setting is assigned!
+    # If the VERBOSE attribute is present, use it to toggle the print.
+    def __setattr__(cls, name, value):
+        if getattr(cls, name, None) != value and (not hasattr(cls, "VERBOSE") or cls.VERBOSE) and name != "VERBOSE":
+            print(f"INFO: forcefully updating setting {name} to {value}")
+        super().__setattr__(name, value)
 
-class Settings():
+class Settings(metaclass = MetaSettings):
     # If True, enables logging of the MSE process. Note that such prints occur during the timed
     # section of the program, set to False for accurate timing results.
     VERBOSE = True
-
+    
+    # MAPPER SETTINGS:
+    
     # If False, FF only searches for better solutions at a one-factor distance from the current one,
     # if True, FF searches for solutions at a distance of multiple factors, all be it only arity is
     # varied, with the tried factor being just one. (tries different multiplicities)
     ITERATE_AMOUNTS = False
-    # If True, factors allocated on fanout levels will not be optimized (as if they were constraints),
-    # and this is done after factor allocation in the fanouts is maximized.
+    # Same as ITERATE_AMOUNTS, but enables the feature only when optimizing exclusively spatial levels.
+    SPATIAL_ITERATE_AMOUNTS = ITERATE_AMOUNTS or False
+    # If True, factors allocated on spatial levels will not be optimized (as if they were constraints),
+    # and this is done after factor allocation on spatial fanouts is maximized.
     # NOTE: automatically set to False in case of 2 dimensions on the same fanout.
-    FREEZE_SA = True
-    # Number of one-factor steps to try after of which the best choice is picked.
+    FREEZE_SPATIALS = True
+    # Number of one-factor steps to try during local search after of which the best choice is picked.
     # NOTE: automatically raised to (at least) 2 in case of 2 dimensions on the same fanout.
     STEPS_TO_EXPLORE = 1
+    # Number of one-factor steps to try during local search after of which the best choice is picked.
+    # NOTE: for the mappers using this, it applies during the spatial fanouts local search step.
+    # NOTE: automatically raised to (at least) the maximum number of distinct prime factors on a fanout.
+    SPATIAL_STEPS_TO_EXPLORE = 1
+    # Number of one-factor steps to try during local search after of which the best choice is picked.
+    # NOTE: for the mappers using this, it applies during the co-optimization local search step.
+    # NOTE: automatically raised to (at least) 2 in case of 2 dimensions on the same fanout.
+    CO_OPT_STEPS_TO_EXPLORE = 1
+    # Initial number of one-factor steps to try during local search, where it progressively increses
+    # up to STEPS_TO_EXPLORE or CO_OPT_STEPS_TO_EXPLORE depending on the step.
+    INITIAL_STEPS_TO_EXPLORE = 1
     # If True, any recursively explored step after the first one, will only attempt to move factors
     # into the destination level which was the source for the previous move.
     # NOTE: automatically set to True in case of 2 dimensions on the same fanout.
     LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC = False
+    # Same as LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC, but applies only when optimizing spatial levels.
+    SPATIAL_LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC = False
+    # Same as LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC, but applies only when co-optimizing levels.
+    CO_OPT_LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC = False
     # If True, any intermediate step of a multi-step exploration will not need to satisfy architectural
     # constraints, on the condition that the final step will satisfy them.
     # NOTE: can be True iif LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC is True
@@ -35,6 +63,16 @@ class Settings():
     # >>> Setting this to True costs Nx time, where N is the number of rotations of fanout dimensions.
     # >>> Henceforth, usage is suggested when MULTITHREADED is True.
     ONLY_MAXIMIZE_ONE_FANOUT_DIM = True
+    # If True, fanout maximization is replaced with an exploration of spatial fanout levels in three
+    # steps, together with memory levels, within factorFlow's local search.
+    LOCAL_SEARCH_SPATIAL_LEVELS = False
+    # When optimizing spatial levels (and memories are frozen), the Wart is computed with this number
+    # as the exponent on the utilization ratio at the denominator, penalizing sub-utilized mappings.
+    # NOTE: raise this if spatial optimization is underperforming, lower it if it's too greedy.
+    UTIL_EXP_IN_SEARCH_SPATIAL_LEVELS = 10
+    # If True, when memory and spatial levels are being co-optimized, if the source level for a move is
+    # a spatial level, at least one more move is always explored to try to replenish spatial utilization.
+    ONE_MORE_CO_OPT_STEP_IF_SRC_IS_SPATIAL = False
     # If True, saves time by assuming that any permutation differing from an optimal one by the order
     # of dimensions involving one with a single iteration can be optimized starting from where it
     # already is, and thus avoids a complete re-initialization.
@@ -45,66 +83,96 @@ class Settings():
     # it entirely. Setting it to False can slightly improve the best found mapping.
     # NOTE: unless PERM_SKIP is True, this setting is useless.
     HARD_PERM_SKIP = False
+    # If True, the list of permutations to explore on each level is filtered to keep a single permutation
+    # for each set of permutations that could reach the same reuse patterns (hence, those having the same
+    # innermost iterated dimension coupled to each operand and the same dimensions above and below it)
+    DISTINCT_REUSE_OPPORTUNITIES = True
+    # If True, rules are built based on the best selected permutations throughout the exploration,
+    # and these rules are subsequently enforced to prune the remaining permutations, speeding up
+    # the exploration under the assumption that there is some consistency between optimal choices.
+    PERM_PRUNING = False
+    # When PERM_PRUNING is True, the following 3 settings determine the number of times a dimension
+    # needs to (1) have a single iteration, (2) be in a certain relative order with another, and
+    # (3) occupy a specific position in the ordering of the best mapping found for a subset of
+    # permutations, before such occurrance becomes a rule that is enforced to prune later permutations.
+    DIM_AT_1_COUNT_BEFORE_LOCK = 2
+    RELATIVE_ORDER_COUNT_BEFORE_LOCK = 2
+    POSITIONAL_COUNT_BEFORE_LOCK = 2
+    # Determines the number of times the exploration of permutations repeats, restarting from the
+    # outermost level after reaching the innermost one. A value >1 is mean to "refine" previous choices.
+    RIPPLES = 1
+    
+    # MODEL SETTINGS:
+    
     # If True, the Wart will be multiplied by the utilization of the fanouts in the spatial architecture,
     # punishing mappings which underutilize fanouts.
     UTILIZATION_IN_WART = True
     # If True, drain reads will be assumed at zero energy cost for all levels, this is equivalent to
     # assuming that the last write bypasses the target level, going upward, and directly writes in the
-    # above level, thus negating the need for a read to drain.
+    # above level, thus negating the need for a read to drain. As a result, drains also don't contribute
+    # to the final latency and level stalls anymore.
+    # NOTE: setting this to True is required to match Timeloop's results exactly.
     FREE_DRAINS = False
     # If True, GEMM dimensions might get padded to reach the least larger-than-current size which can
     # be allocated to the entirety of a fanout's instances.
     # This is performed as part of the fanout maximization.
-    # NOTE: this is useless unless ONLY_MAXIMIZE_ONE_FANOUT_DIM is True.
-    PADDED_MAPPINGS = ONLY_MAXIMIZE_ONE_FANOUT_DIM and False
-    # If True, any padding applied due to PADDED_MAPPINGS will be logged.
-    # NOTE: this is useless unless PADDED_MAPPINGS is True.
-    VERBOSE_PADDED_MAPPINGS = PADDED_MAPPINGS and False
-
-    # If True, the exploration of permutations done in optimizeDataflows will run across multiple
-    # threads (or better, processes, due to the GIL).
-    MULTITHREADED = True
-    # Number of threads to use if MULTITHREADED is True. If None, it is set to the number of
-    # logical CPUs available on the system.
-    THREADS_COUNT = 8
-    
+    # NOTE: in the 'exponential' mapper, this is useless unless ONLY_MAXIMIZE_ONE_FANOUT_DIM is True.
+    PADDED_MAPPINGS = False
+    # If True, the 'distinct_values' method in 'utils.py' uses an approximated formula to compute the
+    # distinct values which can be produced by a linear combination like 'x_const*x+y_const*y'.
+    # The resulting count, and the following reads/writes counts might thus be overestimated.
+    # When this is False, the computation of 'distinct_values' MAY (depends on strides) become slower.
+    # NOTE: setting this to True is needed to match Timeloop, as it uses the same approximation.
+    OVERESTIMATE_DISTINCT_VALUES = False
     # Path to the folder above Accelergy, for a normal installation in Ubuntu that is usually like:
     # "/home/<username>/.local/lib/python3.X/site-packages/"
     # FactorFlow has been tested with commit 'd1d199e571e621ce11168efe1af2583dec0c2c49' of Accelergy.
     # NOTE: this is NOT required if you have installed Accelergy as a python package and can import it.
     ACCELERGY_PATH = "\\\\wsl.localhost/Ubuntu-22.04/home/zero/.local/lib/python3.10/site-packages"
     
-    """
-    Update settings:
-    - initialize some depeding on runtime information.
-    - set some to best target the provided architecture.
-    """
-    @classmethod
-    def forcedSettingsUpdate(self, arch, verbose : bool = True) -> None:
-        #return
-        for level in arch:
-            if isinstance(level, FanoutLevel) and len(level.dims) >= 2:
-                self.FREEZE_SA = False
-                if verbose: print(f"INFO: forcefully updating setting FREEZE_SA to {self.FREEZE_SA}")
-                self.STEPS_TO_EXPLORE = max(2, self.STEPS_TO_EXPLORE)
-                if verbose: print(f"INFO: forcefully updating setting STEPS_TO_EXPLORE to {self.STEPS_TO_EXPLORE}")
-                self.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC = True
-                if verbose: print(f"INFO: forcefully updating setting LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC to {self.LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC}")
-                self.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP = True
-                if verbose: print(f"INFO: forcefully updating setting NO_CONSTRAINTS_CHECK_DURING_MULTISTEP to {self.NO_CONSTRAINTS_CHECK_DURING_MULTISTEP}")
-                if verbose: print(f"INFO: --> the cause of this is the presence of a Fanout level ({level.name}) with multiple mapped dimensions({level.dims}). Runtime might increase to a few seconds...")
-                break
-        if self.MULTITHREADED:
-            self.THREADS_COUNT = self.THREADS_COUNT if self.THREADS_COUNT else os.cpu_count()
-            if verbose: print(f"INFO: running multithreaded with THREADS_COUNT = {self.THREADS_COUNT}")
-        if not self.VERBOSE:
-            if verbose: print(f"INFO: VERBOSE output disabled, wait patiently...")
-        if verbose: print("")
-        
+    # ENGINE SETTINGS:
+    
+    # The mapper to import as part of the map-space exploration engine. Alternative mappers can
+    # be found in the folder "./mappers", use the name of the python file for this setting.
+    MAPPER = "breadthfirst_local"
+    # Which settings apply to which mapper:
+    # Setting                                   |  exponential  |   quadratic   |    linear     |    hybrid     |     local     |
+    # ITERATE_AMOUNTS                           |       o       |       o       |       o       |       o       |       o       |
+    # SPATIAL_ITERATE_AMOUNTS                   |       x       |       x       |       x       |       o       |       o       |
+    # FREEZE_SPATIALS                           |       o       |       x       |       x       |       x       |       x       |
+    # STEPS_TO_EXPLORE                          |       o       |       o       |       o       |       o       |       o       |
+    # SPATIAL_STEPS_TO_EXPLORE                  |       x       |       x       |       x       |       o       |       o       |
+    # CO_OPT_STEPS_TO_EXPLORE                   |       x       |       x       |       x       |       o       |       o       |
+    # INITIAL_STEPS_TO_EXPLORE                  |       x       |       x       |       x       |       o       |       o       |
+    # LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC        |       o       |       o       |       o       |       o       |       o       |
+    # CO_OPT_LIMIT_NEXT_STEP_DST_TO_CURRENT_SRC |       x       |       x       |       x       |       x       |       o       |
+    # NO_CONSTRAINTS_CHECK_DURING_MULTISTEP     |       o       |       o       |       o       |       o       |       o       |
+    # ONLY_MAXIMIZE_ONE_FANOUT_DIM              |       o       |       x       |       x       |       x       |       x       |
+    # LOCAL_SEARCH_SPATIAL_LEVELS               |       x       |       o       |       o       |       o       |       o       |
+    # UTIL_EXP_IN_SEARCH_SPATIAL_LEVELS         |       x       |       x       |       x       |       x       |       o       |
+    # ONE_MORE_CO_OPT_STEP_IF_SRC_IS_SPATIAL    |       x       |       x       |       x       |       x       |       o       |
+    # PERM_SKIP                                 |       o       |       o       |       o       |       o       |       x       |
+    # HARD_PERM_SKIP                            |       o       |       o       |       o       |       o       |       x       |
+    # DISTINCT_REUSE_OPPORTUNITIES              |       o       |       o       |       o       |       o       |       x       |
+    # PERM_PRUNING                              |       o       |       x       |       x       |       o       |       x       |
+    # RIPPLES                                   |       x       |       x       |       o       |       x       |       x       |
+    
+    # If True, the exploration of permutations done in optimizeDataflows will run across multiple
+    # threads (or better, processes, due to the GIL).
+    MULTITHREADED = True
+    # Number of threads to use if MULTITHREADED is True. If None, it is set to the number of
+    # logical CPUs available on the system.
+    THREADS_COUNT = 8
+    # Timeout for all blocking synchronization methods (e.g. join, wait).
+    TIMEOUT = 0.001
+
+    # flag used to propagate a ctrl+c to all threads
+    forced_termination_flag = False
+
     @classmethod
     def toString(self) -> str:
         res = "Settings("
         for k, v in vars(self).items():
-            if not k.startswith("__"):
-                res += f"{k}={v},"
-        return res[:-1] + ")"
+            if not k.startswith("__") and not callable(getattr(self, k)):
+                res += f"{k}={v}, "
+        return res[:-2] + ")"

@@ -3,6 +3,8 @@
 from itertools import combinations, product, groupby
 from prettytable import PrettyTable
 from functools import reduce
+from typing import Iterator, Any
+from types import FrameType
 import signal
 import random
 import time
@@ -21,7 +23,9 @@ try:
     from ..engine import *
     from ..levels import *
     from ..prints import *
+    from ..model import *
     from ..utils import *
+    from ..arch import *
 except:
     sys.path.append("..")
     from architectures.architectures import *
@@ -33,11 +37,13 @@ except:
     from engine import *
     from levels import *
     from prints import *
+    from model import *
     from utils import *
+    from arch import *
 
 in_interactive_mode = False
 
-def signal_handler(sig, frame):
+def signal_handler(signal: int, frame: Optional[FrameType]) -> None:
     global in_interactive_mode
     if in_interactive_mode:
         print('EXITING...')
@@ -52,7 +58,7 @@ def signal_handler(sig, frame):
 
 signal.signal(signal.SIGINT, signal_handler)
 
-def args_match_and_remove(flag, with_value = False):
+def args_match_and_remove(flag : str, with_value : bool = False):
     try:
         idx = sys.argv.index(flag)
         sys.argv.pop(idx)
@@ -64,7 +70,7 @@ def args_match_and_remove(flag, with_value = False):
     except:
         return False
 
-def parse_options():
+def parse_options() -> dict[str, Any]:
     options = {
         "help": args_match_and_remove("-h") or args_match_and_remove("--help"),
         "max_tries": args_match_and_remove("-mt", True) or args_match_and_remove("--max_tries", True),
@@ -115,8 +121,6 @@ def randomFactorsInitializations(arch, comp):
     initFactors(arch, comp)
     enforceFactorsConstraints(arch)
     setupBypasses(arch)
-    updateInstances(arch)
-    
     mems = list(filter(lambda l : isinstance(l, MemLevel), arch))
     random_disjoint_primes_lists = disjoint_partitions(primeFactorsList(arch[0].factors.dimProduct('M')), primeFactorsList(arch[0].factors.dimProduct('M')), primeFactorsList(arch[0].factors.dimProduct('M')), len(mems))
     
@@ -132,11 +136,9 @@ def randomFactorsInitializations(arch, comp):
 """
 
 # Random-ish but faster
-def randomFactorsInitializationsFast(arch, comp, random_moves = 10):
+def randomFactorsInitializationsFast(arch : Arch, comp : Shape, random_moves : int = 10) -> Iterator[Arch]:
     arch.initFactors(comp)
     arch.enforceFactorsConstraints()
-    arch.setupBypasses()
-    arch.updateInstances()
     
     mems = list(filter(lambda l : isinstance(l, MemLevel), arch))
     factors = reduce(lambda l, a : l + a, [[(dim, f) for f in mems[0].factors.toList(dim)] for dim in ['M', 'K', 'N']], [])
@@ -167,11 +169,9 @@ def randomFactorsInitializationsFast(arch, comp, random_moves = 10):
                 return
 
 # Truly random, but slower
-def randomFactorsInitializationsSlow(arch, comp, random_moves = 10):
+def randomFactorsInitializationsSlow(arch : Arch, comp : Shape, random_moves : int = 10) -> Iterator[Arch]:
     arch.initFactors(comp)
     arch.enforceFactorsConstraints()
-    arch.setupBypasses()
-    arch.updateInstances()
     
     def randomMoves(arch, n):
         mems = list(filter(lambda l : isinstance(l, MemLevel), arch))
@@ -224,7 +224,7 @@ if __name__ == "__main__":
         print("-sic, --store_init_conds\tIf given, the initial random starting points are also stored and displayed at the end.")
         print("-ac, --all_comps\t\tTries all computations for the specified arch, and summarizes results in a table.")
         print("-pi. --print_interval <secs>\tSets to <secs> the seconds between progress updates are printed. Default is 5 s.")
-        sys.exit(1)
+        sys.exit(0)
 
     MAX_TRIES = int(options["max_tries"]) if options["max_tries"] else MAX_TRIES
     DUPLICATES_TO_STOP = MAX_TRIES*10
@@ -292,7 +292,7 @@ if __name__ == "__main__":
         #if not isinstance(arch[level_idx], ComputeLevel):
         arch[level_idx].factors_constraints = base_arch[level_idx].factors_constraints
     #Here changing settings is fine, there are no processes
-    Settings.forcedSettingsUpdate(arch, False)
+    forcedSettingsUpdate(arch, False)
     
     last_print_time = time.monotonic()
     
@@ -314,9 +314,9 @@ if __name__ == "__main__":
         print(f"Starting optimization of {MAX_TRIES} different starting points:")
         for current_arch in random_archs:
             try:
-                assert not current_arch.findConstraintsViolation(False)
+                assert current_arch.checkFactorsConstraints()
                 if STORE_INITIAL_CONDITIONS: initial_conditions.append(factorsString(current_arch))
-                current_arch, wart = factorFlow(current_arch, comp, bias_read, already_initialized = True)
+                current_arch, wart, _= factorFlow(current_arch, comp, bias_read)
                 edp = EDP(current_arch, bias_read, True)
             except AssertionError:
                 continue
@@ -333,7 +333,7 @@ if __name__ == "__main__":
         
         if not options["all_comps"]:
             print(f"FF INIT: {factorsString(arch)}")
-            arch, factorflow_wart = factorFlow(arch, comp, bias_read)
+            arch, factorflow_wart, _ = factorFlow(arch, comp, bias_read)
             print(f"FF FINAL: {factorsString(arch)}")
             factorflow_edp = EDP(arch, bias_read, True)
             
@@ -360,7 +360,7 @@ if __name__ == "__main__":
             arch_ff = copy.deepcopy(arch)
             if not arch_ff.fitConstraintsToComp(comp, comp_name):
                 continue
-            arch_ff, factorflow_wart = factorFlow(arch_ff, comp, bias_read)
+            arch_ff, factorflow_wart, _ = factorFlow(arch_ff, comp, bias_read)
             factorflow_edp = EDP(arch_ff, bias_read, True)
             table.add_row([comp_name, arch_name.title(), f"{factorflow_edp:.3e}", f"{min(edps):.3e}", f"{max(edps):.3e}", f"{sum(edps)/len(edps):.3e}"])
     if options["all_comps"]:

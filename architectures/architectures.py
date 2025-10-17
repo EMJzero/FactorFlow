@@ -1,7 +1,8 @@
+from computations import gemm_coupling, conv_coupling, conv_coupling_with_stride, conv_coupling_with_stride_and_batches
 from levels import *
 from arch import *
 
-# DATAFLOWS (outer to inner):
+# DATAFLOWS (outer to inner) (GEMMs only):
 WS = ['M', 'K', 'N']
 OS = ['M', 'N', 'K']
 IS = ['K', 'N', 'M']
@@ -35,7 +36,7 @@ arch_gemmini = Arch([
         mesh = 16,
         # pe_to_pe should be used, since Gemmini uses a systolic array, but Timeloop
         # does not have this feature, so for sake of comparison, it is turned off
-        #pe_to_pe = True, 
+        #pe_to_pe = True,
         factors_constraints = {'M': 16}
     ),
     MemLevel(
@@ -53,7 +54,7 @@ arch_gemmini = Arch([
         mesh = 16,
         # pe_to_pe should be used, since Gemmini uses a systolic array, but Timeloop
         # does not have this feature, so for sake of comparison, it is turned off
-        #pe_to_pe = True, 
+        #pe_to_pe = True,
         factors_constraints = {'K': 16}
     ),
     MemLevel(
@@ -72,16 +73,12 @@ arch_gemmini = Arch([
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )], name="Gemmini")
+    )], coupling=gemm_coupling, name="Gemmini")
 
-
-# >>> TRUE GEMMINI <<<
-# TODO: UPDATE ME OR REMOVE ME!
-
-arch_true_gemmini = Arch([
+arch_gemmini_conv = Arch([
     MemLevel(
         name = "DRAM",
-        dataflow_constraints = [], #['N', 'K', 'M'],
+        dataflow_constraints = [],
         size = 2**64-1, # number of entries
         value_access_energy = 64.00, # per operand/scalar access (pJ)
         bandwidth = 8, # operands per cycle (shared)
@@ -90,7 +87,7 @@ arch_true_gemmini = Arch([
     ),
     MemLevel(
         name = "Scratchpad",
-        dataflow_constraints = [], #WS,
+        dataflow_constraints = [],
         size = 512*(2**10), # number of entries
         value_access_energy = 3.47, # per operand (pJ)
         bandwidth = 32, # operands per cycle (shared)
@@ -99,44 +96,46 @@ arch_true_gemmini = Arch([
     ),
     FanoutLevel(
         name = "SARows",
-        dim = WS[0],
+        dim = 'M',
         mesh = 16,
-        pe_to_pe = True, 
-        factors_constraints = {'M': 16}
+        # pe_to_pe should be used, since Gemmini uses a systolic array, but Timeloop
+        # does not have this feature, so for sake of comparison, it is turned off
+        #pe_to_pe = True,
+        factors_constraints = {}
     ),
     MemLevel(
         name = "Accumulator",
-        dataflow_constraints = [], #WS,
-        size = (256//4)*(2**10)//16, # number of entries (PER ONE INSTANCE!!) (remeber to account for operand size)
+        dataflow_constraints = [],
+        size = (256//4)*(2**10)//16, # number of entries (PER ONE INSTANCE!!) (remember to account for operand size)
         value_access_energy = 4.01, # per operand (pJ)
         bandwidth = 8, # operands per cycle (shared)
-        factors_constraints = {'M': 1, 'K': 1, 'N': 16}, # the systolic array does a 16x16 matmul in this case
+        factors_constraints = {'M': 1, 'R': 1, 'S': 1}, # the systolic array does a 16x16 matmul in this case
         bypasses = ['in', 'w']
     ),
     FanoutLevel(
         name = "SACols",
-        dim = WS[1],
+        dim = 'C',
         mesh = 16,
-        pe_to_pe = True, 
-        factors_constraints = {'K': 16}
+        # pe_to_pe should be used, since Gemmini uses a systolic array, but Timeloop
+        # does not have this feature, so for sake of comparison, it is turned off
+        #pe_to_pe = True,
+        factors_constraints = {}
     ),
     MemLevel(
         name = "Register",
-        dataflow_constraints = WS,
+        dataflow_constraints = ['M', 'Q', 'C', 'R', 'S', 'P'],
         size = 1, # number of entries
         value_access_energy = 0.01, # per operand (pJ)
         bandwidth = 2, # operands per cycle (shared)
-        factors_constraints = {'M': 1, 'K': 1, 'N': 1},
+        factors_constraints = {'M': 1, 'Q': 1, 'C': 1, 'R': 1, 'S': 1},
         bypasses = ['in', 'out']
     ),
     ComputeLevel(
         name = "Compute",
-        dim = WS[2],
         mesh = 1,
         compute_energy = 0.28, # per compute (pJ)
         cycles = 1,
-        factors_constraints = {'N': 1}
-    )], name="True Gemmini")
+    )], coupling=conv_coupling_with_stride_and_batches, name="Gemmini (conv)")
 
 
 # >>> EYERISS <<<
@@ -210,7 +209,72 @@ arch_eyeriss = Arch([
         compute_energy = 0.21, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )], name="Eyeriss")
+    )], coupling=gemm_coupling, name="Eyeriss")
+
+arch_eyeriss_conv = Arch([
+    MemLevel(
+        name = "DRAM",
+        dataflow_constraints = [],
+        size = 2**64-1, # number of entries
+        value_access_energy = 64.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_constraints = {},
+        bypasses = []
+    ),
+    MemLevel(
+        name = "GlobalBuffer",
+        dataflow_constraints = [],
+        size = 16384*8, # number of entries
+        value_access_energy = 2.02, # per operand (pJ)
+        bandwidth = 32, # operands per cycle (shared)
+        factors_constraints = {},
+        bypasses = ['w']
+    ),
+    FanoutLevel(
+        name = "SACols",
+        mesh = 14,
+        dims = ['Q', 'M'],
+        factors_constraints = {}
+    ),
+    FanoutLevel(
+        name = "SARows",
+        mesh = 12,
+        dims = ['S', 'C', 'M'],
+        factors_constraints = {}
+    ),
+    MemLevel(
+        name = "InRegister",
+        dataflow_constraints = ['S', 'R', 'Q', 'P', 'C', 'M'],
+        size = 12*2, # number of entries
+        value_access_energy = 0.69, # per operand (pJ)
+        bandwidth = 4, # operands per cycle (shared)
+        factors_constraints = {'M': 1, 'C': 1, 'P': 1, 'Q': 1, 'R': 1, 'S': 1},
+        bypasses = ['w', 'out']
+    ),
+    MemLevel(
+        name = "WRegister",
+        dataflow_constraints = ['R', 'C', 'S', 'Q', 'P', 'M'],
+        size = 192*2, # number of entries
+        value_access_energy = 1.97, # per operand (pJ)
+        bandwidth = 4, # operands per cycle (shared)
+        factors_constraints = {'M': 1, 'P': 1, 'Q': 1, 'S': 1},
+        bypasses = ['in', 'out']
+    ),
+    MemLevel(
+        name = "OutRegister",
+        dataflow_constraints = ['M', 'S', 'R', 'Q', 'P', 'C'],
+        size = 16*2, # number of entries
+        value_access_energy = 1.34, # per operand (pJ)
+        bandwidth = 4, # operands per cycle (shared)
+        factors_constraints = {'C': 1, 'P': 1, 'Q': 1, 'R': 1, 'S': 1},
+        bypasses = ['in', 'w']
+    ),
+    ComputeLevel(
+        name = "Compute",
+        mesh = 1,
+        compute_energy = 0.21, # per compute (pJ)
+        cycles = 1,
+    )], coupling=conv_coupling_with_stride_and_batches, name="Eyeriss (conv)")
 
 
 # >>> SIMBA <<<
@@ -247,8 +311,8 @@ arch_simba = Arch([
     MemLevel(
         name = "PEInputBuffer",
         dataflow_constraints = [],
-        size = 65536, # number of entries
-        value_access_energy = 30.26, # per operand (pJ)
+        size = 8192, # number of entries # was 65536
+        value_access_energy = 3.85, # per operand (pJ)
         bandwidth = 2**10, # operands per cycle (shared)
         factors_constraints = {},
         bypasses = ['w', 'out']
@@ -271,8 +335,8 @@ arch_simba = Arch([
     MemLevel(
         name = "PEAccuBuffer",
         dataflow_constraints = [],
-        size = 128, # number of entries
-        value_access_energy = 3.93, # per operand (pJ)
+        size = 1024, # number of entries # was 128
+        value_access_energy = 30.35, # per operand (pJ)
         bandwidth = 2**10, # operands per cycle (shared)
         factors_constraints = {},
         bypasses = ['in', 'w']
@@ -299,7 +363,87 @@ arch_simba = Arch([
         compute_energy = 0.32, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )], name="Simba")
+    )], coupling=gemm_coupling, name="Simba")
+
+arch_simba_conv = Arch([
+    MemLevel(
+        name = "DRAM",
+        dataflow_constraints = [],
+        size = 2**64-1, # number of entries
+        value_access_energy = 64.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_constraints = {},
+        bypasses = []
+    ),
+    MemLevel(
+        name = "GlobalBuffer",
+        dataflow_constraints = [], #WS,
+        size = 65536, # number of entries
+        value_access_energy = 1.85, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_constraints = {},
+        bypasses = ['w']
+    ),
+    FanoutLevel(
+        name = "PEs",
+        mesh = 16,
+        dims = ['M', 'C'],
+        factors_constraints = {}
+    ),
+    MemLevel(
+        name = "PEInputBuffer",
+        dataflow_constraints = [],
+        size = 8192, # number of entries # was 65536
+        value_access_energy = 3.85, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_constraints = {},
+        bypasses = ['w', 'out']
+    ),
+    FanoutLevel(
+        name = "DistributionBuffers",
+        mesh = 4,
+        dims = ['M'],
+        factors_constraints = {}
+    ),
+    MemLevel(
+        name = "PEWeightBuffer",
+        dataflow_constraints = [],
+        size = 32768, # number of entries
+        value_access_energy = 15.16, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_constraints = {},
+        bypasses = ['in', 'out']
+    ),
+    MemLevel(
+        name = "PEAccuBuffer",
+        dataflow_constraints = [],
+        size = 1024, # number of entries # was 128
+        value_access_energy = 30.35, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_constraints = {},
+        bypasses = ['in', 'w']
+    ),
+    FanoutLevel(
+        name = "RegMac",
+        mesh = 4,
+        dims = ['C'],
+        factors_constraints = {}
+    ),
+    MemLevel(
+        name = "PEWeightRegs",
+        dataflow_constraints = [],
+        size = 1, # number of entries (64 in TL)
+        value_access_energy = 0.70, # per operand (pJ)
+        bandwidth = 2**10, # operands per cycle (shared)
+        factors_constraints = {},
+        bypasses = ['in', 'out']
+    ),
+    ComputeLevel(
+        name = "Compute",
+        mesh = 1,
+        compute_energy = 0.32, # per compute (pJ)
+        cycles = 1,
+    )], coupling=conv_coupling_with_stride_and_batches, name="Simba (conv)")
 
 
 # >>>  TPU  <<<
@@ -353,7 +497,7 @@ arch_tpu = Arch([
         # pe_to_pe should be used, since the TPU uses a systolic array, but Timeloop
         # does not have this feature, so for sake of comparison, it is turned off
         #pe_to_pe = True, 
-        factors_constraints = {'M': 256}
+        factors_constraints = {}
     ),
     MemLevel(
         name = "Accumulator",
@@ -361,7 +505,7 @@ arch_tpu = Arch([
         size = 4096, # number of entries (PER ONE INSTANCE!!) (remember to account for operand size)
         value_access_energy = 3.03, # per operand (pJ)
         bandwidth = 8, # operands per cycle (shared)
-        multiple_buffering = 2,
+        multiple_buffering = 2, # be wary of THIS!!!
         factors_constraints = {},
         bypasses = ['in', 'w']
     ),
@@ -372,7 +516,7 @@ arch_tpu = Arch([
         # pe_to_pe should be used, since the TPU uses a systolic array, but Timeloop
         # does not have this feature, so for sake of comparison, it is turned off
         #pe_to_pe = True, 
-        factors_constraints = {'K': 256}
+        factors_constraints = {}
     ),
     MemLevel(
         name = "Register",
@@ -391,7 +535,91 @@ arch_tpu = Arch([
         compute_energy = 0.15, # per compute (pJ)
         cycles = 1,
         factors_constraints = {'N': 1}
-    )], name="TPUv1")
+    )], coupling=gemm_coupling, name="TPUv1")
+
+arch_tpu_conv = Arch([
+    MemLevel(
+        name = "DRAM",
+        dataflow_constraints = ['M', 'Q', 'C', 'R', 'S', 'P'],
+        size = 8*2**30, # number of entries
+        value_access_energy = 560.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_constraints = {},
+        bypasses = ['w']
+    ),
+    MemLevel(
+        name = "WeightsDRAM",
+        dataflow_constraints = [],
+        size = 8*2**30, # number of entries
+        value_access_energy = 560.00, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_constraints = {},
+        bypasses = ['in', 'out']
+    ),
+    MemLevel(
+        name = "UnifiedBuffer",
+        dataflow_constraints = [],
+        size = 24*(2**20), # number of entries
+        value_access_energy = 19.66, # per operand (pJ)
+        bandwidth = 32, # operands per cycle (shared)
+        factors_constraints = {},
+        # The Unified Buffer also stores outputs after the activation is
+        # performed. Not modeled as we are only interested in the conv.
+        bypasses = ['w', 'out']
+    ),
+    MemLevel(
+        name = "WeightsFIFO",
+        dataflow_constraints = [],
+        size = 4*2**16, # number of entries
+        value_access_energy = 2.11, # per operand/scalar access (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        factors_constraints = {},
+        bypasses = ['in', 'out']
+    ),
+    FanoutLevel(
+        name = "SARows",
+        dim = 'M',
+        mesh = 256,
+        # pe_to_pe should be used, since the TPU uses a systolic array, but Timeloop
+        # does not have this feature, so for sake of comparison, it is turned off
+        #pe_to_pe = True, 
+        factors_constraints = {}
+    ),
+    MemLevel(
+        name = "Accumulator",
+        dataflow_constraints = [],
+        size = 4096, # number of entries (PER ONE INSTANCE!!) (remember to account for operand size)
+        value_access_energy = 3.03, # per operand (pJ)
+        bandwidth = 8, # operands per cycle (shared)
+        multiple_buffering = 2, # be wary of THIS!!!
+        factors_constraints = {}, # output stationary
+        bypasses = ['in', 'w']
+    ),
+    FanoutLevel(
+        name = "SACols",
+        dim = 'C',
+        mesh = 256,
+        # pe_to_pe should be used, since the TPU uses a systolic array, but Timeloop
+        # does not have this feature, so for sake of comparison, it is turned off
+        #pe_to_pe = True, 
+        factors_constraints = {}
+    ),
+    MemLevel(
+        name = "Register",
+        dataflow_constraints = ['M', 'Q', 'C', 'R', 'S', 'P'],
+        size = 2, # number of entries
+        value_access_energy = 0.01, # per operand (pJ)
+        bandwidth = 2, # operands per cycle (shared)
+        multiple_buffering = 2,
+        factors_constraints = {'M': 1, 'Q': 1, 'C': 1, 'R': 1, 'S': 1},
+        bypasses = ['in', 'out']
+    ),
+    ComputeLevel(
+        name = "Compute",
+        mesh = 1,
+        compute_energy = 0.15, # per compute (pJ)
+        cycles = 1,
+    )], coupling=conv_coupling_with_stride_and_batches, name="TPUv1 (conv)")
 
 
 # >>>  NVDLA  <<<

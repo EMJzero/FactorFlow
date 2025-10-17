@@ -1,8 +1,10 @@
-# GOAL: Empirically prove the soundness of starting from all factors on the first level by randomly trying many starting points.
+# GOAL: Empirically show the complexity of the mapping problem by showing the EDP distribution for randomly sampled mappings.
 
 from itertools import combinations, product, groupby
 from prettytable import PrettyTable
 from functools import reduce
+from typing import Iterator, Any
+from types import FrameType
 import signal
 import random
 import time
@@ -21,7 +23,9 @@ try:
     from ..engine import *
     from ..levels import *
     from ..prints import *
+    from ..model import *
     from ..utils import *
+    from ..arch import *
 except:
     sys.path.append("..")
     from architectures.architectures import *
@@ -33,11 +37,13 @@ except:
     from engine import *
     from levels import *
     from prints import *
+    from model import *
     from utils import *
+    from arch import *
 
 in_interactive_mode = False
 
-def signal_handler(sig, frame):
+def signal_handler(signal: int, frame: Optional[FrameType]) -> None:
     global in_interactive_mode
     if in_interactive_mode:
         print('EXITING...')
@@ -52,7 +58,7 @@ def signal_handler(sig, frame):
 
 signal.signal(signal.SIGINT, signal_handler)
 
-def args_match_and_remove(flag, with_value = False):
+def args_match_and_remove(flag : str, with_value : bool = False):
     try:
         idx = sys.argv.index(flag)
         sys.argv.pop(idx)
@@ -64,7 +70,7 @@ def args_match_and_remove(flag, with_value = False):
     except:
         return False
 
-def parse_options():
+def parse_options() -> dict[str, Any]:
     options = {
         "help": args_match_and_remove("-h") or args_match_and_remove("--help"),
         "max_tries": args_match_and_remove("-mt", True) or args_match_and_remove("--max_tries", True),
@@ -76,7 +82,7 @@ def parse_options():
     }
     return options
 
-def randomDataflows(arch):
+def randomDataflows(arch : Arch) -> None:
     for level in arch:
         if isinstance(level, MemLevel):
             level.dataflow = random.sample(interleave(level.dataflow_constraints, [dim for dim in level.dataflow if dim not in level.dataflow_constraints]), 1)[0]
@@ -84,11 +90,9 @@ def randomDataflows(arch):
         #    level.dataflow = random.shuffle(level.dataflow)
 
 # Random-ish but faster
-def randomFactorsInitializationsFast(arch, comp):
+def randomFactorsInitializationsFast(arch : Arch, comp : Shape) -> Iterator[Arch]:
     arch.initFactors(comp)
     arch.enforceFactorsConstraints()
-    arch.setupBypasses()
-    arch.updateInstances()
     
     factors = reduce(lambda l, a : l + a, [[(dim, f) for f in arch[0].factors.toList(dim)] for dim in ['M', 'K', 'N']], [])
     
@@ -120,11 +124,9 @@ def randomFactorsInitializationsFast(arch, comp):
                 return
 
 # Truly random, but slower
-def randomFactorsInitializationsSlow(arch, comp, random_moves = 10):
+def randomFactorsInitializationsSlow(arch : Arch, comp : Shape, random_moves : int = 10) -> Iterator[Arch]:
     arch.initFactors(comp)
     arch.enforceFactorsConstraints()
-    arch.setupBypasses()
-    arch.updateInstances()
     
     def randomMoves(arch, n):
         mems = list(filter(lambda l : isinstance(l, MemLevel), arch))
@@ -179,7 +181,7 @@ if __name__ == "__main__":
         print("-ac, --all_comps\t\tTries all computations for the specified arch, and summarizes results in a table.")
         print("-pa, --print_arrays\t\tPrints all the stored EDP and Wart values. Only works without '-ac'.")
         print("-pi. --print_interval <secs>\tSets to <secs> the seconds between progress updates are printed. Default is 5 s.")
-        sys.exit(1)
+        sys.exit(0)
 
     MAX_TRIES = int(options["max_tries"]) if options["max_tries"] else MAX_TRIES
     DUPLICATES_TO_STOP = MAX_TRIES*10
@@ -223,7 +225,7 @@ if __name__ == "__main__":
         arch = arch_tpu
     
     #Here changing settings is fine, there are no processes
-    Settings.forcedSettingsUpdate(arch, False)
+    forcedSettingsUpdate(arch, False)
     
     last_print_time = time.monotonic()
     
@@ -245,7 +247,7 @@ if __name__ == "__main__":
         print(f"Starting generation of {MAX_TRIES} random mappings:")
         for current_arch in random_archs:
             try:
-                assert not current_arch.findConstraintsViolation(False)
+                assert current_arch.checkFactorsConstraints()
                 if STORE_INITIAL_CONDITIONS: initial_conditions.append(factorsString(current_arch))
                 edp = EDP(current_arch, bias_read, True)
                 wart = Wart(current_arch, comp, bias_read)
